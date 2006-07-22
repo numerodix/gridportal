@@ -1,4 +1,4 @@
-<project name="mdu.publish" default="publish" basedir=".">
+<project name="mdu.dist" default="dist" basedir=".">
 	
 	<property name="version" value="1.1.0"/>
 	
@@ -6,15 +6,15 @@
 	<property name="head" value="src/mdu"/>
 	
 	<property name="srcroot" location="${release}"/>
-	<property name="wwwroot" location="www"/>
+	<property name="distroot" location="dist"/>
 	
-	<property name="pubdir" location="${wwwroot}/files"/>
+	<property name="pubdir" location="${distroot}"/>
 	
 	
 	<target name="init"/>
 	
 	
-	<target name="publish">
+	<target name="dist">
 		<mkdir dir="${pubdir}/tmp/mdu"/>
 		
 		<copy todir="${pubdir}/tmp/mdu">
@@ -26,5 +26,9 @@
 		
 		<delete dir="${pubdir}/tmp"/>
 	</target>
+
+        <target name="distclean">
+                <delete dir="${pubdir}"/>
+        </target>
  
 </project>

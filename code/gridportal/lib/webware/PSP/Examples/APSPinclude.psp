@@ -1,6 +1,0 @@
-
-<%@ page imports="time"%>
-<b>
-<%= time.ctime(time.time()) %>
-</b>
-<hr>

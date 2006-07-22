@@ -1,4 +1,4 @@
-<project name="gridportal.publish" default="publish" basedir=".">
+<project name="gridportal.dist" default="dist" basedir=".">
 	
 	<property name="version" value="0.5.4"/>
 	
@@ -6,34 +6,19 @@
 	<property name="head" value="src/gridportal"/>
 	
 	<property name="srcroot" location="${release}"/>
-	<property name="wwwroot" location="www"/>
+	<property name="distroot" location="dist"/>
 	
 	<property name="doclib" location="lib/webware"/>
 	
-	<property name="pubdir" location="${wwwroot}/files"/>
-	<property name="docdir" location="${wwwroot}/docs/api/html"/>
+	<property name="pubdir" location="${distroot}"/>
+	<property name="docdir" location="${distroot}/docs/api/html"/>
 	
 	
 	
 	<target name="init"/>
 	
 	
-	<target name="doc" depends="init">
-		<delete>
-			<fileset dir="${docdir}" excludes="**/.svn"/>
-		</delete>
-		
-		<javadoc destdir="${docdir}" classpath="${lib}" use="yes" author="true"
-						access="private">
-			<fileset dir="${src}" defaultexcludes="no">
-				<include name="**/*.java"/>
-				<exclude name="**/.svn/**"/>
-			</fileset>
-		</javadoc>
-	</target>
-	
-	
-	<target name="publish">
+	<target name="dist">
 		<mkdir dir="${pubdir}/tmp/gridportal"/>
 		
 		<copy todir="${pubdir}/tmp/gridportal">
@@ -46,4 +31,8 @@
 		<delete dir="${pubdir}/tmp"/>
 	</target>
  
+        <target name="distclean">
+                <delete dir="${pubdir}"/>
+        </target>
+
 </project>

@@ -1,4 +1,4 @@
-<project name="toolkit.publish" default="publish" basedir=".">
+<project name="toolkit.dist" default="dist" basedir=".">
 	
 	<property name="version" value="1.0.1"/>
 	
@@ -6,14 +6,15 @@
 	<property name="head" value="src/gpclient"/>
 	
 	<property name="srcroot" location="${release}"/>
-	<property name="wwwroot" location="www"/>
+	<property name="distroot" location="dist"/>
+	<property name="docroot" location="docs"/>
 	
 	<property name="lib" location="${srcroot}/lib"/>
 	<property name="src" location="${srcroot}/src"/>
 	<property name="dist" location="${srcroot}/dist"/>
 	
-	<property name="pubdir" location="${wwwroot}/files"/>
-	<property name="docdir" location="${wwwroot}/docs/api"/>
+	<property name="pubdir" location="${distroot}"/>
+	<property name="docdir" location="${docroot}/api"/>
 	
 	
 	
@@ -21,10 +22,8 @@
 	
 	
 	<target name="doc" depends="init">
-		<delete>
-			<fileset dir="${docdir}" excludes="**/.svn"/>
-		</delete>
-		
+		<mkdir dir="${docdir}"/>
+
 		<javadoc destdir="${docdir}" classpath="${lib}" use="yes" author="true"
 						access="private">
 			<fileset dir="${src}" defaultexcludes="no">
@@ -33,6 +32,10 @@
 			</fileset>
 		</javadoc>
 	</target>
+
+        <target name="docclean">
+                <delete dir="${docroot}"/>
+        </target>
 	
 	
 	<target name="build" depends="init">
@@ -40,7 +43,7 @@
 	</target>
 	
 	
-	<target name="publish" depends="build">
+	<target name="dist" depends="build">
 		<mkdir dir="${pubdir}/tmp/gptoolkit"/>
 		
 		<copy todir="${pubdir}/tmp/gptoolkit">
@@ -52,5 +55,9 @@
 		
 		<delete dir="${pubdir}/tmp"/>
 	</target>
+
+        <target name="distclean">
+                <delete dir="${pubdir}"/>
+        </target>
  
 </project>

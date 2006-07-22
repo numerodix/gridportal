@@ -1,9 +1,22 @@
 #!/bin/sh
 
+
+### project/package info
+
 PROJECT=grid-portal
+
+SRCPATH=code
+
+MDUPATH=code/mdu
+
+
+### where to install this script
 
 INS_PATH=/usr/local/bin
 INS_EX=gp
+
+
+### sf.net info
 
 SVNURI=https://svn.sourceforge.net/svnroot/$PROJECT
 SVNUSER=numerodix
@@ -11,7 +24,12 @@ SVNUSER=numerodix
 SHELLHOST=shell.sf.net
 SHELLUSER=numerodix
 
+RELUPCMD=ncftpput
+RELHOST=upload.sourceforge.net
+RELPATH=incoming
+
 WEBPATH=/home/groups/g/gr/$PROJECT/htdocs
+
 
 ### do not edit below this line
 
@@ -60,6 +78,8 @@ sh() {
 }
 
 
+### svn functions
+
 svnco() {
 	pathcheck
 	svn co $SVNURI .
@@ -79,11 +99,39 @@ svnci() {
 }
 
 
+### web functions
+
 webup() {
 	pathcheck
 	clean
 	scp * $SHELLUSER@$SHELLHOST:$WEBPATH
 }
+
+
+### per-package build & publish functions
+
+dist() {
+	# usage: gp dist <package>
+	pathcheck
+	cd $SRCPATH/$1
+	ant
+}
+
+
+distclean() {
+        # usage: gp distclean <package>
+        pathcheck
+        cd $SRCPATH/$1
+        ant distclean
+}
+
+
+relup() {
+	# usage: gp relup <package> <release-version>
+	pathcheck
+	$RELUPCMD $RELHOST $RELPATH $SRCPATH/$1/dist/$1-$2*
+}
+
 
 
 $*
