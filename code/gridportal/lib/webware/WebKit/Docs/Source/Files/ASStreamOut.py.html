@@ -1,0 +1,186 @@
+<HTML><HEAD><TITLE>WebKit/ASStreamOut.py</TITLE></HEAD>
+                  <BODY BGCOLOR=#EEEEEE>
+                  <!--header-->
+                  <!--script--><PRE><FONT COLOR=#FF0000>"""
+This module defines a class for handling writing reponses.
+"""</FONT>
+
+<FONT COLOR=black><B>import</B></FONT> string
+<FONT COLOR=black><B>import</B></FONT> exceptions
+<FONT COLOR=black><B>import</B></FONT> types
+
+debug = 0
+
+<FONT COLOR=black><B>class</B></FONT> InvalidCommandSequence(exceptions.Exception):
+    <FONT COLOR=black><B>pass</B></FONT>
+
+<FONT COLOR=black><B>class</B></FONT> ASStreamOut:
+    <FONT COLOR=#FF0000>"""
+    This is a response stream to the client.
+    The key attributes of this class are:
+    
+    autoCommit: if True (1), the stream will automatically start sending data once
+    it has accumulated bufferSize data.  This means that it will ask the response
+    to commit itself, without developer interaction.
+
+    bufferSize: The size of the data buffer.  This is only used when autocommit is true (1).
+    If not using autocommit, the whole response is buffered and sent in one shot when the
+    servlet is done..
+
+    flush(): Send the accumulated response data now. Will ask the Response to commit if
+    it hasn't already done so.
+    """</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> __init__(self):
+        self._autoCommit = 0
+        self._bufferSize = 8192
+        self._committed = 0
+        self._needCommit = 0
+        self._chunks = []
+        self._buffer=<FONT COLOR=#FF0000>''</FONT>
+        self._chunkLen=0
+        self._closed = 0
+
+
+    <FONT COLOR=black><B>def</B></FONT> autoCommit(self, val=0):
+        <FONT COLOR=#FF0000>"""Get/Set the value of autoCommit."""</FONT>
+        <FONT COLOR=black><B>assert</B></FONT> type(val) <FONT COLOR=black><B>is</B></FONT> types.IntType, <FONT COLOR=#FF0000>"autoCommit must be an integer"</FONT>
+        self._autoCommit = val
+        <FONT COLOR=black><B>return</B></FONT> val
+
+    <FONT COLOR=black><B>def</B></FONT> bufferSize(self, size=8192):
+        <FONT COLOR=#FF0000>"""
+        Returns the size of the buffer, and sets a new size if one is
+        provided.
+        """</FONT>
+        <FONT COLOR=black><B>assert</B></FONT> type(size) <FONT COLOR=black><B>is</B></FONT> types.IntType, <FONT COLOR=#FF0000>"bufferSize must be an Integer"</FONT>
+        self._bufferSize=size
+        <FONT COLOR=black><B>return</B></FONT> self._bufferSize
+
+    <FONT COLOR=black><B>def</B></FONT> flush(self):
+        <FONT COLOR=#FF0000>"""
+        Send available data as soon as possible, ie Now
+        Returns 1 if we are ready to send, otherwise 0
+        """</FONT>
+        <FONT COLOR=black><B>assert</B></FONT> <FONT COLOR=black><B>not</B></FONT> self._closed, <FONT COLOR=#FF0000>"Trying to flush when already closed"</FONT>
+        <FONT COLOR=black><B>if</B></FONT> debug: <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>"&gt;&gt;&gt; Flushing ASStreamOut"</FONT>
+        <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> self._committed:
+            <FONT COLOR=black><B>if</B></FONT> self._autoCommit:
+                <FONT COLOR=black><B>if</B></FONT> debug: <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>"ASSTreamOut.flush setting needCommit"</FONT>
+                self._needCommit = 1
+            <FONT COLOR=black><B>return</B></FONT> 0
+        <FONT COLOR=black><B>try</B></FONT>:
+            self._buffer = self._buffer + string.join(self._chunks,<FONT COLOR=#FF0000>''</FONT>)
+        <FONT COLOR=black><B>finally</B></FONT>:
+            self._chunks = []
+            self._chunkLen = 0
+        <FONT COLOR=black><B>return</B></FONT> 1
+
+    <FONT COLOR=black><B>def</B></FONT> buffer(self):
+        <FONT COLOR=#FF0000>"""
+        Return accumulated data which has not yet been
+        flushed.  We want to be able to get at this data
+        without having to call flush first, so that we can
+        (for example) integrate automatic HTML validation.
+        """</FONT>
+        <FONT COLOR=#1111CC># if flush has been called, return what was flushed</FONT>
+        <FONT COLOR=black><B>if</B></FONT> self._buffer:
+            <FONT COLOR=black><B>return</B></FONT> self._buffer
+        <FONT COLOR=#1111CC># otherwise return the buffered chunks </FONT>
+        <FONT COLOR=black><B>else</B></FONT>:
+            <FONT COLOR=black><B>return</B></FONT> string.join(self._chunks,<FONT COLOR=#FF0000>''</FONT>)
+
+    <FONT COLOR=black><B>def</B></FONT> clear(self):
+        <FONT COLOR=#FF0000>"""
+        Try to clear any accumulated response data.  Will fail if the response is already sommitted.
+        """</FONT>
+        <FONT COLOR=black><B>if</B></FONT> debug: <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>"&gt;&gt;&gt; strmOut clear called"</FONT>
+        <FONT COLOR=black><B>if</B></FONT> self._committed: <FONT COLOR=black><B>raise</B></FONT> InvalidCommandSequence()
+        self._buffer = <FONT COLOR=#FF0000>''</FONT>
+        self._chunks = []
+        self._chunkLen=0
+
+    <FONT COLOR=black><B>def</B></FONT> close(self):
+        <FONT COLOR=#FF0000>"""
+        Close this buffer.  No more data may be sent.
+        """</FONT>
+        <FONT COLOR=black><B>if</B></FONT> debug: <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>"&gt;&gt;&gt; ASStream close called"</FONT>
+        self.flush()
+        self._closed = 1
+        self._committed = 1
+        self._autocommit = 1
+
+    <FONT COLOR=black><B>def</B></FONT> closed(self):
+        <FONT COLOR=#FF0000>"""
+        Are we closed to new data?
+        """</FONT>
+        <FONT COLOR=black><B>return</B></FONT> self._closed
+
+    <FONT COLOR=black><B>def</B></FONT> size(self):
+        <FONT COLOR=#FF0000>"""
+        Returns the current size of the data held here
+        """</FONT>
+        <FONT COLOR=black><B>return</B></FONT> self._chunkLen + len(self._buffer)
+
+    <FONT COLOR=black><B>def</B></FONT> prepend(self, charstr):
+        <FONT COLOR=#FF0000>"""
+        Add the attached string to front of the response buffer.
+        Invalid if we are already committed.
+        """</FONT>
+        <FONT COLOR=black><B>if</B></FONT> self.committed() <FONT COLOR=black><B>or</B></FONT> self.closed():
+            <FONT COLOR=black><B>raise</B></FONT> InvalidCommandSequence()
+        <FONT COLOR=black><B>if</B></FONT> self._buffer:
+            self._buffer = charstr + self._buffer
+        <FONT COLOR=black><B>else</B></FONT>:
+            self._chunks.insert(0,charstr)
+            self._chunkLen = self._chunkLen + len(charstr)
+
+    <FONT COLOR=black><B>def</B></FONT> pop(self, count):
+        <FONT COLOR=#FF0000>"""
+        Remove count bytes from the front of the buffer
+        """</FONT>
+        <FONT COLOR=black><B>if</B></FONT> debug: <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>"AStreamOut popping %s"</FONT> % count
+        <FONT COLOR=#1111CC>#should we check for an excessive pop length?</FONT>
+        <FONT COLOR=black><B>assert</B></FONT> count &lt;= len(self._buffer)
+        self._buffer = self._buffer[count:]
+
+    <FONT COLOR=black><B>def</B></FONT> committed(self):
+        <FONT COLOR=#FF0000>"""
+        Are we committed?
+        """</FONT>
+        <FONT COLOR=black><B>return</B></FONT> self._committed
+
+
+    <FONT COLOR=black><B>def</B></FONT> needCommit(self):
+        <FONT COLOR=#FF0000>"""
+        Called by the HTTPResponse instance that is using this instance
+        to ask if the response needs to be prepared to be delivered.
+        The response should then commit it's headers, etc.
+        """</FONT>
+        <FONT COLOR=black><B>return</B></FONT> self._needCommit
+
+    <FONT COLOR=black><B>def</B></FONT> commit(self, autoCommit=1):
+        <FONT COLOR=#FF0000>"""
+        Called by the Response to tell us to go.
+        If autoCommit is 1, then we will be placed into autoCommit mode.
+        """</FONT>
+        <FONT COLOR=black><B>if</B></FONT> debug: <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>"&gt;&gt;&gt; ASStreamOut Committing"</FONT>
+        self._committed = 1
+        self._autoCommit = autoCommit
+        self.flush()
+
+    <FONT COLOR=black><B>def</B></FONT> write(self, charstr):
+        <FONT COLOR=#FF0000>"""
+        Write a string to the buffer.
+        """</FONT>
+        <FONT COLOR=black><B>if</B></FONT> debug: <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>"&gt;&gt;&gt; ASStreamOut writing %s characters"</FONT> % len(charstr)
+        <FONT COLOR=black><B>assert</B></FONT> <FONT COLOR=black><B>not</B></FONT> self._closed, <FONT COLOR=#FF0000>"Stream Already Closed"</FONT>
+        self._chunks.append(charstr)
+        self._chunkLen = self._chunkLen + len(charstr)
+        <FONT COLOR=black><B>if</B></FONT>  self._autoCommit <FONT COLOR=black><B>and</B></FONT> self._chunkLen &gt; self._bufferSize:
+                <FONT COLOR=black><B>if</B></FONT> debug: <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>"&gt;&gt;&gt; ASStreamOut.write flushing"</FONT>
+                self.flush()
+            
+</PRE>
+                  <!--footer-->
+                  </BODY>

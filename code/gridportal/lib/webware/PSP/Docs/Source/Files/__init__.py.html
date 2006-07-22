@@ -1,0 +1,16 @@
+<HTML><HEAD><TITLE>PSP/__init__.py</TITLE></HEAD>
+                  <BODY BGCOLOR=#EEEEEE>
+                  <!--header-->
+                  <!--script--><PRE><FONT COLOR=#1111CC># PSP</FONT>
+<FONT COLOR=#1111CC># Webware for Python</FONT>
+
+<FONT COLOR=black><B>import</B></FONT> os
+<FONT COLOR=black><B>from</B></FONT> PSPServletFactory <FONT COLOR=black><B>import</B></FONT> PSPServletFactory
+
+
+<FONT COLOR=black><B>def</B></FONT> InstallInWebKit(appServer):
+    app = appServer.application()
+    app.addServletFactory(PSPServletFactory(app))
+</PRE>
+                  <!--footer-->
+                  </BODY>

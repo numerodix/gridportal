@@ -1,0 +1,34 @@
+*$Revision: 6.0 $
+************************************************************************
+* Molecule: H2
+* Basis: STO-3G
+* Symmetry: x y
+* SCF: conventional
+*
+ &SEWARD &END
+Title
+H2, STO-3g Basis set
+step 001
+Symmetry
+x y z
+Basis set
+H.STO-3G....
+H1 0.350000000  0.000000000  0.000000000 Angstrom
+End of basis
+End of input
+
+ &SCF &END
+Title
+H2, STO-3g Basis set
+step 001
+
+ITERATIONS
+ 20, 20
+Occupied
+1 0 0 0 0 0 0 0 0
+End of input
+
+ &ALASKA &END
+End of Input
+
+

@@ -1,0 +1,56 @@
+<HTML><HEAD><TITLE>UserKit/RoleUserManagerMixIn.py</TITLE></HEAD>
+                  <BODY BGCOLOR=#EEEEEE>
+                  <!--header-->
+                  <!--script--><PRE><FONT COLOR=black><B>from</B></FONT> RoleUser <FONT COLOR=black><B>import</B></FONT> RoleUser
+<FONT COLOR=black><B>from</B></FONT> Role <FONT COLOR=black><B>import</B></FONT> Role
+<FONT COLOR=black><B>from</B></FONT> MiscUtils <FONT COLOR=black><B>import</B></FONT> NoDefault
+
+
+<FONT COLOR=black><B>class</B></FONT> RoleUserManagerMixIn:
+    <FONT COLOR=#FF0000>"""
+    RoleUserManagerMixIn adds the functionality of keeping a dictionary mapping names to role instances. Several accessor methods are provided for this.
+    """</FONT>
+
+
+    <FONT COLOR=#1111CC>## Init ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> __init__(self):
+        self._roles = {}
+        self.initUserClass()
+
+    <FONT COLOR=black><B>def</B></FONT> initUserClass(self):
+        <FONT COLOR=#FF0000>"""
+        Invoked by __init__ to set the default user class to
+        RoleUser.
+        """</FONT>
+        self.setUserClass(RoleUser)
+
+
+    <FONT COLOR=#1111CC>## Roles ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> addRole(self, role):
+        <FONT COLOR=black><B>assert</B></FONT> isinstance(role, Role)
+        name = role.name()
+        <FONT COLOR=black><B>assert</B></FONT> <FONT COLOR=black><B>not</B></FONT> self._roles.has_key(name)
+        self._roles[name] = role
+
+    <FONT COLOR=black><B>def</B></FONT> role(self, name, default=NoDefault):
+        <FONT COLOR=black><B>if</B></FONT> default <FONT COLOR=black><B>is</B></FONT> NoDefault:
+            <FONT COLOR=black><B>return</B></FONT> self._roles[name]
+        <FONT COLOR=black><B>else</B></FONT>:
+            <FONT COLOR=black><B>return</B></FONT> self._roles.get(name, default)
+
+    <FONT COLOR=black><B>def</B></FONT> hasRole(self, name):
+        <FONT COLOR=black><B>return</B></FONT> self._roles.has_key(name)
+
+    <FONT COLOR=black><B>def</B></FONT> delRole(self, name):
+        <FONT COLOR=black><B>del</B></FONT> self._roles[name]
+
+    <FONT COLOR=black><B>def</B></FONT> roles(self):
+        <FONT COLOR=black><B>return</B></FONT> self._roles
+
+    <FONT COLOR=black><B>def</B></FONT> clearRoles(self):
+        self._roles = {}
+</PRE>
+                  <!--footer-->
+                  </BODY>

@@ -1,0 +1,271 @@
+<HTML><HEAD><TITLE>MiscUtils/CSVParser.py</TITLE></HEAD>
+                  <BODY BGCOLOR=#EEEEEE>
+                  <!--header-->
+                  <!--script--><PRE><FONT COLOR=#1111CC># The states of the parser</FONT>
+StartRecord        = 0
+StartField         = 1
+InField            = 2
+QuoteInField       = 3
+InQuotedField      = 4
+QuoteInQuotedField = 5
+EndQuotedField     = 6
+
+<FONT COLOR=#1111CC># State handlers can return Finished to terminate parsing early</FONT>
+Finished           = 10
+
+
+<FONT COLOR=black><B>class</B></FONT> ParseError(Exception):
+    <FONT COLOR=black><B>pass</B></FONT>
+
+
+<FONT COLOR=black><B>class</B></FONT> CSVParser:
+    <FONT COLOR=#FF0000>"""
+    Parses CSV files including all subtleties such as:
+        * commas in fields
+        * double quotes in fields
+        * embedded newlines in fields
+            - Examples of programs that produce such beasts include
+              MySQL and Excel
+
+    For a higher-level, friendlier CSV class with many conveniences,
+    see DataTable (which uses this class for its parsing).
+
+    Example:
+        records = []
+        parse = CSVParser().parse
+        for line in lines:
+            results = parse(line)
+            if results is not None:
+                records.append(results)
+
+    CREDIT
+
+    The algorithm was taken directly from the open source Python
+    C-extension, csv:
+        http://www.object-craft.com.au/projects/csv/
+
+    It would be nice to use the csv module when present, since it is
+    substantially faster. Before that can be done, it needs to support
+    allowComments and stripWhitespace, and pass the TestCSVParser.py
+    test suite.
+    """</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> __init__(self, allowComments=1, stripWhitespace=1, fieldSep=<FONT COLOR=#FF0000>','</FONT>, autoReset=1, doubleQuote=1):
+        <FONT COLOR=#FF0000>"""
+        @@ document
+        """</FONT>
+        <FONT COLOR=#1111CC># settings</FONT>
+        self._allowComments = allowComments
+        self._stripWhitespace = stripWhitespace
+        self._doubleQuote = doubleQuote
+        self._fieldSep = fieldSep
+        self._autoReset = autoReset
+
+        <FONT COLOR=#1111CC># Other</FONT>
+        self._state = StartRecord
+        self._fields = []
+        self._hadParseError = 0
+        self._field = []  <FONT COLOR=#1111CC># a list of chars for the cur field</FONT>
+        self.addChar = self._field.append
+
+        <FONT COLOR=#1111CC># The handlers for the various states</FONT>
+        self._handlers = [
+            self.startRecord,
+            self.startField,
+            self.inField,
+            self.quoteInField,
+            self.inQuotedField,
+            self.quoteInQuotedField,
+            self.endQuotedField,
+        ]
+
+
+    <FONT COLOR=#1111CC>## Parse ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> parse(self, line):
+        <FONT COLOR=#FF0000>"""
+        Parse the single line and return a list or string fields, or
+        None if the CSV record contains embedded newlines and the
+        record is not yet complete.
+        """</FONT>
+        <FONT COLOR=black><B>if</B></FONT> self._autoReset <FONT COLOR=black><B>and</B></FONT> self._hadParseError:
+            self.reset()
+        handlers = self._handlers
+
+        i = 0
+        lineLen = len(line)
+        <FONT COLOR=black><B>while</B></FONT> i&lt;lineLen:
+            c = line[i]
+            <FONT COLOR=black><B>if</B></FONT> c==<FONT COLOR=#FF0000>'\r'</FONT>:
+                i += 1
+                <FONT COLOR=black><B>if</B></FONT> i==lineLen:
+                    <FONT COLOR=black><B>break</B></FONT>  <FONT COLOR=#1111CC># mac end of line</FONT>
+                c = line[i]
+                <FONT COLOR=black><B>if</B></FONT> c==<FONT COLOR=#FF0000>'\n'</FONT>:
+                    i += 1
+                    <FONT COLOR=black><B>if</B></FONT> i==lineLen:
+                        <FONT COLOR=black><B>break</B></FONT>  <FONT COLOR=#1111CC># dos end of line</FONT>
+
+                self._hadParseError = 1
+                <FONT COLOR=black><B>raise</B></FONT> ParseError(<FONT COLOR=#FF0000>'Newline inside string'</FONT>)
+
+            <FONT COLOR=black><B>elif</B></FONT> c==<FONT COLOR=#FF0000>'\n'</FONT>:
+                i += 1
+                <FONT COLOR=black><B>if</B></FONT> i==lineLen:
+                    <FONT COLOR=black><B>break</B></FONT>  <FONT COLOR=#1111CC># unix end of line</FONT>
+
+                self._hadParseError = 1
+                <FONT COLOR=black><B>raise</B></FONT> ParseError(<FONT COLOR=#FF0000>'Newline inside string'</FONT>)
+
+            <FONT COLOR=black><B>else</B></FONT>:
+                <FONT COLOR=black><B>if</B></FONT> handlers[self._state](c)==Finished:  <FONT COLOR=#1111CC># process a character</FONT>
+                    <FONT COLOR=black><B>break</B></FONT>
+
+            i += 1
+
+        handlers[self._state](<FONT COLOR=#FF0000>'\0'</FONT>)  <FONT COLOR=#1111CC># signal the end of the input</FONT>
+
+        <FONT COLOR=black><B>if</B></FONT> self._state==StartRecord:
+            fields = self._fields
+            self._fields = []
+            <FONT COLOR=black><B>if</B></FONT> self._stripWhitespace:
+                fields = [field.strip() <FONT COLOR=black><B>for</B></FONT> field <FONT COLOR=black><B>in</B></FONT> fields]
+            <FONT COLOR=black><B>return</B></FONT> fields
+        <FONT COLOR=black><B>else</B></FONT>:
+            <FONT COLOR=black><B>return</B></FONT> None  <FONT COLOR=#1111CC># indicates multi-line record; eg not finished</FONT>
+
+
+    <FONT COLOR=#1111CC>## Reset ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> reset(self):
+        <FONT COLOR=#FF0000>"""
+        Resets the parser to a fresh state in order to recover from
+        exceptions. But if autoReset is true (the default), this is
+        done automatically.
+        """</FONT>
+        self._fields = []
+        self._state = StartRecord
+        self.hasParseError = 0
+
+
+    <FONT COLOR=#1111CC>## State Handlers ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> startRecord(self, c):
+        <FONT COLOR=black><B>if</B></FONT> c!=<FONT COLOR=#FF0000>'\0'</FONT>:  <FONT COLOR=#1111CC># not empty line</FONT>
+            <FONT COLOR=black><B>if</B></FONT> c==<FONT COLOR=#FF0000>'#'</FONT> <FONT COLOR=black><B>and</B></FONT> self._allowComments:
+                <FONT COLOR=black><B>return</B></FONT> Finished
+            <FONT COLOR=black><B>else</B></FONT>:
+                self._state = StartField
+                self.startField(c)
+
+    <FONT COLOR=black><B>def</B></FONT> startField(self, c):
+        <FONT COLOR=black><B>if</B></FONT> c==<FONT COLOR=#FF0000>'"'</FONT>:
+            self._state = InQuotedField <FONT COLOR=#1111CC># start quoted field</FONT>
+        <FONT COLOR=black><B>elif</B></FONT> c==self._fieldSep:
+            self.saveField() <FONT COLOR=#1111CC># save empty field</FONT>
+        <FONT COLOR=black><B>elif</B></FONT> c==<FONT COLOR=#FF0000>' '</FONT> <FONT COLOR=black><B>and</B></FONT> self._stripWhitespace:
+            <FONT COLOR=black><B>pass</B></FONT>  <FONT COLOR=#1111CC># skip over preceding whitespace</FONT>
+        <FONT COLOR=black><B>elif</B></FONT> c==<FONT COLOR=#FF0000>'\0'</FONT>:
+            self.saveField() <FONT COLOR=#1111CC># save empty field</FONT>
+            self._state = StartRecord
+        <FONT COLOR=black><B>else</B></FONT>:
+            self.addChar(c) <FONT COLOR=#1111CC># begin new unquoted field</FONT>
+            self._state = InField
+
+    <FONT COLOR=black><B>def</B></FONT> inField(self, c):
+        <FONT COLOR=#1111CC># in unquoted field</FONT>
+        <FONT COLOR=black><B>if</B></FONT> c==self._fieldSep:
+            self.saveField()
+            self._state = StartField
+        <FONT COLOR=black><B>elif</B></FONT> c==<FONT COLOR=#FF0000>'\0'</FONT>:
+            self.saveField()  <FONT COLOR=#1111CC># end of line</FONT>
+            self._state = StartRecord
+        <FONT COLOR=black><B>elif</B></FONT> c==<FONT COLOR=#FF0000>'"'</FONT> <FONT COLOR=black><B>and</B></FONT> self._doubleQuote:
+            self._state = QuoteInField
+        <FONT COLOR=black><B>else</B></FONT>:
+            self.addChar(c) <FONT COLOR=#1111CC># normal character</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> quoteInField(self, c):
+        self.addChar(<FONT COLOR=#FF0000>'"'</FONT>)
+        <FONT COLOR=black><B>if</B></FONT> c==<FONT COLOR=#FF0000>'"'</FONT>:
+            self._state = InField  <FONT COLOR=#1111CC># save "" as "</FONT>
+        <FONT COLOR=black><B>elif</B></FONT> c==<FONT COLOR=#FF0000>'\0'</FONT>:
+            self.saveField()  <FONT COLOR=#1111CC># end of line</FONT>
+            self._state = StartRecord
+        <FONT COLOR=black><B>elif</B></FONT> c==self._fieldSep:
+            self.saveField()
+            self._state = StartField
+        <FONT COLOR=black><B>else</B></FONT>:
+            self.addChar(c) <FONT COLOR=#1111CC># normal character</FONT>
+            self._state = InField
+
+    <FONT COLOR=black><B>def</B></FONT> inQuotedField(self, c):
+        <FONT COLOR=black><B>if</B></FONT> c==<FONT COLOR=#FF0000>'"'</FONT>:
+            <FONT COLOR=black><B>if</B></FONT> self._doubleQuote:
+                self._state = QuoteInQuotedField
+            <FONT COLOR=black><B>else</B></FONT>:
+                self.saveField()  <FONT COLOR=#1111CC># end of field</FONT>
+                self._state = EndQuotedField
+        <FONT COLOR=black><B>elif</B></FONT> c==<FONT COLOR=#FF0000>'\0'</FONT>:
+            self.addChar(<FONT COLOR=#FF0000>'\n'</FONT>)  <FONT COLOR=#1111CC># end of line</FONT>
+        <FONT COLOR=black><B>else</B></FONT>:
+            self.addChar(c)  <FONT COLOR=#1111CC># normal character</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> quoteInQuotedField(self, c):
+        <FONT COLOR=black><B>if</B></FONT> c==<FONT COLOR=#FF0000>'"'</FONT>:
+            self.addChar(<FONT COLOR=#FF0000>'"'</FONT>)  <FONT COLOR=#1111CC># save "" as "</FONT>
+            self._state = InQuotedField
+        <FONT COLOR=black><B>elif</B></FONT> c==self._fieldSep:
+            self.saveField()
+            self._state = StartField
+        <FONT COLOR=black><B>elif</B></FONT> c==<FONT COLOR=#FF0000>' '</FONT> <FONT COLOR=black><B>and</B></FONT> self._stripWhitespace:
+            <FONT COLOR=black><B>pass</B></FONT>  <FONT COLOR=#1111CC># skip it</FONT>
+        <FONT COLOR=black><B>elif</B></FONT> c==<FONT COLOR=#FF0000>'\0'</FONT>:
+            self.saveField() <FONT COLOR=#1111CC># end of line</FONT>
+            self._state = StartRecord
+        <FONT COLOR=black><B>else</B></FONT>:
+            self._hadParseError = 1  <FONT COLOR=#1111CC># illegal</FONT>
+            <FONT COLOR=black><B>raise</B></FONT> ParseError, <FONT COLOR=#FF0000>'%s expected after "'</FONT> % self._fieldSep
+
+    <FONT COLOR=black><B>def</B></FONT> endQuotedField(self, c):
+        <FONT COLOR=black><B>if</B></FONT> c==self._fieldSep:  <FONT COLOR=#1111CC># seen closing " on quoted field</FONT>
+            self._state = StartField  <FONT COLOR=#1111CC># wait for new field</FONT>
+        <FONT COLOR=black><B>elif</B></FONT> c==<FONT COLOR=#FF0000>'\0'</FONT>:
+            self._state = StartRecord  <FONT COLOR=#1111CC># end of line</FONT>
+        <FONT COLOR=black><B>else</B></FONT>:
+            self._hadParseError = 1
+            <FONT COLOR=black><B>raise</B></FONT> ParseError, <FONT COLOR=#FF0000>'%s expected after "'</FONT> % self._fieldSep
+
+    <FONT COLOR=black><B>def</B></FONT> saveField(self):
+        self._fields.append(<FONT COLOR=#FF0000>''</FONT>.join(self._field))
+        self._field = []
+        self.addChar = self._field.append
+
+
+<FONT COLOR=#1111CC># Call the global function parse() if you like the default settings of the CSVParser</FONT>
+_parser = CSVParser()
+parse = _parser.parse
+
+
+<FONT COLOR=black><B>import</B></FONT> types
+<FONT COLOR=black><B>def</B></FONT> joinCSVFields(fields):
+    <FONT COLOR=#FF0000>"""
+    Returns a CSV record (eg a string) from a sequence of fields.
+    Fields containing commands (,) or double quotes (") are quoted
+    and double quotes are escaped (""). The terminating newline is
+    NOT included.
+    """</FONT>
+    newFields = []
+    <FONT COLOR=black><B>for</B></FONT> field <FONT COLOR=black><B>in</B></FONT> fields:
+        <FONT COLOR=black><B>assert</B></FONT> type(field) <FONT COLOR=black><B>is</B></FONT> types.StringType
+        <FONT COLOR=black><B>if</B></FONT> field.find(<FONT COLOR=#FF0000>'"'</FONT>)!=-1:
+            newField = <FONT COLOR=#FF0000>'"'</FONT> + field.replace(<FONT COLOR=#FF0000>'"'</FONT>, <FONT COLOR=#FF0000>'""'</FONT>) + <FONT COLOR=#FF0000>'"'</FONT>
+        <FONT COLOR=black><B>elif</B></FONT> field.find(<FONT COLOR=#FF0000>','</FONT>)!=-1:
+            newField = <FONT COLOR=#FF0000>'"'</FONT> + field + <FONT COLOR=#FF0000>'"'</FONT>
+        <FONT COLOR=black><B>else</B></FONT>:
+            newField = field
+        newFields.append(newField)
+    <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=#FF0000>','</FONT>.join(newFields)
+</PRE>
+                  <!--footer-->
+                  </BODY>

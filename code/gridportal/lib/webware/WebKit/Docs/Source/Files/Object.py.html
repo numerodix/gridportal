@@ -1,0 +1,56 @@
+<HTML><HEAD><TITLE>WebKit/Object.py</TITLE></HEAD>
+                  <BODY BGCOLOR=#EEEEEE>
+                  <!--header-->
+                  <!--script--><PRE><FONT COLOR=black><B>import</B></FONT> os, sys
+
+<FONT COLOR=black><B>try</B></FONT>:
+    <FONT COLOR=black><B>import</B></FONT> MiscUtils
+<FONT COLOR=black><B>except</B></FONT>:
+    <FONT COLOR=#1111CC># When the Webware tarball unravels,</FONT>
+    <FONT COLOR=#1111CC># the components sit next to each other</FONT>
+    sys.path.append(os.path.abspath(<FONT COLOR=#FF0000>'..'</FONT>))
+    <FONT COLOR=black><B>import</B></FONT> MiscUtils
+<FONT COLOR=black><B>from</B></FONT> MiscUtils.NamedValueAccess <FONT COLOR=black><B>import</B></FONT> NamedValueAccess
+
+
+<FONT COLOR=black><B>class</B></FONT> Object(NamedValueAccess):
+    <FONT COLOR=#FF0000>"""
+    Object is the root class for all classes in the WebKit.
+
+    This is a placeholder for any future functionality that might be appropriate
+    for all objects in the framework.
+    """</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> __init__(self):
+        <FONT COLOR=#FF0000>""" Initializes the object. Subclasses should invoke super. """</FONT>
+        <FONT COLOR=black><B>pass</B></FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> deprecated(self, method):
+        <FONT COLOR=#FF0000>"""
+        The implementation of WebKit sometimes invokes this method which prints a warning that the method you are using has been deprecated.
+        This method expects that deprecated methods say so at the beginning of their doc string and terminate that msg with @.
+        For example:
+
+            DEPRECATED: Class.foo() on 01/24/01 in ver 0.5. Use Class.bar() instead. @
+
+        Putting this information in the doc string is important for accuracy in the generated docs.
+
+        Example call:
+            self.deprecated(self.foo)
+        """</FONT>
+        <FONT COLOR=black><B>import</B></FONT> string
+        docString = method.__doc__
+        <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> docString:
+            msg = <FONT COLOR=#FF0000>'DEPRECATED: %s, (no doc string)'</FONT> % method
+        <FONT COLOR=black><B>else</B></FONT>:
+            msg = string.strip(string.split(method.__doc__, <FONT COLOR=#FF0000>'@'</FONT>)[0])
+        <FONT COLOR=black><B>print</B></FONT> msg
+
+
+    <FONT COLOR=#1111CC># 2000-05-21 ce: Sometimes used for debugging:</FONT>
+    <FONT COLOR=#1111CC>#</FONT>
+    <FONT COLOR=#1111CC>#def </FONT>__del__(self):
+    <FONT COLOR=#1111CC>#   print '&gt;&gt; del', self</FONT>
+</PRE>
+                  <!--footer-->
+                  </BODY>

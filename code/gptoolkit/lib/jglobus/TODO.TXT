@@ -1,0 +1,55 @@
+GENERAL
+=======
+
+Todo:
+
+Misc. Higher Priority:
+	- Improve file:// url handling
+	- Implement all Gram 1.6 features (credential refresh)
+        - fix unix scripts in the fixCommandLine thig to use ' instead of "
+	- Update MyProxy to support latest version of MyProxy
+	- Implement a couple of new programs cert-renew?
+
+Misc. Lower Priority:
+        - GSI-SSH client - just for starting simple jobs.
+	- Fix/update/decide what to do with basic MDS class.
+          o use jndi or netscape libs directly
+	- Add '/' to the end of urls (look into this)
+	- Provide a generic Gass open call somewhere
+	- Continue to clean up HTTP protocol stuff - there is no 
+          need for GASSProtocol class, etc.
+	- Improve on error reporting in GASS server.
+	- Globus-replica-catalog command line tool
+	- Internationalize more components
+
+Other (and CVS related):
+        - Add the demo.xml file for quick creation of the demos - sining
+          the jar files, generating a key. put in cvs the .jnlp files.
+        - clean up the CVS:
+          o SortedVector?
+
+Security Update Notes
+=====================
+
+The following packages/libraries are not currently updated to use the new
+security library:
+
+ o pkcs11
+ o the old gui version of grid-proxy-init or myproxy 
+
+OTHER IDEAS
+===========
+
+Low Priority Items:
+
+ - Gass server: the support for redirected input streams? (and tail -f
+   functionality?)
+ - Implement Replica Managment
+ - Implement a persistent seed generator?
+ - Improve applets. Add documentation about how to use them and how to sign
+   applets in general. (very low priority)
+ - Add better JavaDoc descriptions to the ConfigUtil.java 
+ - MDS: add support fo referrals
+ - Improve the setup program 
+ - Batch and script files to check for JAVA_HOME and if set to use it
+   otherwise just call java.

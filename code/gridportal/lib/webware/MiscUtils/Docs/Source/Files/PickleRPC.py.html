@@ -1,0 +1,434 @@
+<HTML><HEAD><TITLE>MiscUtils/PickleRPC.py</TITLE></HEAD>
+                  <BODY BGCOLOR=#EEEEEE>
+                  <!--header-->
+                  <!--script--><PRE><FONT COLOR=#FF0000>"""
+PickleRPC provides a Server object for connection to Pickle-RPC servers
+for the purpose of making requests and receiving the responses.
+
+    &gt;&gt;&gt; from MiscUtils.PickleRPC import Server
+    &gt;&gt;&gt; server = Server('http://localhost/cgi-bin/WebKit.cgi/Examples/PickleRPCExample')
+    &gt;&gt;&gt; server.multiply(10,20)
+    200
+    &gt;&gt;&gt; server.add(10,20)
+    30
+
+
+See also: Server, Webkit.PickleRPCServlet, WebKit.Examples.PickleRPCExample
+
+
+UNDER THE HOOD
+
+Requests look like this:
+    {
+        'version':    1,  # default
+        'action':     'call',  # default
+        'methodName': 'NAME',
+        'args':       (A, B, ...), # default = (,)
+        'keywords':   {'A': A, 'B': B, ...}  # default = {}
+    }
+
+Only 'methodName' is required since that is the only key without a
+default value.
+
+Responses look like this:
+    {
+        'timeReceived': N,
+        'timeReponded': M,
+        'value': V,
+        'exception': E,
+        'requestError': E,
+    }
+
+TimeReceived is the time the initial request was received.
+TimeResponded is the time at which the response was finished, as
+close to transmission as possible. The times are expressed as
+number of seconds since the Epoch, e.g., time.time().
+
+Value is whatever the method happened to return.
+
+Exception may be 'occurred' to indicate that an exception
+occurred, the specific exception, such as "KeyError: foo" or the
+entire traceback (as a string), at the discretion of the server.
+It will always be a non-empty string if it is present.
+
+RequestError is an exception such as "Missing method
+in request." (with no traceback) that indicates a problem with the
+actual request received by the Pickle-RPC server.
+
+Value, exception and requestError are all exclusive to each other.
+
+
+SECURITY
+
+Pickle RPC uses the SafeUnpickler class (in this module) to
+prevent unpickling of unauthorized classes.  By default, it
+doesn't allow _any_ classes to be unpickled.  You can override
+allowedGlobals() or findGlobal() in a subclass as needed to
+allow specific class instances to be unpickled.
+
+Note that both Transport in this module and PickleRPCServlet in
+WebKit are derived from SafeUnpickler.
+
+
+CREDIT
+
+The implementation of this module was taken directly from Python 2.2's
+xmlrpclib and then transformed from XML-orientation to Pickle-orientation.
+
+The zlib compression was adapted from code by Skip Montanaro that I found
+here: http://manatee.mojam.com/~skip/python/
+"""</FONT>
+
+
+__version__ = 1   <FONT COLOR=#1111CC># version of PickleRPC protocol</FONT>
+
+<FONT COLOR=black><B>import</B></FONT> types
+
+<FONT COLOR=black><B>try</B></FONT>:
+    <FONT COLOR=black><B>from</B></FONT> cPickle <FONT COLOR=black><B>import</B></FONT> dumps, Unpickler, UnpicklingError
+<FONT COLOR=black><B>except</B></FONT> ImportError:
+    <FONT COLOR=black><B>from</B></FONT> pickle <FONT COLOR=black><B>import</B></FONT> dumps, Unpickler, UnpicklingError
+
+<FONT COLOR=black><B>try</B></FONT>:
+    <FONT COLOR=black><B>import</B></FONT> zlib
+<FONT COLOR=black><B>except</B></FONT> ImportError:
+    zlib = None
+
+<FONT COLOR=black><B>try</B></FONT>:
+    <FONT COLOR=black><B>from</B></FONT> cStringIO <FONT COLOR=black><B>import</B></FONT> StringIO
+<FONT COLOR=black><B>except</B></FONT> ImportError:
+    <FONT COLOR=black><B>from</B></FONT> StringIO <FONT COLOR=black><B>import</B></FONT> StringIO
+
+<FONT COLOR=black><B>class</B></FONT> Error(Exception):
+    <FONT COLOR=#FF0000>"""
+    The abstract exception/error class for all PickleRPC errors.
+    """</FONT>
+    <FONT COLOR=black><B>pass</B></FONT>
+
+
+<FONT COLOR=black><B>class</B></FONT> ResponseError(Error):
+    <FONT COLOR=#FF0000>"""
+    These are unhandled exceptions raised when the server was computing
+    a response. These will indicate errors such as:
+        * exception in the actual target method on the server
+        * malformed responses
+        * non "200 OK" status code responses
+    """</FONT>
+    <FONT COLOR=black><B>pass</B></FONT>
+
+
+<FONT COLOR=#1111CC># Sometimes xmlrpclib is installed as a package, sometimes not.  So we'll</FONT>
+<FONT COLOR=#1111CC># make sure it works either way.</FONT>
+<FONT COLOR=black><B>try</B></FONT>:
+    <FONT COLOR=black><B>from</B></FONT> xmlrpclib.xmlrpclib <FONT COLOR=black><B>import</B></FONT> ProtocolError as _PE
+<FONT COLOR=black><B>except</B></FONT> ImportError:
+    <FONT COLOR=black><B>from</B></FONT> xmlrpclib <FONT COLOR=black><B>import</B></FONT> ProtocolError as _PE
+<FONT COLOR=#1111CC># @@ 2002-01-31 ce: should this be caught somewhere for special handling? Perhaps in XMLRPCServlet?</FONT>
+
+<FONT COLOR=black><B>class</B></FONT> ProtocolError(ResponseError, _PE):
+    <FONT COLOR=black><B>pass</B></FONT>
+
+
+<FONT COLOR=black><B>class</B></FONT> RequestError(Error):
+    <FONT COLOR=#FF0000>"""
+    These are errors originally raised by the server complaining about
+    malformed requests.
+    """</FONT>
+    <FONT COLOR=black><B>pass</B></FONT>
+
+
+<FONT COLOR=black><B>class</B></FONT> InvalidContentTypeError(ResponseError):
+
+    <FONT COLOR=black><B>def</B></FONT> __init__(self, headers, content):
+        Exception.__init__(self) <FONT COLOR=#1111CC>#, headers, content)</FONT>
+        self.headers = headers
+        self.content = content
+
+    <FONT COLOR=black><B>def</B></FONT> __repr__(self):
+        content = self.content
+        <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=#FF0000>'%s: Content type is not text/x-python-pickled-dict\nheaders = %s\ncontent =\n%s'</FONT> % (
+            self.__class__.__name__, self.headers, content)
+
+    __str__ = __repr__
+
+
+<FONT COLOR=black><B>class</B></FONT> SafeUnpickler:
+    <FONT COLOR=#FF0000>"""
+    For security reasons, we don't want to allow just anyone to unpickle
+    anything.  That can cause arbitrary code to be executed.
+    So this SafeUnpickler base class is used to control
+    what can be unpickled.  By default it doesn't let you unpickle
+    any class instances at all, but you can create subclass that
+    overrides allowedGlobals().
+
+    Note that the PickleRPCServlet class in WebKit is derived from this class
+    and uses its load() and loads() methods to do all unpickling.
+    """</FONT>
+    <FONT COLOR=black><B>def</B></FONT> allowedGlobals(self):
+        <FONT COLOR=#FF0000>"""
+        Must return a list of (moduleName, klassName) tuples for all
+        classes that you want to allow to be unpickled.
+
+        Example:
+            return [('mx.DateTime', '_DT')]
+        allows mx.DateTime instances to be unpickled.
+        """</FONT>
+        <FONT COLOR=black><B>return</B></FONT> []
+
+    <FONT COLOR=black><B>def</B></FONT> findGlobal(self, module, klass):
+        <FONT COLOR=black><B>if</B></FONT> (module, klass) <FONT COLOR=black><B>not</B></FONT> <FONT COLOR=black><B>in</B></FONT> self.allowedGlobals():
+            <FONT COLOR=black><B>raise</B></FONT> UnpicklingError, <FONT COLOR=#FF0000>'For security reasons, you can\'</FONT>t unpickle objects <FONT COLOR=black><B>from</B></FONT> module %s with type %s' % (module, klass)
+        globals = {}
+        <FONT COLOR=black><B>exec</B></FONT> <FONT COLOR=#FF0000>'from %s import %s as theClass'</FONT> % (module, klass) <FONT COLOR=black><B>in</B></FONT> globals
+        <FONT COLOR=black><B>return</B></FONT> globals[<FONT COLOR=#FF0000>'theClass'</FONT>]
+
+    <FONT COLOR=black><B>def</B></FONT> load(self, file):
+        safeUnpickler = Unpickler(file)
+        safeUnpickler.find_global = self.findGlobal
+        <FONT COLOR=black><B>return</B></FONT> safeUnpickler.load()
+
+    <FONT COLOR=black><B>def</B></FONT> loads(self, str):
+        <FONT COLOR=black><B>return</B></FONT> self.load(StringIO(str))
+
+
+<FONT COLOR=#1111CC># @@ 2002-01-31 ce: Could we reduce code duplication and automatically</FONT>
+<FONT COLOR=#1111CC># inherit future improvements by actually importing and using the</FONT>
+<FONT COLOR=#1111CC># xmlrpclib classes below either as base classes or mix-ins?</FONT>
+
+
+<FONT COLOR=black><B>class</B></FONT> Server:
+    <FONT COLOR=#FF0000>"""uri [,options] -&gt; a logical connection to an XML-RPC server
+
+    uri is the connection point on the server, given as
+    scheme://host/target.
+
+    The standard implementation always supports the "http" scheme.  If
+    SSL socket support is available (Python 2.0), it also supports
+    "https".
+
+    If the target part and the slash preceding it are both omitted,
+    "/PickleRPC" is assumed.
+
+    See the module doc string for more information.
+    """</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> __init__(self, uri, transport=None, verbose=0, binary=1, compressRequest=1, acceptCompressedResponse=1):
+        <FONT COLOR=#1111CC># establish a "logical" server connection</FONT>
+
+        <FONT COLOR=#1111CC># get the url</FONT>
+        <FONT COLOR=black><B>import</B></FONT> urllib
+        type, uri = urllib.splittype(uri)
+        <FONT COLOR=black><B>if</B></FONT> type <FONT COLOR=black><B>not</B></FONT> <FONT COLOR=black><B>in</B></FONT> (<FONT COLOR=#FF0000>"http"</FONT>, <FONT COLOR=#FF0000>"https"</FONT>):
+            <FONT COLOR=black><B>raise</B></FONT> IOError, <FONT COLOR=#FF0000>"unsupported Pickle-RPC protocol"</FONT>
+        self.__host, self.__handler = urllib.splithost(uri)
+        <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> self.__handler:
+            self.__handler = <FONT COLOR=#FF0000>"/PickleRPC"</FONT>
+
+        <FONT COLOR=black><B>if</B></FONT> transport <FONT COLOR=black><B>is</B></FONT> None:
+            <FONT COLOR=black><B>if</B></FONT> type == <FONT COLOR=#FF0000>"https"</FONT>:
+                transport = SafeTransport()
+            <FONT COLOR=black><B>else</B></FONT>:
+                transport = Transport()
+        self.__transport = transport
+
+        self.__verbose = verbose
+        self.__binary = binary
+        self.__compressRequest = compressRequest
+        self.__acceptCompressedResponse = acceptCompressedResponse
+
+    <FONT COLOR=black><B>def</B></FONT> _request(self, methodName, args, keywords):
+        <FONT COLOR=#FF0000>"""
+        Call a method on the remote server.
+        """</FONT>
+        request = {
+            <FONT COLOR=#FF0000>'version'</FONT>:    1,
+            <FONT COLOR=#FF0000>'action'</FONT>:     <FONT COLOR=#FF0000>'call'</FONT>,
+            <FONT COLOR=#FF0000>'methodName'</FONT>: methodName,
+            <FONT COLOR=#FF0000>'args'</FONT>:       args,
+            <FONT COLOR=#FF0000>'keywords'</FONT>:   keywords,
+        }
+        <FONT COLOR=black><B>if</B></FONT> self.__binary:
+            request = dumps(request, 1)
+        <FONT COLOR=black><B>else</B></FONT>:
+            request = dumps(request)
+        <FONT COLOR=black><B>if</B></FONT> zlib <FONT COLOR=black><B>is</B></FONT> <FONT COLOR=black><B>not</B></FONT> None <FONT COLOR=black><B>and</B></FONT> self.__compressRequest <FONT COLOR=black><B>and</B></FONT> len(request) &gt; 1000:
+            request = zlib.compress(request, 1)
+            compressed = 1
+        <FONT COLOR=black><B>else</B></FONT>:
+            compressed = 0
+
+        response = self.__transport.request(
+            self.__host,
+            self.__handler,
+            request,
+            verbose=self.__verbose,
+            binary=self.__binary,
+            compressed=compressed,
+            acceptCompressedResponse=self.__acceptCompressedResponse
+            )
+
+        <FONT COLOR=black><B>return</B></FONT> response
+
+    <FONT COLOR=black><B>def</B></FONT> __requestValue(self, methodName, args, keywords):
+        dict = self._request(methodName, args, keywords)
+        <FONT COLOR=black><B>if</B></FONT> dict.has_key(<FONT COLOR=#FF0000>'value'</FONT>):
+            <FONT COLOR=black><B>return</B></FONT> dict[<FONT COLOR=#FF0000>'value'</FONT>]
+        <FONT COLOR=black><B>elif</B></FONT> dict.has_key(<FONT COLOR=#FF0000>'exception'</FONT>):
+            <FONT COLOR=black><B>raise</B></FONT> ResponseError, dict[<FONT COLOR=#FF0000>'exception'</FONT>]
+        <FONT COLOR=black><B>elif</B></FONT> dict.has_key(<FONT COLOR=#FF0000>'requestError'</FONT>):
+            <FONT COLOR=black><B>raise</B></FONT> RequestError, dict[<FONT COLOR=#FF0000>'requestError'</FONT>]
+        <FONT COLOR=black><B>else</B></FONT>:
+            <FONT COLOR=black><B>raise</B></FONT> RequestError, <FONT COLOR=#FF0000>'Response does not have a value, expection or requestError.'</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> __repr__(self):
+        <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=#FF0000>"&lt;%s for %s%s&gt;"</FONT> % (self.__class__.__name__, self.__host, self.__handler)
+
+    __str__ = __repr__
+
+    <FONT COLOR=black><B>def</B></FONT> __getattr__(self, name):
+        <FONT COLOR=#1111CC># magic method dispatcher</FONT>
+        <FONT COLOR=black><B>return</B></FONT> _Method(self.__requestValue, name)
+
+    <FONT COLOR=#1111CC>## note: to call a remote object with an non-standard name, use</FONT>
+    <FONT COLOR=#1111CC>## result getattr(server, "strange-python-name")(args)</FONT>
+
+
+ServerProxy = Server   <FONT COLOR=#1111CC># be like xmlrpclib for those who might guess or expect it</FONT>
+
+
+
+<FONT COLOR=black><B>class</B></FONT> _Method:
+    <FONT COLOR=#FF0000>"""
+    Some magic to bind a Pickle-RPC method to an RPC server.
+    Supports "nested" methods (e.g. examples.getStateName).
+    """</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> __init__(self, send, name):
+        self.__send = send
+        self.__name = name
+
+    <FONT COLOR=black><B>def</B></FONT> __getattr__(self, name):
+        <FONT COLOR=black><B>return</B></FONT> _Method(self.__send, <FONT COLOR=#FF0000>"%s.%s"</FONT> % (self.__name, name))
+
+    <FONT COLOR=black><B>def</B></FONT> __call__(self, *args, **keywords):  <FONT COLOR=#1111CC># note that keywords are supported</FONT>
+        <FONT COLOR=black><B>return</B></FONT> self.__send(self.__name, args, keywords)
+
+
+<FONT COLOR=black><B>class</B></FONT> Transport(SafeUnpickler):
+    <FONT COLOR=#FF0000>"""
+    Handles an HTTP transaction to a Pickle-RPC server.
+    """</FONT>
+
+    <FONT COLOR=#1111CC># client identifier (may be overridden)</FONT>
+    user_agent = <FONT COLOR=#FF0000>"PickleRPC/%s (by http://webware.sf.net/)"</FONT> % __version__
+
+    <FONT COLOR=black><B>def</B></FONT> request(self, host, handler, request_body, verbose=0, binary=0, compressed=0,
+                acceptCompressedResponse=0):
+        <FONT COLOR=#1111CC># issue Pickle-RPC request</FONT>
+
+        h = self.make_connection(host)
+        <FONT COLOR=black><B>if</B></FONT> verbose:
+            h.set_debuglevel(1)
+
+        self.send_request(h, handler, request_body)
+        self.send_host(h, host)
+        self.send_user_agent(h)
+        self.send_content(h, request_body, binary, compressed, acceptCompressedResponse)
+
+        errcode, errmsg, headers = h.getreply()
+
+        <FONT COLOR=black><B>if</B></FONT> errcode != 200:
+            <FONT COLOR=black><B>raise</B></FONT> ProtocolError(
+                host + handler,
+                errcode, errmsg,
+                headers
+                )
+
+        self.verbose = verbose
+
+        <FONT COLOR=black><B>if</B></FONT> h.headers[<FONT COLOR=#FF0000>'content-type'</FONT>] <FONT COLOR=black><B>not</B></FONT> <FONT COLOR=black><B>in</B></FONT> [<FONT COLOR=#FF0000>'text/x-python-pickled-dict'</FONT>, <FONT COLOR=#FF0000>'application/x-python-binary-pickled-dict'</FONT>]:
+            headers = h.headers.headers
+            content = h.getfile().read()
+            <FONT COLOR=black><B>raise</B></FONT> InvalidContentTypeError(headers, content)
+
+        <FONT COLOR=black><B>try</B></FONT>:
+            content_encoding = headers[<FONT COLOR=#FF0000>"content-encoding"</FONT>]
+            <FONT COLOR=black><B>if</B></FONT> content_encoding <FONT COLOR=black><B>and</B></FONT> content_encoding == <FONT COLOR=#FF0000>"x-gzip"</FONT>:
+                <FONT COLOR=black><B>return</B></FONT> self.parse_response_gzip(h.getfile())
+            <FONT COLOR=black><B>elif</B></FONT> content_encoding:
+                <FONT COLOR=black><B>raise</B></FONT> ProtocolError(host + handler,
+                                    500,
+                                    <FONT COLOR=#FF0000>"Unknown encoding type: %s"</FONT> %
+                                    content_encoding,
+                                    headers)
+            <FONT COLOR=black><B>else</B></FONT>:
+                <FONT COLOR=black><B>return</B></FONT> self.parse_response(h.getfile())
+        <FONT COLOR=black><B>except</B></FONT> KeyError:
+            <FONT COLOR=black><B>return</B></FONT> self.parse_response(h.getfile())
+
+    <FONT COLOR=black><B>def</B></FONT> make_connection(self, host):
+        <FONT COLOR=#1111CC># create a HTTP connection object from a host descriptor</FONT>
+        <FONT COLOR=black><B>import</B></FONT> httplib
+        <FONT COLOR=black><B>return</B></FONT> httplib.HTTP(host)
+
+    <FONT COLOR=black><B>def</B></FONT> send_request(self, connection, handler, request_body):
+        connection.putrequest(<FONT COLOR=#FF0000>"POST"</FONT>, handler)
+
+    <FONT COLOR=black><B>def</B></FONT> send_host(self, connection, host):
+        connection.putheader(<FONT COLOR=#FF0000>"Host"</FONT>, host)
+
+    <FONT COLOR=black><B>def</B></FONT> send_user_agent(self, connection):
+        connection.putheader(<FONT COLOR=#FF0000>"User-Agent"</FONT>, self.user_agent)
+
+    <FONT COLOR=black><B>def</B></FONT> send_content(self, connection, request_body, binary=0, compressed=0,
+                     acceptCompressedResponse=0):
+        <FONT COLOR=black><B>if</B></FONT> binary:
+            connection.putheader(<FONT COLOR=#FF0000>"Content-Type"</FONT>, <FONT COLOR=#FF0000>"application/x-python-binary-pickled-dict"</FONT>)
+        <FONT COLOR=black><B>else</B></FONT>:
+            connection.putheader(<FONT COLOR=#FF0000>"Content-Type"</FONT>, <FONT COLOR=#FF0000>"text/x-python-pickled-dict"</FONT>)
+        connection.putheader(<FONT COLOR=#FF0000>"Content-Length"</FONT>, str(len(request_body)))
+        <FONT COLOR=black><B>if</B></FONT> compressed:
+            connection.putheader(<FONT COLOR=#FF0000>"Content-Encoding"</FONT>, <FONT COLOR=#FF0000>"x-gzip"</FONT>)
+        <FONT COLOR=black><B>if</B></FONT> zlib <FONT COLOR=black><B>is</B></FONT> <FONT COLOR=black><B>not</B></FONT> None <FONT COLOR=black><B>and</B></FONT> acceptCompressedResponse:
+            connection.putheader(<FONT COLOR=#FF0000>"Accept-Encoding"</FONT>, <FONT COLOR=#FF0000>"gzip"</FONT>)
+        connection.endheaders()
+        <FONT COLOR=black><B>if</B></FONT> request_body:
+            connection.send(request_body)
+
+    <FONT COLOR=black><B>def</B></FONT> parse_response(self, f):
+        <FONT COLOR=black><B>return</B></FONT> self.load(f)
+
+    <FONT COLOR=black><B>def</B></FONT> parse_response_gzip(self, f):
+        <FONT COLOR=#1111CC># read response from input file, decompress it, and parse it</FONT>
+        <FONT COLOR=#1111CC># @@ gat: could this be made more memory-efficient?</FONT>
+        <FONT COLOR=black><B>return</B></FONT> self.loads(zlib.decompress(f.read()))
+
+<FONT COLOR=black><B>class</B></FONT> SafeTransport(Transport):
+    <FONT COLOR=#FF0000>"""
+    Handles an HTTPS transaction to a Pickle-RPC server.
+    """</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> make_connection(self, host):
+        <FONT COLOR=#1111CC># create a HTTPS connection object from a host descriptor</FONT>
+        <FONT COLOR=#1111CC># host may be a string, or a (host, x509-dict) tuple</FONT>
+        <FONT COLOR=black><B>import</B></FONT> httplib
+        <FONT COLOR=black><B>if</B></FONT> isinstance(host, types.TupleType):
+            host, x509 = host
+        <FONT COLOR=black><B>else</B></FONT>:
+            x509 = {}
+        <FONT COLOR=black><B>try</B></FONT>:
+            HTTPS = httplib.HTTPS
+        <FONT COLOR=black><B>except</B></FONT> AttributeError:
+            <FONT COLOR=black><B>raise</B></FONT> NotImplementedError,\
+                  <FONT COLOR=#FF0000>"your version of httplib doesn't support HTTPS"</FONT>
+        <FONT COLOR=black><B>else</B></FONT>:
+            <FONT COLOR=black><B>return</B></FONT> apply(HTTPS, (host, None), x509)
+
+    <FONT COLOR=black><B>def</B></FONT> send_host(self, connection, host):
+        <FONT COLOR=black><B>if</B></FONT> isinstance(host, types.TupleType):
+            host, x509 = host
+        connection.putheader(<FONT COLOR=#FF0000>"Host"</FONT>, host)
+
+</PRE>
+                  <!--footer-->
+                  </BODY>

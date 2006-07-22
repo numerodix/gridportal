@@ -1,0 +1,52 @@
+
+<html>
+    <head>
+        <title>WebKit/AutoReloadingAppServer.py</title>
+        <style type="text/css">
+            .Line_class {
+            }
+
+            .Line_category {
+                color: 11B;
+            }
+
+            .Line_def {
+            }
+
+            .Name_class {
+                color: 909;
+                font-weight: bold;
+            }
+
+            .Name_def {
+                color: 909;
+                font-weight: bold;
+            }
+        </style>
+    </head>
+<body>
+<pre>
+
+<span class=Line_class>class <span class=Name_class>AutoReloadingAppServer(AppServer)</span>:</span>
+
+<span class=Line_category>    ## AppServer methods which this class overrides</span>
+<span class=Line_def>    def <span class=Name_class>__init__</span>(self,path=None):</span>
+<span class=Line_def>    def <span class=Name_class>defaultConfig</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>shutDown</span>(self):</span>
+
+<span class=Line_category>    ## Activatation of AutoReload</span>
+<span class=Line_def>    def <span class=Name_class>activateAutoReload</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>deactivateAutoReload</span>(self):</span>
+
+<span class=Line_category>    ## Restart methods</span>
+<span class=Line_def>    def <span class=Name_class>restartIfNecessary</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>restart</span>(self):</span>
+
+<span class=Line_category>    ## Callbacks</span>
+<span class=Line_def>    def <span class=Name_class>monitorNewModule</span>(self, filepath, mtime):</span>
+
+<span class=Line_category>    ## Internal methods</span>
+<span class=Line_def>    def <span class=Name_class>shouldRestart</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>fileMonitorThreadLoop</span>(self, getmtime=os.path.getmtime):</span>
+<span class=Line_def>    def <span class=Name_class>fileMonitorThreadLoopFAM</span>(self, getmtime=os.path.getmtime):</span>
+</pre> </body> </html>

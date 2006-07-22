@@ -1,0 +1,32 @@
+<HTML><HEAD><TITLE>PSP/PSPPage.py</TITLE></HEAD>
+                  <BODY BGCOLOR=#EEEEEE>
+                  <!--header-->
+                  <!--script--><PRE><FONT COLOR=#FF0000>"""This class is intended to be used in the future as the default base class
+for PSP pages in the event that some special processing is needed.
+Right now, no special processing is needed, so the default base class
+for PSP pages is rhe standard WebKit Page.
+"""</FONT>
+
+
+<FONT COLOR=black><B>from</B></FONT> WebKit.Page <FONT COLOR=black><B>import</B></FONT> Page
+<FONT COLOR=black><B>import</B></FONT> string
+
+
+<FONT COLOR=black><B>class</B></FONT> PSPPage(Page):
+
+    <FONT COLOR=black><B>def</B></FONT> __init__(self):
+        <FONT COLOR=#1111CC>#self.parent = string.split(str(self.__class__.__bases__[0]),'.')[1]</FONT>
+        <FONT COLOR=#1111CC>#print </FONT>self.parent
+        self.parent=Page
+        self.parent.__init__(self)
+
+    <FONT COLOR=black><B>def</B></FONT> awake(self, trans):
+        self.parent.awake(self, trans)
+        self.out = trans.response()
+
+
+
+
+</PRE>
+                  <!--footer-->
+                  </BODY>

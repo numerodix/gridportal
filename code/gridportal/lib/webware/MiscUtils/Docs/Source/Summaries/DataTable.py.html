@@ -1,0 +1,121 @@
+
+<html>
+    <head>
+        <title>MiscUtils/DataTable.py</title>
+        <style type="text/css">
+            .Line_class {
+            }
+
+            .Line_category {
+                color: 11B;
+            }
+
+            .Line_def {
+            }
+
+            .Name_class {
+                color: 909;
+                font-weight: bold;
+            }
+
+            .Name_def {
+                color: 909;
+                font-weight: bold;
+            }
+        </style>
+    </head>
+<body>
+<pre>
+<span class=Line_category>## Types ##</span>
+
+<span class=Line_category>## Classes ##</span>
+
+
+<span class=Line_class>class <span class=Name_class>DataTableError(Exception)</span>:</span>
+
+
+<span class=Line_class>class <span class=Name_class>TableColumn</span>:</span>
+<span class=Line_def>    def <span class=Name_class>__init__</span>(self, spec):</span>
+<span class=Line_def>    def <span class=Name_class>name</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>type</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>setType</span>(self, type):</span>
+<span class=Line_def>    def <span class=Name_class>__repr__</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>__str__</span>(self):</span>
+
+<span class=Line_category>    ## Utilities ##</span>
+<span class=Line_def>    def <span class=Name_class>valueForRawValue</span>(self, rawValue):</span>
+
+
+<span class=Line_class>class <span class=Name_class>DataTable</span>:</span>
+
+<span class=Line_category>    ## Init ##</span>
+<span class=Line_def>    def <span class=Name_class>__init__</span>(self, filenameOrHeadings=None, delimiter=',', allowComments=1, stripWhite=1, defaultType='string', usePickleCache=None):</span>
+
+<span class=Line_category>    ## File I/O ##</span>
+<span class=Line_def>    def <span class=Name_class>readFileNamed</span>(self, filename, delimiter=',', allowComments=1, stripWhite=1):</span>
+<span class=Line_def>    def <span class=Name_class>readFile</span>(self, file, delimiter=',', allowComments=1, stripWhite=1):</span>
+<span class=Line_def>    def <span class=Name_class>readString</span>(self, string, delimiter=',', allowComments=1, stripWhite=1):</span>
+<span class=Line_def>    def <span class=Name_class>readLines</span>(self, lines, delimiter=',', allowComments=1, stripWhite=1):</span>
+<span class=Line_def>    def <span class=Name_class>save</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>writeFileNamed</span>(self, filename):</span>
+<span class=Line_def>    def <span class=Name_class>writeFile</span>(self, file):</span>
+<span class=Line_def>        def <span class=Name_class>ValueWritingMapper</span>(item):</span>
+<span class=Line_def>    def <span class=Name_class>commit</span>(self):</span>
+
+<span class=Line_category>    ## Headings ##</span>
+<span class=Line_def>    def <span class=Name_class>heading</span>(self, index):</span>
+<span class=Line_def>    def <span class=Name_class>hasHeading</span>(self, name):</span>
+<span class=Line_def>    def <span class=Name_class>numHeadings</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>headings</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>setHeadings</span>(self, headings):</span>
+
+<span class=Line_category>    ## Row access (list like) ##</span>
+<span class=Line_def>    def <span class=Name_class>__len__</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>__getitem__</span>(self, index):</span>
+<span class=Line_def>    def <span class=Name_class>append</span>(self, object):</span>
+
+<span class=Line_category>    ## Queries ##</span>
+<span class=Line_def>    def <span class=Name_class>recordsEqualTo</span>(self, dict):</span>
+
+<span class=Line_category>    ## As a string ##</span>
+<span class=Line_def>    def <span class=Name_class>__repr__</span>(self):</span>
+
+<span class=Line_category>    ## As a dictionary ##</span>
+<span class=Line_def>    def <span class=Name_class>dictKeyedBy</span>(self, key):</span>
+
+<span class=Line_category>    ## Misc access ##</span>
+<span class=Line_def>    def <span class=Name_class>filename</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>nameToIndexMap</span>(self):</span>
+
+<span class=Line_category>    ## Self utilities ##</span>
+<span class=Line_def>    def <span class=Name_class>createNameToIndexMap</span>(self):</span>
+
+
+<span class=Line_class>class <span class=Name_class>TableRecord</span>:</span>
+
+<span class=Line_category>    ## Init ##</span>
+<span class=Line_def>    def <span class=Name_class>__init__</span>(self, table, values=None):</span>
+<span class=Line_def>    def <span class=Name_class>initFromSequence</span>(self, values):</span>
+<span class=Line_def>    def <span class=Name_class>initFromDict</span>(self, dict):</span>
+<span class=Line_def>    def <span class=Name_class>initFromObject</span>(self, object):</span>
+
+<span class=Line_category>    ## Accessing like a sequence or dictionary ##</span>
+<span class=Line_def>    def <span class=Name_class>__len__</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>__getitem__</span>(self, key):</span>
+<span class=Line_def>    def <span class=Name_class>__setitem__</span>(self, key, value):</span>
+<span class=Line_def>    def <span class=Name_class>__repr__</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>get</span>(self, key, default=None):</span>
+<span class=Line_def>    def <span class=Name_class>has_key</span>(self, key):</span>
+<span class=Line_def>    def <span class=Name_class>keys</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>values</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>items</span>(self):</span>
+
+<span class=Line_category>    ## Additional access ##</span>
+<span class=Line_def>    def <span class=Name_class>asList</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>asDict</span>(self):</span>
+
+<span class=Line_category>    ## valueForFoo() family ##</span>
+<span class=Line_def>    def <span class=Name_class>valueForKey</span>(self, key, default=NoDefault):</span>
+<span class=Line_def>    def <span class=Name_class>valueForAttr</span>(self, attr, default=NoDefault):</span>
+<span class=Line_def>def <span class=Name_class>main</span>(args=None):</span>
+</pre> </body> </html>

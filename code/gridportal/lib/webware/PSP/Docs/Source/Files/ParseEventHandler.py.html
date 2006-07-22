@@ -1,0 +1,441 @@
+<HTML><HEAD><TITLE>PSP/ParseEventHandler.py</TITLE></HEAD>
+                  <BODY BGCOLOR=#EEEEEE>
+                  <!--header-->
+                  <!--script--><PRE><FONT COLOR=#FF0000>"""
+This module is called when the Parser encounters psp tokens.  It creates a generator to handle the psp
+token.  When the PSP source file is fully parsed, this module calls all of the generators in turn to
+output their source code.
+
+
+-----------------------------------------------------------------------------------------------------
+    (c) Copyright by Jay Love, 2000 (mailto:jsliv@jslove.net)
+
+    Permission to use, copy, modify, and distribute this software and its
+    documentation for any purpose and without fee or royalty is hereby granted,
+    provided that the above copyright notice appear in all copies and that
+    both that copyright notice and this permission notice appear in
+    supporting documentation or portions thereof, including modifications,
+    that you make.
+
+    THE AUTHORS DISCLAIM ALL WARRANTIES WITH REGARD TO
+    THIS SOFTWARE, INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
+    FITNESS, IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY SPECIAL,
+    INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING
+    FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
+    NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
+    WITH THE USE OR PERFORMANCE OF THIS SOFTWARE !
+
+    This software is based in part on work done by the Jakarta group.
+
+"""</FONT>
+
+
+<FONT COLOR=black><B>from</B></FONT> Generators <FONT COLOR=black><B>import</B></FONT> *
+<FONT COLOR=black><B>import</B></FONT> string
+
+
+
+
+<FONT COLOR=black><B>class</B></FONT> ParseEventHandler:
+    <FONT COLOR=#FF0000>"""This is a key class.  It implements the handling of all the parsing elements.  Note:  This files JSP cousin is called ParseEventListener, I don\'t know why, but Handler seemed more appropriate to me."""</FONT>
+
+    aspace=<FONT COLOR=#FF0000>' '</FONT>
+    defaults = {<FONT COLOR=#FF0000>'BASE_CLASS'</FONT>:<FONT COLOR=#FF0000>'WebKit.Page'</FONT>,
+                <FONT COLOR=#FF0000>'BASE_METHOD'</FONT>:<FONT COLOR=#FF0000>'writeHTML'</FONT>,
+                <FONT COLOR=#FF0000>'imports'</FONT>:{<FONT COLOR=#FF0000>'filename'</FONT>:<FONT COLOR=#FF0000>'classes'</FONT>},
+                <FONT COLOR=#FF0000>'threadSafe'</FONT>:<FONT COLOR=#FF0000>'no'</FONT>,
+                <FONT COLOR=#FF0000>'instanceSafe'</FONT>:<FONT COLOR=#FF0000>'yes'</FONT>,
+                <FONT COLOR=#FF0000>'indent'</FONT>:int(4),
+                <FONT COLOR=#FF0000>'gobbleWhitespace'</FONT>:1,
+                <FONT COLOR=#FF0000>'formatter'</FONT>:<FONT COLOR=#FF0000>'str'</FONT>,
+                }
+
+    <FONT COLOR=black><B>def</B></FONT> __init__(self, ctxt, parser):
+
+        self._ctxt = ctxt
+
+        self._gens=[]
+
+        self._reader = ctxt.getReader()
+        self._writer = ctxt.getServletWriter()
+        self._parser = parser
+
+        self._imports=[]
+        self._importedSymbols = []
+        self._baseMethod = self.defaults[<FONT COLOR=#FF0000>'BASE_METHOD'</FONT>]
+        self._baseClasses = [self.defaults[<FONT COLOR=#FF0000>'BASE_CLASS'</FONT>]]
+        self._threadSafe = self.defaults[<FONT COLOR=#FF0000>'threadSafe'</FONT>]
+        self._instanceSafe = self.defaults[<FONT COLOR=#FF0000>'instanceSafe'</FONT>]
+        self._indent=self.defaults[<FONT COLOR=#FF0000>'indent'</FONT>]
+        self._gobbleWhitespace=self.defaults[<FONT COLOR=#FF0000>'gobbleWhitespace'</FONT>]
+        self._formatter=self.defaults[<FONT COLOR=#FF0000>'formatter'</FONT>]
+
+    <FONT COLOR=black><B>def</B></FONT> addGenerator(self, gen):
+        self._gens.append(gen)
+
+
+    <FONT COLOR=black><B>def</B></FONT> handleExpression(self, start, stop, attrs):
+        <FONT COLOR=#FF0000>"""Flush any template data into a CharGen and then create a new Expression Gen"""</FONT>
+        self._parser.flushCharData(self.tmplStart, self.tmplStop)
+        exp = ExpressionGenerator(self._reader.getChars(start,stop))
+        self.addGenerator(exp)
+
+    <FONT COLOR=black><B>def</B></FONT> handleCharData(self, start, stop, chars):
+        <FONT COLOR=#FF0000>"""flush character data into a chargen"""</FONT>
+        <FONT COLOR=black><B>if</B></FONT> chars !=<FONT COLOR=#FF0000>''</FONT> <FONT COLOR=black><B>or</B></FONT> <FONT COLOR=#FF0000>'\n'</FONT>:
+            gen = CharDataGenerator(chars)
+            self.addGenerator(gen)
+
+
+    <FONT COLOR=black><B>def</B></FONT> handleComment(self, start, stop):
+        <FONT COLOR=#FF0000>"""Comments get swallowed into nothing"""</FONT>
+        self._parser.flushCharData(self.tmplStart, self.tmplStop)
+        <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=#1111CC>#just eats the comment</FONT>
+
+
+    <FONT COLOR=black><B>def</B></FONT> handleInclude(self, attrs,param):
+        <FONT COLOR=#FF0000>"""
+        this is for includes of the form &lt;psp:include ...&gt;
+        This function essentially forwards the request to the specified URL and includes that output.
+        """</FONT>
+        self._parser.flushCharData(self.tmplStart, self.tmplStop)
+        gen = IncludeGenerator(attrs, param,self._ctxt)
+        self.addGenerator(gen)
+
+    <FONT COLOR=black><B>def</B></FONT> handleInsert(self, attrs,param):
+        <FONT COLOR=#FF0000>""" this is for includes of the form &lt;psp:insert ...&gt;
+        This type of include is not parsed, it is just inserted in the output stream."""</FONT>
+        self._parser.flushCharData(self.tmplStart, self.tmplStop)
+        gen = InsertGenerator(attrs, param,self._ctxt)
+        self.addGenerator(gen)
+
+
+    <FONT COLOR=black><B>def</B></FONT> importHandler(self, imports, start, stop):
+        importlist = string.split(imports,<FONT COLOR=#FF0000>','</FONT>)
+        <FONT COLOR=black><B>for</B></FONT> i <FONT COLOR=black><B>in</B></FONT> importlist:
+            <FONT COLOR=black><B>if</B></FONT> string.find(i,<FONT COLOR=#FF0000>':'</FONT>) != -1:
+                module, symbol = string.split(i, <FONT COLOR=#FF0000>':'</FONT>)[:2]
+                self._importedSymbols.append(string.strip(symbol))
+                implist = <FONT COLOR=#FF0000>"from "</FONT> + module + <FONT COLOR=#FF0000>" import "</FONT> + symbol
+                self._imports.append(implist)
+            <FONT COLOR=black><B>else</B></FONT>:
+                self._imports.append(<FONT COLOR=#FF0000>'import '</FONT>+string.strip(i))
+
+    <FONT COLOR=black><B>def</B></FONT> extendsHandler(self,bc,start,stop):
+        <FONT COLOR=#FF0000>"""extends is a page directive.  It sets the base class (or multiple base classes) for the class that this class
+        will generate.  The choice of base class affects the choice of a method to override with
+        the BaseMethod page directive.  The default base class is PSPPage.  PSPPage inherits from Page.py."""</FONT>
+        self._baseClasses = map(string.strip, string.split(bc, <FONT COLOR=#FF0000>','</FONT>))
+
+    <FONT COLOR=black><B>def</B></FONT> mainMethodHandler(self, method, start, stop):
+        <FONT COLOR=#FF0000>"""BaseMethod is a page directive.  It sets the class method that the main body
+        of this PSP page over-rides.  The default is WriteHTML. This value should be set to either WriteHTML
+        or writeBody.  See the PSPPage.py and Page.py servlet classes for more information."""</FONT>
+        self._baseMethod=method
+
+    <FONT COLOR=black><B>def</B></FONT> threadSafeHandler(self, bool, start, stop):
+        <FONT COLOR=#FF0000>"""isThreadSafe is a page directive.  The value can be "yes" or "no".  Default is no because the default base class,
+        PAge.py, isn't thread safe."""</FONT>
+        self._threadSafe=bool
+
+    <FONT COLOR=black><B>def</B></FONT> instanceSafeHandler(self, bool, start, stop):
+        <FONT COLOR=#FF0000>"""isInstanceSafe tells the Servlet Engine whether it is safe to use object instances of this page
+    multiple times. The default is "yes".  Saying "no" here hurts performance."""</FONT>
+        self._instanceSafe=bool
+
+    <FONT COLOR=black><B>def</B></FONT> indentTypeHandler(self,type,start, stop):
+        <FONT COLOR=#FF0000>"""Use tabs to indent source code?"""</FONT>
+        type = string.lower(type)
+
+        <FONT COLOR=black><B>if</B></FONT> type !=<FONT COLOR=#FF0000>"tabs"</FONT> <FONT COLOR=black><B>and</B></FONT> type !=<FONT COLOR=#FF0000>"spaces"</FONT> <FONT COLOR=black><B>and</B></FONT> type !=<FONT COLOR=#FF0000>"braces"</FONT>:
+            <FONT COLOR=black><B>raise</B></FONT> <FONT COLOR=#FF0000>"Invalid Indentation Type"</FONT>
+        self._writer.setIndentType(type)
+
+
+    <FONT COLOR=black><B>def</B></FONT> indentSpacesHandler(self,amount,start,stop):
+        <FONT COLOR=#FF0000>"""set number of spaces used to indent in generated source"""</FONT>
+        self._indentSpaces=int(amount)<FONT COLOR=#1111CC>#don't really need this</FONT>
+        self._writer.setIndentSpaces(int(amount))
+
+    <FONT COLOR=black><B>def</B></FONT> gobbleWhitespaceHandler(self, value, start, stop):
+        <FONT COLOR=#FF0000>"""  Should we gobble up whitespace between script tags"""</FONT>
+        <FONT COLOR=black><B>if</B></FONT> string.upper(value) == <FONT COLOR=#FF0000>"NO"</FONT> <FONT COLOR=black><B>or</B></FONT> value==<FONT COLOR=#FF0000>"0"</FONT>:
+            self._gobbleWhitespace=0
+
+    <FONT COLOR=black><B>def</B></FONT> formatterHandler(self, value, start, stop):
+        <FONT COLOR=#FF0000>""" set an alternate formatter function to use instead of str() """</FONT>
+        self._formatter = value
+
+
+    directiveHandlers = {<FONT COLOR=#FF0000>'imports'</FONT>:importHandler,
+                        <FONT COLOR=#FF0000>'import'</FONT>:importHandler,
+                         <FONT COLOR=#FF0000>'extends'</FONT>:extendsHandler,
+                         <FONT COLOR=#FF0000>'method'</FONT>:mainMethodHandler,
+                         <FONT COLOR=#FF0000>'isThreadSafe'</FONT>:threadSafeHandler,
+                         <FONT COLOR=#FF0000>'isInstanceSafe'</FONT>:instanceSafeHandler,
+                         <FONT COLOR=#FF0000>'BaseClass'</FONT>:extendsHandler,
+                         <FONT COLOR=#FF0000>'indentSpaces'</FONT>:indentSpacesHandler,
+                         <FONT COLOR=#FF0000>'indentType'</FONT>:indentTypeHandler,
+                         <FONT COLOR=#FF0000>'gobbleWhitespace'</FONT>:gobbleWhitespaceHandler,
+                         <FONT COLOR=#FF0000>'formatter'</FONT>:formatterHandler}
+
+
+    <FONT COLOR=black><B>def</B></FONT> handleDirective(self, directive, start, stop, attrs):
+        validDirectives = [<FONT COLOR=#FF0000>'page'</FONT>,<FONT COLOR=#FF0000>'include'</FONT>]
+        <FONT COLOR=#FF0000>"""Flush any template data into a CharGen and then create a new Directive Gen"""</FONT>
+        self._parser.flushCharData(self.tmplStart, self.tmplStop)
+        <FONT COLOR=#1111CC>#big switch</FONT>
+
+        <FONT COLOR=black><B>if</B></FONT> directive == <FONT COLOR=#FF0000>'page'</FONT>:
+            e = attrs.keys()
+            <FONT COLOR=black><B>for</B></FONT> i <FONT COLOR=black><B>in</B></FONT> e:
+                <FONT COLOR=black><B>if</B></FONT> self.directiveHandlers.has_key(i):
+                    self.directiveHandlers[i](self,attrs[i],start,stop)
+                <FONT COLOR=black><B>else</B></FONT>:
+                    <FONT COLOR=black><B>print</B></FONT> i
+                    <FONT COLOR=black><B>raise</B></FONT> <FONT COLOR=#FF0000>'No Page Directive Handler'</FONT>
+
+        <FONT COLOR=black><B>elif</B></FONT> directive == <FONT COLOR=#FF0000>'include'</FONT>:
+            <FONT COLOR=black><B>try</B></FONT>:
+                filenm = attrs[<FONT COLOR=#FF0000>'file'</FONT>]
+                encoding = attrs[<FONT COLOR=#FF0000>'encoding'</FONT>]
+            <FONT COLOR=black><B>except</B></FONT> KeyError:
+                <FONT COLOR=black><B>if</B></FONT> filenm !=None:
+                    encoding = None
+                <FONT COLOR=black><B>else</B></FONT>:
+                    <FONT COLOR=black><B>raise</B></FONT> KeyError
+            <FONT COLOR=black><B>try</B></FONT>:
+                self._reader.pushFile(filenm, encoding)
+            <FONT COLOR=black><B>except</B></FONT> <FONT COLOR=#FF0000>'File Not Found'</FONT>:
+                <FONT COLOR=black><B>raise</B></FONT> <FONT COLOR=#FF0000>'PSP Error: Include File not Found'</FONT>
+        <FONT COLOR=black><B>else</B></FONT>:
+            <FONT COLOR=black><B>print</B></FONT> directive
+            <FONT COLOR=black><B>raise</B></FONT> <FONT COLOR=#FF0000>"Invalid Directive"</FONT>
+
+
+
+    <FONT COLOR=black><B>def</B></FONT> handleScript(self, start, stop, attrs):
+        <FONT COLOR=#FF0000>"""handling scripting elements"""</FONT>
+        self._parser.flushCharData(self.tmplStart, self.tmplStop)
+        gen = ScriptGenerator(self._reader.getChars(start, stop),attrs)
+        self.addGenerator(gen)
+
+    <FONT COLOR=black><B>def</B></FONT> handleEndBlock(self):
+        self._parser.flushCharData(self.tmplStart, self.tmplStop)
+        gen = EndBlockGenerator()
+        self.addGenerator(gen)
+
+    <FONT COLOR=black><B>def</B></FONT> handleMethod(self, start, stop, attrs):
+        self._parser.flushCharData(self.tmplStart, self.tmplStop)
+        gen = MethodGenerator(self._reader.getChars(start, stop),attrs)
+        self.addGenerator(gen)
+
+    <FONT COLOR=black><B>def</B></FONT> handleMethodEnd(self, start, stop, attrs):
+        <FONT COLOR=#1111CC>#self._parser.flushCharData(self.tmplStart, self.tmplStop)</FONT>
+        gen = MethodEndGenerator(self._reader.getChars(start, stop),attrs)
+        self.addGenerator(gen)
+
+    <FONT COLOR=#1111CC>#####################################################################</FONT>
+    <FONT COLOR=#1111CC>##The generation of the page begins here</FONT>
+    <FONT COLOR=#1111CC>####################################################################3</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> beginProcessing(self):
+        <FONT COLOR=black><B>pass</B></FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> endProcessing(self):
+        self.generateHeader()
+        self.generateDeclarations() <FONT COLOR=#1111CC>#I'll overwrite this later when I can handle extends</FONT>
+        self.generateInitPSP()
+        self.generateAll(<FONT COLOR=#FF0000>'Declarations'</FONT>)
+        self._writer.println(<FONT COLOR=#FF0000>'\n'</FONT>)
+        self.generateMainMethod()
+        self.optimizeCharData()
+        <FONT COLOR=black><B>if</B></FONT> self._gobbleWhitespace:
+            self.gobbleWhitespace()
+        self.generateAll(<FONT COLOR=#FF0000>'Service'</FONT>)
+        self._writer.println()
+        self.generateFooter()
+
+    <FONT COLOR=black><B>def</B></FONT> setTemplateInfo(self, start, stop):
+        <FONT COLOR=#FF0000>"""marks non code data"""</FONT>
+        self.tmplStart = start
+        self.tmplStop = stop
+
+    <FONT COLOR=black><B>def</B></FONT> generateHeader(self):
+        <FONT COLOR=black><B>for</B></FONT> i <FONT COLOR=black><B>in</B></FONT> self._imports:
+            self._writer.println(i)
+<FONT COLOR=#1111CC>##      self._writer.println('try:\n')</FONT>
+<FONT COLOR=#1111CC>##      self._writer.pushIndent()</FONT>
+        <FONT COLOR=#1111CC>#self._writer.println('from ' +self._baseClass+ ' import ' +self._baseClass +'\n')</FONT>
+        self._writer.println(<FONT COLOR=#FF0000>'import WebKit'</FONT>)
+        self._writer.println(<FONT COLOR=#FF0000>'from WebKit import Page'</FONT>)
+        <FONT COLOR=black><B>for</B></FONT> baseClass <FONT COLOR=black><B>in</B></FONT> self._baseClasses:
+            <FONT COLOR=black><B>if</B></FONT> string.find(baseClass,<FONT COLOR=#FF0000>'.'</FONT>)&lt;0 <FONT COLOR=black><B>and</B></FONT> baseClass <FONT COLOR=black><B>not</B></FONT> <FONT COLOR=black><B>in</B></FONT> self._importedSymbols:
+                self._writer.println(<FONT COLOR=#FF0000>'import '</FONT> + baseClass)
+<FONT COLOR=#1111CC>##      self._writer.popIndent()</FONT>
+<FONT COLOR=#1111CC>##      self._writer.println('except:\n')</FONT>
+<FONT COLOR=#1111CC>##      self._writer.pushIndent()</FONT>
+<FONT COLOR=#1111CC>##      self._writer.println('pass\n')</FONT>
+<FONT COLOR=#1111CC>##      self._writer.popIndent()</FONT>
+        self._writer.println(<FONT COLOR=#FF0000>"__orig_file__ = '%s'"</FONT> % self._ctxt.getFullPspFileName())
+
+    <FONT COLOR=black><B>def</B></FONT> generateDeclarations(self):
+        <FONT COLOR=#1111CC># The PSP "extends" directive allows you to use a shortcut -- if the module name</FONT>
+        <FONT COLOR=#1111CC># is the same as the class name, you can say "Classname" instead of "ClassName.ClassName".</FONT>
+        <FONT COLOR=#1111CC># But we can't tell right now which names are actually class names, and which</FONT>
+        <FONT COLOR=#1111CC># names are really module names that contain a class of the same name.</FONT>
+        <FONT COLOR=#1111CC># So we have to generate code that checks at runtime.</FONT>
+        self._writer.println()
+        self._writer.println(<FONT COLOR=#FF0000>'import types'</FONT>)
+        self._writer.println(<FONT COLOR=#FF0000>'_baseClasses = []'</FONT>)
+        <FONT COLOR=black><B>for</B></FONT> baseClass <FONT COLOR=black><B>in</B></FONT> self._baseClasses:
+            className = string.split(baseClass, <FONT COLOR=#FF0000>'.'</FONT>)[-1]
+            self._writer.println(<FONT COLOR=#FF0000>'if isinstance(%s, types.ModuleType):'</FONT> % baseClass)
+            self._writer.pushIndent()
+            self._writer.println(<FONT COLOR=#FF0000>'_baseClasses.append(%s.%s)'</FONT> % (baseClass, className))
+            self._writer.popIndent()
+            self._writer.println(<FONT COLOR=#FF0000>'else:'</FONT>)
+            self._writer.pushIndent()
+            self._writer.println(<FONT COLOR=#FF0000>'_baseClasses.append(%s)'</FONT> % baseClass)
+            self._writer.popIndent()
+        self._writer.println()
+        <FONT COLOR=#1111CC># Now write the class line</FONT>
+        self._writer.printChars(<FONT COLOR=#FF0000>'class '</FONT>)
+        self._writer.printChars(self._ctxt.getServletClassName())
+        self._writer.printChars(<FONT COLOR=#FF0000>'('</FONT>)
+        <FONT COLOR=black><B>for</B></FONT> i <FONT COLOR=black><B>in</B></FONT> range(len(self._baseClasses)):
+            <FONT COLOR=black><B>if</B></FONT> i &gt; 0:
+                self._writer.printChars(<FONT COLOR=#FF0000>','</FONT>)
+            self._writer.printChars(<FONT COLOR=#FF0000>'_baseClasses[%d]'</FONT> % i)
+        self._writer.printChars(<FONT COLOR=#FF0000>'):'</FONT>)
+        <FONT COLOR=#1111CC>#self._writer.printChars('('+self._baseClass+'):')</FONT>
+        self._writer.printChars(<FONT COLOR=#FF0000>'\n'</FONT>)
+
+        self._writer.pushIndent()
+        self._writer.println(<FONT COLOR=#FF0000>'def canBeThreaded(self):'</FONT>) <FONT COLOR=#1111CC># I Hope to take this out soon!</FONT>
+        self._writer.pushIndent()
+        <FONT COLOR=black><B>if</B></FONT> string.lower(self._threadSafe) == <FONT COLOR=#FF0000>'no'</FONT>:
+            self._writer.println(<FONT COLOR=#FF0000>'return 0'</FONT>)
+        <FONT COLOR=black><B>else</B></FONT>:
+            self._writer.println(<FONT COLOR=#FF0000>'return 1'</FONT>)
+        self._writer.popIndent()
+        self._writer.println()
+
+        self._writer.println(<FONT COLOR=#FF0000>'def canBeReused(self):'</FONT>) <FONT COLOR=#1111CC># I Hope to take this out soon!</FONT>
+        self._writer.pushIndent()
+        <FONT COLOR=black><B>if</B></FONT> string.lower(self._instanceSafe) == <FONT COLOR=#FF0000>'no'</FONT>:
+            self._writer.println(<FONT COLOR=#FF0000>'return 0'</FONT>)
+        <FONT COLOR=black><B>else</B></FONT>:
+            self._writer.println(<FONT COLOR=#FF0000>'return 1'</FONT>)
+        self._writer.popIndent()
+        self._writer.println()
+
+        <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> AwakeCreated:
+            self._writer.println(<FONT COLOR=#FF0000>'def awake(self,trans):'</FONT>)
+            self._writer.pushIndent()
+            self._writer.println(<FONT COLOR=#FF0000>'for baseclass in self.__class__.__bases__:'</FONT>)
+            self._writer.pushIndent()
+            self._writer.println(<FONT COLOR=#FF0000>'if hasattr(baseclass, "awake"):'</FONT>)
+            self._writer.pushIndent()
+            self._writer.println(<FONT COLOR=#FF0000>'baseclass.awake(self, trans)'</FONT>)
+            self._writer.println(<FONT COLOR=#FF0000>'break\n'</FONT>)
+            self._writer.popIndent() <FONT COLOR=#1111CC># end if statement</FONT>
+            self._writer.popIndent() <FONT COLOR=#1111CC># end for statement</FONT>
+
+<FONT COLOR=#1111CC>##commented out for new awake version per conversation w/ chuck</FONT>
+<FONT COLOR=#1111CC>##      self._writer.println('if "init" in dir(self) and type(self.init) == type(self.__init__):\n')</FONT>
+<FONT COLOR=#1111CC>##      self._writer.pushIndent()</FONT>
+<FONT COLOR=#1111CC>##      self._writer.println('self.init()\n')</FONT>
+<FONT COLOR=#1111CC>##      self._writer.popIndent()</FONT>
+            self._writer.println(<FONT COLOR=#FF0000>'self.initPSP()\n'</FONT>)
+            self._writer.println()
+            self._writer.popIndent()
+            self._writer.println()
+
+        self._writer.println(<FONT COLOR=#FF0000>'def __includeFile(self, filename):'</FONT>)
+        self._writer.pushIndent()
+        self._writer.println(<FONT COLOR=#FF0000>'self.write(open(filename).read())'</FONT>)
+        self._writer.popIndent()
+        self._writer.println()
+
+        <FONT COLOR=black><B>return</B></FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> generateInitPSP(self):
+        self._writer.println(<FONT COLOR=#FF0000>'def initPSP(self):\n'</FONT>)
+        self._writer.pushIndent()
+        self._writer.println(<FONT COLOR=#FF0000>'pass\n'</FONT>) <FONT COLOR=#1111CC>#nothing for now</FONT>
+        self._writer.popIndent()
+        self._writer.println()
+
+    <FONT COLOR=black><B>def</B></FONT> generateMainMethod(self):
+        self._writer.printIndent()
+        self._writer.printChars(<FONT COLOR=#FF0000>'def '</FONT>)
+        self._writer.printChars(self._baseMethod) <FONT COLOR=#1111CC>#method we're creating</FONT>
+        self._writer.printChars(<FONT COLOR=#FF0000>'(self, transaction=None):\n'</FONT>)
+        self._writer.pushIndent()
+        self._writer.println(<FONT COLOR=#FF0000>'trans = self._transaction'</FONT>)
+        self._writer.println(ResponseObject+ <FONT COLOR=#FF0000>'= trans.response()'</FONT>)
+        self._writer.println(<FONT COLOR=#FF0000>'req = trans.request()'</FONT>)
+        self._writer.println(<FONT COLOR=#FF0000>'_formatter = %s'</FONT> % self._formatter)
+
+    <FONT COLOR=#1111CC>#self._writer.println('app = trans.application()')</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> generateFooter(self):
+        <FONT COLOR=#FF0000>"""cant decide if this is in the class or outside.  Guess Ill know when Im done"""</FONT>
+        self._writer.popIndent()
+        self._writer.println(<FONT COLOR=#FF0000>'##footer'</FONT>)
+
+    <FONT COLOR=black><B>def</B></FONT> generateAll(self,phase):
+        <FONT COLOR=black><B>for</B></FONT> i <FONT COLOR=black><B>in</B></FONT> self._gens:
+            <FONT COLOR=black><B>if</B></FONT> i.phase == phase:
+                i.generate(self._writer)
+
+    <FONT COLOR=black><B>def</B></FONT> optimizeCharData(self):
+        <FONT COLOR=#FF0000>""" Too many char data generators make the Servlet Slow.  If the current Generator and the next are both CharData type, merge their data."""</FONT>
+        gens=self._gens
+        count=0
+        gencount = len(gens)
+
+        <FONT COLOR=black><B>while</B></FONT> count &lt; gencount-1:
+            <FONT COLOR=black><B>if</B></FONT> isinstance(gens[count],CharDataGenerator) <FONT COLOR=black><B>and</B></FONT> isinstance(gens[count+1],CharDataGenerator):
+                gens[count].mergeData(gens[count+1])
+                gens.remove(gens[count+1])
+                gencount = gencount-1
+            <FONT COLOR=black><B>else</B></FONT>:
+                count = count+1
+
+
+    <FONT COLOR=black><B>def</B></FONT> gobbleWhitespace(self):
+        <FONT COLOR=#FF0000>"""
+        This method looks for a character block between two psp blocks that contains only whitespace.
+        If it finds one, it deletes it.
+        This is necessary so that a write()  line can't sneek in between a if/else, try/except etc.
+        """</FONT>
+        debug=0
+        gens=self._gens
+        sideClasses=(ScriptGenerator, EndBlockGenerator)<FONT COLOR=#1111CC>##, ExpressionGenerator)</FONT>
+        count=1
+        gencount = len(gens)
+        <FONT COLOR=black><B>if</B></FONT> debug:
+            <FONT COLOR=black><B>for</B></FONT> i <FONT COLOR=black><B>in</B></FONT> gens:
+                <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>"Generator type=%s"</FONT> % i.__class__
+        <FONT COLOR=black><B>while</B></FONT> count &lt; gencount-1:
+            <FONT COLOR=black><B>if</B></FONT> isinstance(gens[count],CharDataGenerator) <FONT COLOR=black><B>and</B></FONT> gens[count+1].__class__ <FONT COLOR=black><B>in</B></FONT> sideClasses <FONT COLOR=black><B>and</B></FONT> gens[count-1].__class__ <FONT COLOR=black><B>in</B></FONT> sideClasses:
+                <FONT COLOR=black><B>if</B></FONT> checkForTextHavingOnlyGivenChars(gens[count].chars):
+                    gens.remove(gens[count])
+                    gencount=gencount-1
+            count = count+1
+        
+
+<FONT COLOR=black><B>def</B></FONT> checkForTextHavingOnlyGivenChars(text, ws=string.whitespace):
+    <FONT COLOR=#FF0000>""" Does the given text contain anything other than the ws characters?
+    Return true if text is only ws characters
+    Should redo this as a regex.
+    """</FONT>
+    <FONT COLOR=black><B>for</B></FONT> i <FONT COLOR=black><B>in</B></FONT> text:
+        <FONT COLOR=black><B>if</B></FONT> i <FONT COLOR=black><B>not</B></FONT> <FONT COLOR=black><B>in</B></FONT> ws:
+            <FONT COLOR=black><B>return</B></FONT> 0
+    <FONT COLOR=black><B>return</B></FONT> 1
+</PRE>
+                  <!--footer-->
+                  </BODY>

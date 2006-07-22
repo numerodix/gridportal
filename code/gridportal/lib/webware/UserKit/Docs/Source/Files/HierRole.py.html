@@ -1,0 +1,31 @@
+<HTML><HEAD><TITLE>UserKit/HierRole.py</TITLE></HEAD>
+                  <BODY BGCOLOR=#EEEEEE>
+                  <!--header-->
+                  <!--script--><PRE><FONT COLOR=black><B>from</B></FONT> Role <FONT COLOR=black><B>import</B></FONT> Role
+
+
+<FONT COLOR=black><B>class</B></FONT> HierRole(Role):
+    <FONT COLOR=#FF0000>"""
+    HierRole is a hierarchical role. It points to its parent roles.
+    The hierarchy cannot have cycles.
+    """</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> __init__(self, name, description=None, superRoles=[]):
+        Role.__init__(self, name, description)
+        <FONT COLOR=black><B>for</B></FONT> role <FONT COLOR=black><B>in</B></FONT> superRoles:
+            <FONT COLOR=black><B>assert</B></FONT> isinstance(role, Role)
+        self._superRoles = superRoles[:]
+
+    <FONT COLOR=black><B>def</B></FONT> playsRole(self, role):
+        <FONT COLOR=#FF0000>"""
+        Returns 1 if the receiving role plays the role that is passed in. This implementation provides for the inheritance that HierRole supports.
+        """</FONT>
+        <FONT COLOR=black><B>if</B></FONT> self==role:
+            <FONT COLOR=black><B>return</B></FONT> 1
+        <FONT COLOR=black><B>for</B></FONT> superRole <FONT COLOR=black><B>in</B></FONT> self._superRoles:
+            <FONT COLOR=black><B>if</B></FONT> superRole.playsRole(role):
+                <FONT COLOR=black><B>return</B></FONT> 1
+        <FONT COLOR=black><B>return</B></FONT> 0
+</PRE>
+                  <!--footer-->
+                  </BODY>

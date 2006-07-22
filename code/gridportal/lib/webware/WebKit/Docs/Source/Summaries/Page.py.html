@@ -1,0 +1,99 @@
+
+<html>
+    <head>
+        <title>WebKit/Page.py</title>
+        <style type="text/css">
+            .Line_class {
+            }
+
+            .Line_category {
+                color: 11B;
+            }
+
+            .Line_def {
+            }
+
+            .Name_class {
+                color: 909;
+                font-weight: bold;
+            }
+
+            .Name_def {
+                color: 909;
+                font-weight: bold;
+            }
+        </style>
+    </head>
+<body>
+<pre>
+
+<span class=Line_class>class <span class=Name_class>PageError(Exception)</span>:</span>
+
+
+<span class=Line_class>class <span class=Name_class>Page(HTTPServlet)</span>:</span>
+
+<span class=Line_category>    ## Transactions ##</span>
+<span class=Line_def>    def <span class=Name_class>awake</span>(self, transaction):</span>
+<span class=Line_def>    def <span class=Name_class>respondToGet</span>(self, transaction):</span>
+<span class=Line_def>    def <span class=Name_class>respondToPost</span>(self, transaction):</span>
+<span class=Line_def>    def <span class=Name_class>sleep</span>(self, transaction):</span>
+
+<span class=Line_category>    ## Access ##</span>
+<span class=Line_def>    def <span class=Name_class>application</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>transaction</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>request</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>response</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>session</span>(self):</span>
+
+<span class=Line_category>    ## Generating results ##</span>
+<span class=Line_def>    def <span class=Name_class>title</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>htTitle</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>htBodyArgs</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>writeHTML</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>writeDocType</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>writeHead</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>writeHeadParts</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>writeTitle</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>writeStyleSheet</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>writeBody</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>writeBodyParts</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>writeContent</span>(self):</span>
+
+<span class=Line_category>    ## Writing ##</span>
+<span class=Line_def>    def <span class=Name_class>write</span>(self, *args):</span>
+<span class=Line_def>    def <span class=Name_class>writeln</span>(self, *args):</span>
+
+<span class=Line_category>    ## Threading ##</span>
+<span class=Line_def>    def <span class=Name_class>canBeThreaded</span>(self):</span>
+
+<span class=Line_category>    ## Actions ##</span>
+<span class=Line_def>    def <span class=Name_class>handleAction</span>(self, action):</span>
+<span class=Line_def>    def <span class=Name_class>actions</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>preAction</span>(self, actionName):</span>
+<span class=Line_def>    def <span class=Name_class>postAction</span>(self, actionName):</span>
+<span class=Line_def>    def <span class=Name_class>methodNameForAction</span>(self, name):</span>
+
+<span class=Line_category>    ## Convenience ##</span>
+<span class=Line_def>    def <span class=Name_class>htmlEncode</span>(self, s):</span>
+<span class=Line_def>    def <span class=Name_class>htmlDecode</span>(self, s):</span>
+<span class=Line_def>    def <span class=Name_class>urlEncode</span>(self, s):</span>
+<span class=Line_def>    def <span class=Name_class>urlDecode</span>(self, s):</span>
+<span class=Line_def>    def <span class=Name_class>forward</span>(self, URL):</span>
+<span class=Line_def>    def <span class=Name_class>includeURL</span>(self, URL):</span>
+<span class=Line_def>    def <span class=Name_class>callMethodOfServlet</span>(self, URL, method, *args, **kwargs):</span>
+<span class=Line_def>    def <span class=Name_class>endResponse</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>sendRedirectAndEnd</span>(self, url):</span>
+
+<span class=Line_category>    ## Self utility ##</span>
+<span class=Line_def>    def <span class=Name_class>sessionEncode</span>(self, url=None):</span>
+
+<span class=Line_category>    ## Private utility ##</span>
+
+<span class=Line_category>    ## Validate HTML output (developer debugging) ##</span>
+<span class=Line_def>    def <span class=Name_class>validateHTML</span>(self, closingTags='</body></html>'):</span>
+<span class=Line_def>            def <span class=Name_class>writeBodyParts</span>(self):</span>
+
+<span class=Line_category>    ## Exception reports ##</span>
+<span class=Line_def>    def <span class=Name_class>writeExceptionReport</span>(self, handler):</span>
+<span class=Line_def>    def <span class=Name_class>writeExceptionReport</span>(self, handler):</span>
+</pre> </body> </html>

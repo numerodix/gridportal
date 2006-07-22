@@ -1,0 +1,84 @@
+<HTML><HEAD><TITLE>CGIWrapper/AdminPage.py</TITLE></HEAD>
+                  <BODY BGCOLOR=#EEEEEE>
+                  <!--header-->
+                  <!--script--><PRE><FONT COLOR=black><B>import</B></FONT> os, string, sys
+
+
+<FONT COLOR=black><B>class</B></FONT> AdminPage:
+    <FONT COLOR=#FF0000>"""
+    AdminPage is the abstract superclass of all CGI Wrapper administration CGI classes.
+    
+    Subclasses typically override title() and writeBody(), but may customize other methods.
+    
+    Subclasses use self._var for the various vars that are passed in from CGI Wrapper
+    and self.write() and self.writeln().
+    """</FONT> 
+
+    <FONT COLOR=#1111CC>## Init ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> __init__(self, vars):
+        <FONT COLOR=black><B>for</B></FONT> name <FONT COLOR=black><B>in</B></FONT> vars.keys():
+            setattr(self, <FONT COLOR=#FF0000>'_'</FONT>+name, vars[name])
+        self._vars = vars
+
+
+    <FONT COLOR=#1111CC>## HTML ##</FONT>
+    
+    <FONT COLOR=black><B>def</B></FONT> html(self):
+        self._html = []
+        self.writeHeader()
+        self.writeBody()
+        self.writeFooter()
+        <FONT COLOR=black><B>return</B></FONT> string.join(self._html, <FONT COLOR=#FF0000>''</FONT>)
+
+        
+    <FONT COLOR=#1111CC>## Utility methods ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> write(self, *args):
+        <FONT COLOR=black><B>for</B></FONT> arg <FONT COLOR=black><B>in</B></FONT> args:
+            self._html.append(str(arg))
+
+    <FONT COLOR=black><B>def</B></FONT> writeln(self, *args):
+        <FONT COLOR=black><B>for</B></FONT> arg <FONT COLOR=black><B>in</B></FONT> args:
+            self._html.append(str(arg))
+        self._html.append(<FONT COLOR=#FF0000>'\n'</FONT>)
+
+        
+    <FONT COLOR=#1111CC>## Content methods ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> writeHeader(self):
+        self.writeln(<FONT COLOR=#FF0000>'''&lt;html&gt;
+            &lt;head&gt;
+                &lt;title&gt;%s&lt;/title&gt;
+            &lt;/head&gt;
+            &lt;body %s&gt;&lt;table align=center&gt;&lt;tr&gt;&lt;td&gt;'''</FONT> % (self.title(), self.bodyTags()))
+        self.writeBanner()
+        self.writeToolbar()
+
+    <FONT COLOR=black><B>def</B></FONT> writeBody(self):
+        <FONT COLOR=black><B>raise</B></FONT> NotImplementedError, <FONT COLOR=#FF0000>'Should be overridden in a subclass'</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> writeFooter(self):
+        self.writeln(<FONT COLOR=#FF0000>'&lt;p&gt;&lt;br&gt;&lt;hr&gt;&lt;/table&gt;&lt;/body&gt;&lt;/html&gt;'</FONT>)
+
+    <FONT COLOR=black><B>def</B></FONT> title(self):
+        <FONT COLOR=black><B>raise</B></FONT> NotImplementedError, <FONT COLOR=#FF0000>'Should be overridden in a subclass'</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> bodyTags(self):
+        <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=#FF0000>'color=black bgcolor=white'</FONT>
+    
+    <FONT COLOR=black><B>def</B></FONT> writeBanner(self):
+        self.writeln(<FONT COLOR=#FF0000>'''&lt;table align=center bgcolor=darkblue cellpadding=5 cellspacing=0 width=100%%&gt;
+            &lt;tr&gt;&lt;td align=center&gt;
+                &lt;font face="Tahoma, Arial, Helvetica" color=white&gt;&lt;b&gt;
+                    CGI Wrapper
+                    &lt;br&gt;&lt;font size=+2&gt;%s&lt;/font&gt;
+                &lt;/b&gt;&lt;/font&gt;
+            &lt;/td&gt;&lt;/tr&gt;
+        &lt;/table&gt;&lt;p&gt;'''</FONT> % self.title())
+
+    <FONT COLOR=black><B>def</B></FONT> writeToolbar(self):
+        <FONT COLOR=black><B>pass</B></FONT>
+</PRE>
+                  <!--footer-->
+                  </BODY>

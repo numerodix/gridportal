@@ -1,0 +1,70 @@
+
+<html>
+    <head>
+        <title>WebUtils/Cookie.py</title>
+        <style type="text/css">
+            .Line_class {
+            }
+
+            .Line_category {
+                color: 11B;
+            }
+
+            .Line_def {
+            }
+
+            .Name_class {
+                color: 909;
+                font-weight: bold;
+            }
+
+            .Name_def {
+                color: 909;
+                font-weight: bold;
+            }
+        </style>
+    </head>
+<body>
+<pre>
+
+<span class=Line_class>class <span class=Name_class>CookieError(Exception)</span>:</span>
+
+
+<span class=Line_class>class <span class=Name_class>Morsel(UserDict)</span>:</span>
+<span class=Line_def>    def <span class=Name_class>__init__</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>__setitem__</span>(self, K, V):</span>
+<span class=Line_def>    def <span class=Name_class>isReservedKey</span>(self, K):</span>
+<span class=Line_def>    def <span class=Name_class>set</span>(self, key, val, coded_val,</span>
+<span class=Line_def>    def <span class=Name_class>output</span>(self, attrs=None, header = "Set-Cookie:"):</span>
+<span class=Line_def>    def <span class=Name_class>__repr__</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>js_output</span>(self, attrs=None):</span>
+<span class=Line_def>    def <span class=Name_class>OutputString</span>(self, attrs=None):</span>
+
+
+<span class=Line_class>class <span class=Name_class>BaseCookie(UserDict)</span>:</span>
+<span class=Line_def>    def <span class=Name_class>value_decode</span>(self, val):</span>
+<span class=Line_def>    def <span class=Name_class>value_encode</span>(self, val):</span>
+<span class=Line_def>    def <span class=Name_class>__init__</span>(self, input=None):</span>
+<span class=Line_def>    def <span class=Name_class>__set</span>(self, key, real_value, coded_value):</span>
+<span class=Line_def>    def <span class=Name_class>__setitem__</span>(self, key, value):</span>
+<span class=Line_def>    def <span class=Name_class>output</span>(self, attrs=None, header="Set-Cookie:", sep="\n"):</span>
+<span class=Line_def>    def <span class=Name_class>__repr__</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>js_output</span>(self, attrs=None):</span>
+<span class=Line_def>    def <span class=Name_class>load</span>(self, rawdata):</span>
+<span class=Line_def>    def <span class=Name_class>__ParseString</span>(self, str, patt=_CookiePattern):</span>
+
+
+<span class=Line_class>class <span class=Name_class>SimpleCookie(BaseCookie)</span>:</span>
+<span class=Line_def>    def <span class=Name_class>value_decode</span>(self, val):</span>
+<span class=Line_def>    def <span class=Name_class>value_encode</span>(self, val):</span>
+
+
+<span class=Line_class>class <span class=Name_class>SerialCookie(BaseCookie)</span>:</span>
+<span class=Line_def>    def <span class=Name_class>value_decode</span>(self, val):</span>
+<span class=Line_def>    def <span class=Name_class>value_encode</span>(self, val):</span>
+
+
+<span class=Line_class>class <span class=Name_class>SmartCookie(BaseCookie)</span>:</span>
+<span class=Line_def>    def <span class=Name_class>value_decode</span>(self, val):</span>
+<span class=Line_def>    def <span class=Name_class>value_encode</span>(self, val):</span>
+</pre> </body> </html>

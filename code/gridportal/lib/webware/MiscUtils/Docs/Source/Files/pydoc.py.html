@@ -1,0 +1,1884 @@
+<HTML><HEAD><TITLE>MiscUtils/pydoc.py</TITLE></HEAD>
+                  <BODY BGCOLOR=#EEEEEE>
+                  <!--header-->
+                  <!--script--><PRE><FONT COLOR=#1111CC>#!/usr/bin/env python</FONT>
+<FONT COLOR=#FF0000>"""Generate Python documentation in HTML or text for interactive use.
+
+In the Python interpreter, do "from pydoc import help" to provide online
+help.  Calling help(thing) on a Python object documents the object.
+
+Or, at the shell command line outside of Python:
+
+Run "pydoc &lt;name&gt;" to show documentation on something.  &lt;name&gt; may be
+the name of a function, module, package, or a dotted reference to a
+class or function within a module or module in a package.  If the
+argument contains a path segment delimiter (e.g. slash on Unix,
+backslash on Windows) it is treated as the path to a Python source file.
+
+Run "pydoc -k &lt;keyword&gt;" to search for a keyword in the synopsis lines
+of all available modules.
+
+Run "pydoc -p &lt;port&gt;" to start an HTTP server on a given port on the
+local machine to generate documentation web pages.
+
+For platforms without a command line, "pydoc -g" starts the HTTP server
+and also pops up a little window for controlling it.
+
+Run "pydoc -w &lt;name&gt;" to write out the HTML documentation for a module
+to a file named "&lt;name&gt;.html".
+"""</FONT>
+
+__author__ = <FONT COLOR=#FF0000>"Ka-Ping Yee &lt;ping@lfw.org&gt;"</FONT>
+__date__ = <FONT COLOR=#FF0000>"26 February 2001"</FONT>
+__version__ = <FONT COLOR=#FF0000>"$Revision: 1.1 $"</FONT>
+__credits__ = <FONT COLOR=#FF0000>"""Guido van Rossum, for an excellent programming language.
+Tommy Burnette, the original creator of manpy.
+Paul Prescod, for all his work on onlinehelp.
+Richard Chamberlain, for the first implementation of textdoc.
+
+Mynd you, møøse bites Kan be pretty nasti..."""</FONT>
+
+<FONT COLOR=#1111CC># Note: this module is designed to deploy instantly and run under any</FONT>
+<FONT COLOR=#1111CC># version of Python from 1.5 and up.  That's why it's a single file and</FONT>
+<FONT COLOR=#1111CC># some 2.0 features (like string methods) are conspicuously absent.</FONT>
+
+<FONT COLOR=#1111CC># Known bugs that can't be fixed here:</FONT>
+<FONT COLOR=#1111CC>#   - imp.load_module() cannot be prevented from clobbering existing</FONT>
+<FONT COLOR=#1111CC>#     loaded modules, so calling synopsis() on a binary module file</FONT>
+<FONT COLOR=#1111CC>#     changes the contents of any existing module with the same name.</FONT>
+<FONT COLOR=#1111CC>#   - If the __file__ attribute on a module is a relative path and</FONT>
+<FONT COLOR=#1111CC>#     the current directory is changed with os.chdir(), an incorrect</FONT>
+<FONT COLOR=#1111CC>#     path will be displayed.</FONT>
+
+<FONT COLOR=black><B>import</B></FONT> sys, imp, os, stat, re, types, inspect
+<FONT COLOR=black><B>from</B></FONT> repr <FONT COLOR=black><B>import</B></FONT> Repr
+<FONT COLOR=black><B>from</B></FONT> string <FONT COLOR=black><B>import</B></FONT> expandtabs, find, join, lower, split, strip, rfind, rstrip
+
+<FONT COLOR=#1111CC># --------------------------------------------------------- common routines</FONT>
+
+<FONT COLOR=black><B>def</B></FONT> pathdirs():
+    <FONT COLOR=#FF0000>"""Convert sys.path into a list of absolute, existing, unique paths."""</FONT>
+    dirs = []
+    normdirs = []
+    <FONT COLOR=black><B>for</B></FONT> dir <FONT COLOR=black><B>in</B></FONT> sys.path:
+        dir = os.path.abspath(dir <FONT COLOR=black><B>or</B></FONT> <FONT COLOR=#FF0000>'.'</FONT>)
+        normdir = os.path.normcase(dir)
+        <FONT COLOR=black><B>if</B></FONT> normdir <FONT COLOR=black><B>not</B></FONT> <FONT COLOR=black><B>in</B></FONT> normdirs <FONT COLOR=black><B>and</B></FONT> os.path.isdir(dir):
+            dirs.append(dir)
+            normdirs.append(normdir)
+    <FONT COLOR=black><B>return</B></FONT> dirs
+
+<FONT COLOR=black><B>def</B></FONT> getdoc(object):
+    <FONT COLOR=#FF0000>"""Get the doc string or comments for an object."""</FONT>
+    result = inspect.getdoc(object) <FONT COLOR=black><B>or</B></FONT> inspect.getcomments(object)
+    <FONT COLOR=black><B>return</B></FONT> result <FONT COLOR=black><B>and</B></FONT> re.sub(<FONT COLOR=#FF0000>'^ *\n'</FONT>, <FONT COLOR=#FF0000>''</FONT>, rstrip(result)) <FONT COLOR=black><B>or</B></FONT> <FONT COLOR=#FF0000>''</FONT>
+
+<FONT COLOR=black><B>def</B></FONT> splitdoc(doc):
+    <FONT COLOR=#FF0000>"""Split a doc string into a synopsis line (if any) and the rest."""</FONT>
+    lines = split(strip(doc), <FONT COLOR=#FF0000>'\n'</FONT>)
+    <FONT COLOR=black><B>if</B></FONT> len(lines) == 1:
+        <FONT COLOR=black><B>return</B></FONT> lines[0], <FONT COLOR=#FF0000>''</FONT>
+    <FONT COLOR=black><B>elif</B></FONT> len(lines) &gt;= 2 <FONT COLOR=black><B>and</B></FONT> <FONT COLOR=black><B>not</B></FONT> rstrip(lines[1]):
+        <FONT COLOR=black><B>return</B></FONT> lines[0], join(lines[2:], <FONT COLOR=#FF0000>'\n'</FONT>)
+    <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=#FF0000>''</FONT>, join(lines, <FONT COLOR=#FF0000>'\n'</FONT>)
+
+<FONT COLOR=black><B>def</B></FONT> classname(object, modname):
+    <FONT COLOR=#FF0000>"""Get a class name and qualify it with a module name if necessary."""</FONT>
+    name = object.__name__
+    <FONT COLOR=black><B>if</B></FONT> object.__module__ != modname:
+        name = object.__module__ + <FONT COLOR=#FF0000>'.'</FONT> + name
+    <FONT COLOR=black><B>return</B></FONT> name
+
+<FONT COLOR=black><B>def</B></FONT> isdata(object):
+    <FONT COLOR=#FF0000>"""Check if an object is of a type that probably means it's data."""</FONT>
+    <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=black><B>not</B></FONT> (inspect.ismodule(object) <FONT COLOR=black><B>or</B></FONT> inspect.isclass(object) <FONT COLOR=black><B>or</B></FONT>
+                inspect.isroutine(object) <FONT COLOR=black><B>or</B></FONT> inspect.isframe(object) <FONT COLOR=black><B>or</B></FONT>
+                inspect.istraceback(object) <FONT COLOR=black><B>or</B></FONT> inspect.iscode(object))
+
+<FONT COLOR=black><B>def</B></FONT> replace(text, *pairs):
+    <FONT COLOR=#FF0000>"""Do a series of global replacements on a string."""</FONT>
+    <FONT COLOR=black><B>while</B></FONT> pairs:
+        text = join(split(text, pairs[0]), pairs[1])
+        pairs = pairs[2:]
+    <FONT COLOR=black><B>return</B></FONT> text
+
+<FONT COLOR=black><B>def</B></FONT> cram(text, maxlen):
+    <FONT COLOR=#FF0000>"""Omit part of a string if needed to make it fit in a maximum length."""</FONT>
+    <FONT COLOR=black><B>if</B></FONT> len(text) &gt; maxlen:
+        pre = max(0, (maxlen-3)/2)
+        post = max(0, maxlen-3-pre)
+        <FONT COLOR=black><B>return</B></FONT> text[:pre] + <FONT COLOR=#FF0000>'...'</FONT> + text[len(text)-post:]
+    <FONT COLOR=black><B>return</B></FONT> text
+
+<FONT COLOR=black><B>def</B></FONT> stripid(text):
+    <FONT COLOR=#FF0000>"""Remove the hexadecimal id from a Python object representation."""</FONT>
+    <FONT COLOR=#1111CC># The behaviour of %p is implementation-dependent; we check two cases.</FONT>
+    <FONT COLOR=black><B>for</B></FONT> pattern <FONT COLOR=black><B>in</B></FONT> [<FONT COLOR=#FF0000>' at 0x[0-9a-f]{6,}&gt;$'</FONT>, <FONT COLOR=#FF0000>' at [0-9A-F]{8,}&gt;$'</FONT>]:
+        <FONT COLOR=black><B>if</B></FONT> re.search(pattern, repr(Exception)):
+            <FONT COLOR=black><B>return</B></FONT> re.sub(pattern, <FONT COLOR=#FF0000>'&gt;'</FONT>, text)
+    <FONT COLOR=black><B>return</B></FONT> text
+
+<FONT COLOR=black><B>def</B></FONT> allmethods(cl):
+    methods = {}
+    <FONT COLOR=black><B>for</B></FONT> key, value <FONT COLOR=black><B>in</B></FONT> inspect.getmembers(cl, inspect.ismethod):
+        methods[key] = 1
+    <FONT COLOR=black><B>for</B></FONT> base <FONT COLOR=black><B>in</B></FONT> cl.__bases__:
+        methods.update(allmethods(base)) <FONT COLOR=#1111CC># all your base are belong to us</FONT>
+    <FONT COLOR=black><B>for</B></FONT> key <FONT COLOR=black><B>in</B></FONT> methods.keys():
+        methods[key] = getattr(cl, key)
+    <FONT COLOR=black><B>return</B></FONT> methods
+
+<FONT COLOR=#1111CC># ----------------------------------------------------- module manipulation</FONT>
+
+<FONT COLOR=black><B>def</B></FONT> ispackage(path):
+    <FONT COLOR=#FF0000>"""Guess whether a path refers to a package directory."""</FONT>
+    <FONT COLOR=black><B>if</B></FONT> os.path.isdir(path):
+        <FONT COLOR=black><B>for</B></FONT> ext <FONT COLOR=black><B>in</B></FONT> [<FONT COLOR=#FF0000>'.py'</FONT>, <FONT COLOR=#FF0000>'.pyc'</FONT>, <FONT COLOR=#FF0000>'.pyo'</FONT>]:
+            <FONT COLOR=black><B>if</B></FONT> os.path.isfile(os.path.join(path, <FONT COLOR=#FF0000>'__init__'</FONT> + ext)):
+                <FONT COLOR=black><B>return</B></FONT> 1
+
+<FONT COLOR=black><B>def</B></FONT> synopsis(filename, cache={}):
+    <FONT COLOR=#FF0000>"""Get the one-line summary out of a module file."""</FONT>
+    mtime = os.stat(filename)[stat.ST_MTIME]
+    lastupdate, result = cache.get(filename, (0, None))
+    <FONT COLOR=black><B>if</B></FONT> lastupdate &lt; mtime:
+        info = inspect.getmoduleinfo(filename)
+        file = open(filename)
+        <FONT COLOR=black><B>if</B></FONT> info <FONT COLOR=black><B>and</B></FONT> <FONT COLOR=#FF0000>'b'</FONT> <FONT COLOR=black><B>in</B></FONT> info[2]: <FONT COLOR=#1111CC># binary modules have to be imported</FONT>
+            <FONT COLOR=black><B>try</B></FONT>: module = imp.load_module(<FONT COLOR=#FF0000>'__temp__'</FONT>, file, filename, info[1:])
+            <FONT COLOR=black><B>except</B></FONT>: <FONT COLOR=black><B>return</B></FONT> None
+            result = split(module.__doc__ <FONT COLOR=black><B>or</B></FONT> <FONT COLOR=#FF0000>''</FONT>, <FONT COLOR=#FF0000>'\n'</FONT>)[0]
+            <FONT COLOR=black><B>del</B></FONT> sys.modules[<FONT COLOR=#FF0000>'__temp__'</FONT>]
+        <FONT COLOR=black><B>else</B></FONT>: <FONT COLOR=#1111CC># text modules can be directly examined</FONT>
+            line = file.readline()
+            <FONT COLOR=black><B>while</B></FONT> line[:1] == <FONT COLOR=#FF0000>'#'</FONT> <FONT COLOR=black><B>or</B></FONT> <FONT COLOR=black><B>not</B></FONT> strip(line):
+                line = file.readline()
+                <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> line: <FONT COLOR=black><B>break</B></FONT>
+            line = strip(line)
+            <FONT COLOR=black><B>if</B></FONT> line[:4] == <FONT COLOR=#FF0000>'r"""'</FONT>: line = line[1:]
+            <FONT COLOR=black><B>if</B></FONT> line[:3] == <FONT COLOR=#FF0000>'"""'</FONT>:
+                line = line[3:]
+                <FONT COLOR=black><B>if</B></FONT> line[-1:] == <FONT COLOR=#FF0000>'\\'</FONT>: line = line[:-1]
+                <FONT COLOR=black><B>while</B></FONT> <FONT COLOR=black><B>not</B></FONT> strip(line):
+                    line = file.readline()
+                    <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> line: <FONT COLOR=black><B>break</B></FONT>
+                result = strip(split(line, <FONT COLOR=#FF0000>'"""'</FONT>)[0])
+            <FONT COLOR=black><B>else</B></FONT>: result = None
+        file.close()
+        cache[filename] = (mtime, result)
+    <FONT COLOR=black><B>return</B></FONT> result
+
+<FONT COLOR=black><B>class</B></FONT> ErrorDuringImport(Exception):
+    <FONT COLOR=#FF0000>"""Errors that occurred while trying to import something to document it."""</FONT>
+    <FONT COLOR=black><B>def</B></FONT> __init__(self, filename, (exc, value, tb)):
+        self.filename = filename
+        self.exc = exc
+        self.value = value
+        self.tb = tb
+
+    <FONT COLOR=black><B>def</B></FONT> __str__(self):
+        exc = self.exc
+        <FONT COLOR=black><B>if</B></FONT> type(exc) <FONT COLOR=black><B>is</B></FONT> types.ClassType:
+            exc = exc.__name__
+        <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=#FF0000>'problem in %s - %s: %s'</FONT> % (self.filename, exc, self.value)
+
+<FONT COLOR=black><B>def</B></FONT> importfile(path):
+    <FONT COLOR=#FF0000>"""Import a Python source file or compiled file given its path."""</FONT>
+    magic = imp.get_magic()
+    file = open(path, <FONT COLOR=#FF0000>'r'</FONT>)
+    <FONT COLOR=black><B>if</B></FONT> file.read(len(magic)) == magic:
+        kind = imp.PY_COMPILED
+    <FONT COLOR=black><B>else</B></FONT>:
+        kind = imp.PY_SOURCE
+    file.close()
+    filename = os.path.basename(path)
+    name, ext = os.path.splitext(filename)
+    file = open(path, <FONT COLOR=#FF0000>'r'</FONT>)
+    <FONT COLOR=black><B>try</B></FONT>:
+        module = imp.load_module(name, file, path, (ext, <FONT COLOR=#FF0000>'r'</FONT>, kind))
+    <FONT COLOR=black><B>except</B></FONT>:
+        <FONT COLOR=black><B>raise</B></FONT> ErrorDuringImport(path, sys.exc_info())
+    file.close()
+    <FONT COLOR=black><B>return</B></FONT> module
+
+<FONT COLOR=black><B>def</B></FONT> safeimport(path, forceload=0, cache={}):
+    <FONT COLOR=#FF0000>"""Import a module; handle errors; return None if the module isn't found.
+
+    If the module *is* found but an exception occurs, it's wrapped in an
+    ErrorDuringImport exception and reraised.  Unlike __import__, if a
+    package path is specified, the module at the end of the path is returned,
+    not the package at the beginning.  If the optional 'forceload' argument
+    is 1, we reload the module from disk (unless it's a dynamic extension)."""</FONT>
+    <FONT COLOR=black><B>if</B></FONT> forceload <FONT COLOR=black><B>and</B></FONT> sys.modules.has_key(path):
+        <FONT COLOR=#1111CC># This is the only way to be sure.  Checking the mtime of the file</FONT>
+        <FONT COLOR=#1111CC># isn't good enough (e.g. what if the module contains a class that</FONT>
+        <FONT COLOR=#1111CC># inherits from another module that has changed?).</FONT>
+        <FONT COLOR=black><B>if</B></FONT> path <FONT COLOR=black><B>not</B></FONT> <FONT COLOR=black><B>in</B></FONT> sys.builtin_module_names:
+            <FONT COLOR=#1111CC># Python never loads a dynamic extension a second time from the</FONT>
+            <FONT COLOR=#1111CC># same path, even if the file is changed or missing.  Deleting</FONT>
+            <FONT COLOR=#1111CC># the entry in sys.modules doesn't help for dynamic extensions,</FONT>
+            <FONT COLOR=#1111CC># so we're not even going to try to keep them up to date.</FONT>
+            info = inspect.getmoduleinfo(sys.modules[path].__file__)
+            <FONT COLOR=black><B>if</B></FONT> info[3] != imp.C_EXTENSION:
+                cache[path] = sys.modules[path] <FONT COLOR=#1111CC># prevent module from clearing</FONT>
+                <FONT COLOR=black><B>del</B></FONT> sys.modules[path]
+    <FONT COLOR=black><B>try</B></FONT>:
+        module = __import__(path)
+    <FONT COLOR=black><B>except</B></FONT>:
+        <FONT COLOR=#1111CC># Did the error occur before or after the module was found?</FONT>
+        (exc, value, tb) = info = sys.exc_info()
+        <FONT COLOR=black><B>if</B></FONT> sys.modules.has_key(path):
+            <FONT COLOR=#1111CC># An error occured while executing the imported module.</FONT>
+            <FONT COLOR=black><B>raise</B></FONT> ErrorDuringImport(sys.modules[path].__file__, info)
+        <FONT COLOR=black><B>elif</B></FONT> exc <FONT COLOR=black><B>is</B></FONT> SyntaxError:
+            <FONT COLOR=#1111CC># A SyntaxError occurred before we could execute the module.</FONT>
+            <FONT COLOR=black><B>raise</B></FONT> ErrorDuringImport(value.filename, info)
+        <FONT COLOR=black><B>elif</B></FONT> exc <FONT COLOR=black><B>is</B></FONT> ImportError <FONT COLOR=black><B>and</B></FONT> \
+             split(lower(str(value)))[:2] == [<FONT COLOR=#FF0000>'no'</FONT>, <FONT COLOR=#FF0000>'module'</FONT>]:
+            <FONT COLOR=#1111CC># The module was not found.</FONT>
+            <FONT COLOR=black><B>return</B></FONT> None
+        <FONT COLOR=black><B>else</B></FONT>:
+            <FONT COLOR=#1111CC># Some other error occurred during the importing process.</FONT>
+            <FONT COLOR=black><B>raise</B></FONT> ErrorDuringImport(path, sys.exc_info())
+    <FONT COLOR=black><B>for</B></FONT> part <FONT COLOR=black><B>in</B></FONT> split(path, <FONT COLOR=#FF0000>'.'</FONT>)[1:]:
+        <FONT COLOR=black><B>try</B></FONT>: module = getattr(module, part)
+        <FONT COLOR=black><B>except</B></FONT> AttributeError: <FONT COLOR=black><B>return</B></FONT> None
+    <FONT COLOR=black><B>return</B></FONT> module
+
+<FONT COLOR=#1111CC># ---------------------------------------------------- formatter base class</FONT>
+
+<FONT COLOR=black><B>class</B></FONT> Doc:
+    <FONT COLOR=black><B>def</B></FONT> document(self, object, name=None, *args):
+        <FONT COLOR=#FF0000>"""Generate documentation for an object."""</FONT>
+        args = (object, name) + args
+        <FONT COLOR=black><B>if</B></FONT> inspect.ismodule(object): <FONT COLOR=black><B>return</B></FONT> apply(self.docmodule, args)
+        <FONT COLOR=black><B>if</B></FONT> inspect.isclass(object): <FONT COLOR=black><B>return</B></FONT> apply(self.docclass, args)
+        <FONT COLOR=black><B>if</B></FONT> inspect.isroutine(object): <FONT COLOR=black><B>return</B></FONT> apply(self.docroutine, args)
+        <FONT COLOR=black><B>return</B></FONT> apply(self.docother, args)
+
+    <FONT COLOR=black><B>def</B></FONT> fail(self, object, name=None, *args):
+        <FONT COLOR=#FF0000>"""Raise an exception for unimplemented types."""</FONT>
+        message = <FONT COLOR=#FF0000>"don't know how to document object%s of type %s"</FONT> % (
+            name <FONT COLOR=black><B>and</B></FONT> <FONT COLOR=#FF0000>' '</FONT> + repr(name), type(object).__name__)
+        <FONT COLOR=black><B>raise</B></FONT> TypeError, message
+
+    docmodule = docclass = docroutine = docother = fail
+
+<FONT COLOR=#1111CC># -------------------------------------------- HTML documentation generator</FONT>
+
+<FONT COLOR=black><B>class</B></FONT> HTMLRepr(Repr):
+    <FONT COLOR=#FF0000>"""Class for safely making an HTML representation of a Python object."""</FONT>
+    <FONT COLOR=black><B>def</B></FONT> __init__(self):
+        Repr.__init__(self)
+        self.maxlist = self.maxtuple = 20
+        self.maxdict = 10
+        self.maxstring = self.maxother = 100
+
+    <FONT COLOR=black><B>def</B></FONT> escape(self, text):
+        <FONT COLOR=black><B>return</B></FONT> replace(text, <FONT COLOR=#FF0000>'&'</FONT>, <FONT COLOR=#FF0000>'&amp;'</FONT>, <FONT COLOR=#FF0000>'&lt;'</FONT>, <FONT COLOR=#FF0000>'&lt;'</FONT>, <FONT COLOR=#FF0000>'&gt;'</FONT>, <FONT COLOR=#FF0000>'&gt;'</FONT>)
+
+    <FONT COLOR=black><B>def</B></FONT> repr(self, object):
+        <FONT COLOR=black><B>return</B></FONT> Repr.repr(self, object)
+
+    <FONT COLOR=black><B>def</B></FONT> repr1(self, x, level):
+        methodname = <FONT COLOR=#FF0000>'repr_'</FONT> + join(split(type(x).__name__), <FONT COLOR=#FF0000>'_'</FONT>)
+        <FONT COLOR=black><B>if</B></FONT> hasattr(self, methodname):
+            <FONT COLOR=black><B>return</B></FONT> getattr(self, methodname)(x, level)
+        <FONT COLOR=black><B>else</B></FONT>:
+            <FONT COLOR=black><B>return</B></FONT> self.escape(cram(stripid(repr(x)), self.maxother))
+
+    <FONT COLOR=black><B>def</B></FONT> repr_string(self, x, level):
+        test = cram(x, self.maxstring)
+        testrepr = repr(test)
+        <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=#FF0000>'\\'</FONT> <FONT COLOR=black><B>in</B></FONT> test <FONT COLOR=black><B>and</B></FONT> <FONT COLOR=#FF0000>'\\'</FONT> <FONT COLOR=black><B>not</B></FONT> <FONT COLOR=black><B>in</B></FONT> replace(testrepr, r<FONT COLOR=#FF0000>'\\'</FONT>, <FONT COLOR=#FF0000>''</FONT>):
+            <FONT COLOR=#1111CC># Backslashes are only literal in the string and are never</FONT>
+            <FONT COLOR=#1111CC># needed to make any special characters, so show a raw string.</FONT>
+            <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=#FF0000>'r'</FONT> + testrepr[0] + self.escape(test) + testrepr[0]
+        <FONT COLOR=black><B>return</B></FONT> re.sub(r<FONT COLOR=#FF0000>'((\\[\\abfnrtv\'</FONT>"]|\\[0-9]..|\\x..|\\u....)+)',
+                      r<FONT COLOR=#FF0000>'&lt;font color="#c040c0"&gt;\1&lt;/font&gt;'</FONT>,
+                      self.escape(testrepr))
+
+    <FONT COLOR=black><B>def</B></FONT> repr_instance(self, x, level):
+        <FONT COLOR=black><B>try</B></FONT>:
+            <FONT COLOR=black><B>return</B></FONT> self.escape(cram(stripid(repr(x)), self.maxstring))
+        <FONT COLOR=black><B>except</B></FONT>:
+            <FONT COLOR=black><B>return</B></FONT> self.escape(<FONT COLOR=#FF0000>'&lt;%s instance&gt;'</FONT> % x.__class__.__name__)
+
+    repr_unicode = repr_string
+
+<FONT COLOR=black><B>class</B></FONT> HTMLDoc(Doc):
+    <FONT COLOR=#FF0000>"""Formatter class for HTML documentation."""</FONT>
+
+    <FONT COLOR=#1111CC># ------------------------------------------- HTML formatting utilities</FONT>
+
+    _repr_instance = HTMLRepr()
+    repr = _repr_instance.repr
+    escape = _repr_instance.escape
+
+    <FONT COLOR=black><B>def</B></FONT> page(self, title, contents):
+        <FONT COLOR=#FF0000>"""Format an HTML page."""</FONT>
+        <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=#FF0000>'''
+&lt;!doctype html public "-//W3C//DTD HTML 4.0 Transitional//EN"&gt;
+&lt;html&gt;&lt;head&gt;&lt;title&gt;Python: %s&lt;/title&gt;
+&lt;style type="text/css"&gt;&lt;!--
+TT { font-family: lucidatypewriter, lucida console, courier }
+--&gt;&lt;/style&gt;&lt;/head&gt;&lt;body bgcolor="#f0f0f8"&gt;
+%s
+&lt;/body&gt;&lt;/html&gt;'''</FONT> % (title, contents)
+
+    <FONT COLOR=black><B>def</B></FONT> heading(self, title, fgcol, bgcol, extras=<FONT COLOR=#FF0000>''</FONT>):
+        <FONT COLOR=#FF0000>"""Format a page heading."""</FONT>
+        <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=#FF0000>'''
+&lt;table width="100%%" cellspacing=0 cellpadding=2 border=0&gt;
+&lt;tr bgcolor="%s"&gt;
+&lt;td valign=bottom&gt;&lt;small&gt;&nbsp;&lt;br&gt;&lt;/small
+&gt;&lt;font color="%s" face="helvetica, arial"&gt;&nbsp;&lt;br&gt;%s&lt;/font&gt;&lt;/td
+&gt;&lt;td align=right valign=bottom
+&gt;&lt;font color="%s" face="helvetica, arial"&gt;%s&lt;/font&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+    '''</FONT> % (bgcol, fgcol, title, fgcol, extras <FONT COLOR=black><B>or</B></FONT> <FONT COLOR=#FF0000>'&nbsp;'</FONT>)
+
+    <FONT COLOR=black><B>def</B></FONT> section(self, title, fgcol, bgcol, contents, width=10,
+                prelude=<FONT COLOR=#FF0000>''</FONT>, marginalia=None, gap=<FONT COLOR=#FF0000>'&nbsp;&nbsp;'</FONT>):
+        <FONT COLOR=#FF0000>"""Format a section with a heading."""</FONT>
+        <FONT COLOR=black><B>if</B></FONT> marginalia <FONT COLOR=black><B>is</B></FONT> None:
+            marginalia = <FONT COLOR=#FF0000>'&lt;tt&gt;'</FONT> + <FONT COLOR=#FF0000>'&nbsp;'</FONT> * width + <FONT COLOR=#FF0000>'&lt;/tt&gt;'</FONT>
+        result = <FONT COLOR=#FF0000>'''
+&lt;p&gt;&lt;table width="100%%" cellspacing=0 cellpadding=2 border=0&gt;
+&lt;tr bgcolor="%s"&gt;
+&lt;td colspan=3 valign=bottom&gt;&lt;small&gt;&lt;small&gt;&nbsp;&lt;br&gt;&lt;/small&gt;&lt;/small
+&gt;&lt;font color="%s" face="helvetica, arial"&gt;%s&lt;/font&gt;&lt;/td&gt;&lt;/tr&gt;
+    '''</FONT> % (bgcol, fgcol, title)
+        <FONT COLOR=black><B>if</B></FONT> prelude:
+            result = result + <FONT COLOR=#FF0000>'''
+&lt;tr bgcolor="%s"&gt;&lt;td rowspan=2&gt;%s&lt;/td&gt;
+&lt;td colspan=2&gt;%s&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;%s&lt;/td&gt;'''</FONT> % (bgcol, marginalia, prelude, gap)
+        <FONT COLOR=black><B>else</B></FONT>:
+            result = result + <FONT COLOR=#FF0000>'''
+&lt;tr&gt;&lt;td bgcolor="%s"&gt;%s&lt;/td&gt;&lt;td&gt;%s&lt;/td&gt;'''</FONT> % (bgcol, marginalia, gap)
+
+        <FONT COLOR=black><B>return</B></FONT> result + <FONT COLOR=#FF0000>'\n&lt;td width="100%%"&gt;%s&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;'</FONT> % contents
+
+    <FONT COLOR=black><B>def</B></FONT> bigsection(self, title, *args):
+        <FONT COLOR=#FF0000>"""Format a section with a big heading."""</FONT>
+        title = <FONT COLOR=#FF0000>'&lt;big&gt;&lt;strong&gt;%s&lt;/strong&gt;&lt;/big&gt;'</FONT> % title
+        <FONT COLOR=black><B>return</B></FONT> apply(self.section, (title,) + args)
+
+    <FONT COLOR=black><B>def</B></FONT> preformat(self, text):
+        <FONT COLOR=#FF0000>"""Format literal preformatted text."""</FONT>
+        text = self.escape(expandtabs(text))
+        <FONT COLOR=black><B>return</B></FONT> replace(text, <FONT COLOR=#FF0000>'\n\n'</FONT>, <FONT COLOR=#FF0000>'\n \n'</FONT>, <FONT COLOR=#FF0000>'\n\n'</FONT>, <FONT COLOR=#FF0000>'\n \n'</FONT>,
+                             <FONT COLOR=#FF0000>' '</FONT>, <FONT COLOR=#FF0000>'&nbsp;'</FONT>, <FONT COLOR=#FF0000>'\n'</FONT>, <FONT COLOR=#FF0000>'&lt;br&gt;\n'</FONT>)
+
+    <FONT COLOR=black><B>def</B></FONT> multicolumn(self, list, format, cols=4):
+        <FONT COLOR=#FF0000>"""Format a list of items into a multi-column list."""</FONT>
+        result = <FONT COLOR=#FF0000>''</FONT>
+        rows = (len(list)+cols-1)/cols
+        <FONT COLOR=black><B>for</B></FONT> col <FONT COLOR=black><B>in</B></FONT> range(cols):
+            result = result + <FONT COLOR=#FF0000>'&lt;td width="%d%%" valign=top&gt;'</FONT> % (100/cols)
+            <FONT COLOR=black><B>for</B></FONT> i <FONT COLOR=black><B>in</B></FONT> range(rows*col, rows*col+rows):
+                <FONT COLOR=black><B>if</B></FONT> i &lt; len(list):
+                    result = result + format(list[i]) + <FONT COLOR=#FF0000>'&lt;br&gt;\n'</FONT>
+            result = result + <FONT COLOR=#FF0000>'&lt;/td&gt;'</FONT>
+        <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=#FF0000>'&lt;table width="100%%"&gt;&lt;tr&gt;%s&lt;/tr&gt;&lt;/table&gt;'</FONT> % result
+
+    <FONT COLOR=black><B>def</B></FONT> small(self, text): <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=#FF0000>'&lt;small&gt;%s&lt;/small&gt;'</FONT> % text
+    <FONT COLOR=black><B>def</B></FONT> grey(self, text): <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=#FF0000>'&lt;font color="#909090"&gt;%s&lt;/font&gt;'</FONT> % text
+
+    <FONT COLOR=black><B>def</B></FONT> namelink(self, name, *dicts):
+        <FONT COLOR=#FF0000>"""Make a link for an identifier, given name-to-URL mappings."""</FONT>
+        <FONT COLOR=black><B>for</B></FONT> dict <FONT COLOR=black><B>in</B></FONT> dicts:
+            <FONT COLOR=black><B>if</B></FONT> dict.has_key(name):
+                <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=#FF0000>'&lt;a href="%s"&gt;%s&lt;/a&gt;'</FONT> % (dict[name], name)
+        <FONT COLOR=black><B>return</B></FONT> name
+
+    <FONT COLOR=black><B>def</B></FONT> classlink(self, object, modname):
+        <FONT COLOR=#FF0000>"""Make a link for a class."""</FONT>
+        name, module = object.__name__, sys.modules.get(object.__module__)
+        <FONT COLOR=black><B>if</B></FONT> hasattr(module, name) <FONT COLOR=black><B>and</B></FONT> getattr(module, name) <FONT COLOR=black><B>is</B></FONT> object:
+            <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=#FF0000>'&lt;a href="%s.html#%s"&gt;%s&lt;/a&gt;'</FONT> % (
+                module.__name__, name, classname(object, modname))
+        <FONT COLOR=black><B>return</B></FONT> classname(object, modname)
+
+    <FONT COLOR=black><B>def</B></FONT> modulelink(self, object):
+        <FONT COLOR=#FF0000>"""Make a link for a module."""</FONT>
+        <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=#FF0000>'&lt;a href="%s.html"&gt;%s&lt;/a&gt;'</FONT> % (object.__name__, object.__name__)
+
+    <FONT COLOR=black><B>def</B></FONT> modpkglink(self, (name, path, ispackage, shadowed)):
+        <FONT COLOR=#FF0000>"""Make a link for a module or package to display in an index."""</FONT>
+        <FONT COLOR=black><B>if</B></FONT> shadowed:
+            <FONT COLOR=black><B>return</B></FONT> self.grey(name)
+        <FONT COLOR=black><B>if</B></FONT> path:
+            url = <FONT COLOR=#FF0000>'%s.%s.html'</FONT> % (path, name)
+        <FONT COLOR=black><B>else</B></FONT>:
+            url = <FONT COLOR=#FF0000>'%s.html'</FONT> % name
+        <FONT COLOR=black><B>if</B></FONT> ispackage:
+            text = <FONT COLOR=#FF0000>'&lt;strong&gt;%s&lt;/strong&gt;&nbsp;(package)'</FONT> % name
+        <FONT COLOR=black><B>else</B></FONT>:
+            text = name
+        <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=#FF0000>'&lt;a href="%s"&gt;%s&lt;/a&gt;'</FONT> % (url, text)
+
+    <FONT COLOR=black><B>def</B></FONT> markup(self, text, escape=None, funcs={}, classes={}, methods={}):
+        <FONT COLOR=#FF0000>"""Mark up some plain text, given a context of symbols to look for.
+        Each context dictionary maps object names to anchor names."""</FONT>
+        escape = escape <FONT COLOR=black><B>or</B></FONT> self.escape
+        results = []
+        here = 0
+        pattern = re.compile(r<FONT COLOR=#FF0000>'\b((http|ftp)://\S+[\w/]|'</FONT>
+                                r<FONT COLOR=#FF0000>'RFC[- ]?(\d+)|'</FONT>
+                                r<FONT COLOR=#FF0000>'PEP[- ]?(\d+)|'</FONT>
+                                r<FONT COLOR=#FF0000>'(self\.)?(\w+))\b'</FONT>)
+        <FONT COLOR=black><B>while</B></FONT> 1:
+            match = pattern.search(text, here)
+            <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> match: <FONT COLOR=black><B>break</B></FONT>
+            start, end = match.span()
+            results.append(escape(text[here:start]))
+
+            all, scheme, rfc, pep, selfdot, name = match.groups()
+            <FONT COLOR=black><B>if</B></FONT> scheme:
+                results.append(<FONT COLOR=#FF0000>'&lt;a href="%s"&gt;%s&lt;/a&gt;'</FONT> % (all, escape(all)))
+            <FONT COLOR=black><B>elif</B></FONT> rfc:
+                url = <FONT COLOR=#FF0000>'http://www.rfc-editor.org/rfc/rfc%d.txt'</FONT> % int(rfc)
+                results.append(<FONT COLOR=#FF0000>'&lt;a href="%s"&gt;%s&lt;/a&gt;'</FONT> % (url, escape(all)))
+            <FONT COLOR=black><B>elif</B></FONT> pep:
+                url = <FONT COLOR=#FF0000>'http://www.python.org/peps/pep-%04d.html'</FONT> % int(pep)
+                results.append(<FONT COLOR=#FF0000>'&lt;a href="%s"&gt;%s&lt;/a&gt;'</FONT> % (url, escape(all)))
+            <FONT COLOR=black><B>elif</B></FONT> text[end:end+1] == <FONT COLOR=#FF0000>'('</FONT>:
+                results.append(self.namelink(name, methods, funcs, classes))
+            <FONT COLOR=black><B>elif</B></FONT> selfdot:
+                results.append(<FONT COLOR=#FF0000>'self.&lt;strong&gt;%s&lt;/strong&gt;'</FONT> % name)
+            <FONT COLOR=black><B>else</B></FONT>:
+                results.append(self.namelink(name, classes))
+            here = end
+        results.append(escape(text[here:]))
+        <FONT COLOR=black><B>return</B></FONT> join(results, <FONT COLOR=#FF0000>''</FONT>)
+
+    <FONT COLOR=#1111CC># ---------------------------------------------- type-specific routines</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> formattree(self, tree, modname, parent=None):
+        <FONT COLOR=#FF0000>"""Produce HTML for a class tree as given by inspect.getclasstree()."""</FONT>
+        result = <FONT COLOR=#FF0000>''</FONT>
+        <FONT COLOR=black><B>for</B></FONT> entry <FONT COLOR=black><B>in</B></FONT> tree:
+            <FONT COLOR=black><B>if</B></FONT> type(entry) <FONT COLOR=black><B>is</B></FONT> type(()):
+                c, bases = entry
+                result = result + <FONT COLOR=#FF0000>'&lt;dt&gt;&lt;font face="helvetica, arial"&gt;&lt;small&gt;'</FONT>
+                result = result + self.classlink(c, modname)
+                <FONT COLOR=black><B>if</B></FONT> bases <FONT COLOR=black><B>and</B></FONT> bases != (parent,):
+                    parents = []
+                    <FONT COLOR=black><B>for</B></FONT> base <FONT COLOR=black><B>in</B></FONT> bases:
+                        parents.append(self.classlink(base, modname))
+                    result = result + <FONT COLOR=#FF0000>'('</FONT> + join(parents, <FONT COLOR=#FF0000>', '</FONT>) + <FONT COLOR=#FF0000>')'</FONT>
+                result = result + <FONT COLOR=#FF0000>'\n&lt;/small&gt;&lt;/font&gt;&lt;/dt&gt;'</FONT>
+            <FONT COLOR=black><B>elif</B></FONT> type(entry) <FONT COLOR=black><B>is</B></FONT> type([]):
+                result = result + <FONT COLOR=#FF0000>'&lt;dd&gt;\n%s&lt;/dd&gt;\n'</FONT> % self.formattree(
+                    entry, modname, c)
+        <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=#FF0000>'&lt;dl&gt;\n%s&lt;/dl&gt;\n'</FONT> % result
+
+    <FONT COLOR=black><B>def</B></FONT> docmodule(self, object, name=None, mod=None):
+        <FONT COLOR=#FF0000>"""Produce HTML documentation for a module object."""</FONT>
+        name = object.__name__ <FONT COLOR=#1111CC># ignore the passed-in name</FONT>
+        parts = split(name, <FONT COLOR=#FF0000>'.'</FONT>)
+        links = []
+        <FONT COLOR=black><B>for</B></FONT> i <FONT COLOR=black><B>in</B></FONT> range(len(parts)-1):
+            links.append(
+                <FONT COLOR=#FF0000>'&lt;a href="%s.html"&gt;&lt;font color="#ffffff"&gt;%s&lt;/font&gt;&lt;/a&gt;'</FONT> %
+                (join(parts[:i+1], <FONT COLOR=#FF0000>'.'</FONT>), parts[i]))
+        linkedname = join(links + parts[-1:], <FONT COLOR=#FF0000>'.'</FONT>)
+        head = <FONT COLOR=#FF0000>'&lt;big&gt;&lt;big&gt;&lt;strong&gt;%s&lt;/strong&gt;&lt;/big&gt;&lt;/big&gt;'</FONT> % linkedname
+        <FONT COLOR=black><B>try</B></FONT>:
+            path = inspect.getabsfile(object)
+            url = path
+            <FONT COLOR=black><B>if</B></FONT> sys.platform == <FONT COLOR=#FF0000>'win32'</FONT>:
+                <FONT COLOR=black><B>import</B></FONT> nturl2path
+                url = nturl2path.pathname2url(path)
+            filelink = <FONT COLOR=#FF0000>'&lt;a href="file:%s"&gt;%s&lt;/a&gt;'</FONT> % (url, path)
+        <FONT COLOR=black><B>except</B></FONT> TypeError:
+            filelink = <FONT COLOR=#FF0000>'(built-in)'</FONT>
+        info = []
+        <FONT COLOR=black><B>if</B></FONT> hasattr(object, <FONT COLOR=#FF0000>'__version__'</FONT>):
+            version = str(object.__version__)
+            <FONT COLOR=black><B>if</B></FONT> version[:11] == <FONT COLOR=#FF0000>'$'</FONT> + <FONT COLOR=#FF0000>'Revision: '</FONT> <FONT COLOR=black><B>and</B></FONT> version[-1:] == <FONT COLOR=#FF0000>'$'</FONT>:
+                version = strip(version[11:-1])
+            info.append(<FONT COLOR=#FF0000>'version %s'</FONT> % self.escape(version))
+        <FONT COLOR=black><B>if</B></FONT> hasattr(object, <FONT COLOR=#FF0000>'__date__'</FONT>):
+            info.append(self.escape(str(object.__date__)))
+        <FONT COLOR=black><B>if</B></FONT> info:
+            head = head + <FONT COLOR=#FF0000>' (%s)'</FONT> % join(info, <FONT COLOR=#FF0000>', '</FONT>)
+        result = self.heading(
+            head, <FONT COLOR=#FF0000>'#ffffff'</FONT>, <FONT COLOR=#FF0000>'#7799ee'</FONT>, <FONT COLOR=#FF0000>'&lt;a href="."&gt;index&lt;/a&gt;&lt;br&gt;'</FONT> + filelink)
+
+        modules = inspect.getmembers(object, inspect.ismodule)
+
+        classes, cdict = [], {}
+        <FONT COLOR=black><B>for</B></FONT> key, value <FONT COLOR=black><B>in</B></FONT> inspect.getmembers(object, inspect.isclass):
+            <FONT COLOR=black><B>if</B></FONT> (inspect.getmodule(value) <FONT COLOR=black><B>or</B></FONT> object) <FONT COLOR=black><B>is</B></FONT> object:
+                classes.append((key, value))
+                cdict[key] = cdict[value] = <FONT COLOR=#FF0000>'#'</FONT> + key
+        <FONT COLOR=black><B>for</B></FONT> key, value <FONT COLOR=black><B>in</B></FONT> classes:
+            <FONT COLOR=black><B>for</B></FONT> base <FONT COLOR=black><B>in</B></FONT> value.__bases__:
+                key, modname = base.__name__, base.__module__
+                module = sys.modules.get(modname)
+                <FONT COLOR=black><B>if</B></FONT> modname != name <FONT COLOR=black><B>and</B></FONT> module <FONT COLOR=black><B>and</B></FONT> hasattr(module, key):
+                    <FONT COLOR=black><B>if</B></FONT> getattr(module, key) <FONT COLOR=black><B>is</B></FONT> base:
+                        <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> cdict.has_key(key):
+                            cdict[key] = cdict[base] = modname + <FONT COLOR=#FF0000>'.html#'</FONT> + key
+        funcs, fdict = [], {}
+        <FONT COLOR=black><B>for</B></FONT> key, value <FONT COLOR=black><B>in</B></FONT> inspect.getmembers(object, inspect.isroutine):
+            <FONT COLOR=black><B>if</B></FONT> inspect.isbuiltin(value) <FONT COLOR=black><B>or</B></FONT> inspect.getmodule(value) <FONT COLOR=black><B>is</B></FONT> object:
+                funcs.append((key, value))
+                fdict[key] = <FONT COLOR=#FF0000>'#-'</FONT> + key
+                <FONT COLOR=black><B>if</B></FONT> inspect.isfunction(value): fdict[value] = fdict[key]
+        data = []
+        <FONT COLOR=black><B>for</B></FONT> key, value <FONT COLOR=black><B>in</B></FONT> inspect.getmembers(object, isdata):
+            <FONT COLOR=black><B>if</B></FONT> key <FONT COLOR=black><B>not</B></FONT> <FONT COLOR=black><B>in</B></FONT> [<FONT COLOR=#FF0000>'__builtins__'</FONT>, <FONT COLOR=#FF0000>'__doc__'</FONT>]:
+                data.append((key, value))
+
+        doc = self.markup(getdoc(object), self.preformat, fdict, cdict)
+        doc = doc <FONT COLOR=black><B>and</B></FONT> <FONT COLOR=#FF0000>'&lt;tt&gt;%s&lt;/tt&gt;'</FONT> % doc
+        result = result + <FONT COLOR=#FF0000>'&lt;p&gt;%s&lt;/p&gt;\n'</FONT> % self.small(doc)
+
+        <FONT COLOR=black><B>if</B></FONT> hasattr(object, <FONT COLOR=#FF0000>'__path__'</FONT>):
+            modpkgs = []
+            modnames = []
+            <FONT COLOR=black><B>for</B></FONT> file <FONT COLOR=black><B>in</B></FONT> os.listdir(object.__path__[0]):
+                path = os.path.join(object.__path__[0], file)
+                modname = inspect.getmodulename(file)
+                <FONT COLOR=black><B>if</B></FONT> modname <FONT COLOR=black><B>and</B></FONT> modname <FONT COLOR=black><B>not</B></FONT> <FONT COLOR=black><B>in</B></FONT> modnames:
+                    modpkgs.append((modname, name, 0, 0))
+                    modnames.append(modname)
+                <FONT COLOR=black><B>elif</B></FONT> ispackage(path):
+                    modpkgs.append((file, name, 1, 0))
+            modpkgs.sort()
+            contents = self.multicolumn(modpkgs, self.modpkglink)
+            result = result + self.bigsection(
+                <FONT COLOR=#FF0000>'Package Contents'</FONT>, <FONT COLOR=#FF0000>'#ffffff'</FONT>, <FONT COLOR=#FF0000>'#aa55cc'</FONT>, contents)
+        <FONT COLOR=black><B>elif</B></FONT> modules:
+            contents = self.multicolumn(
+                modules, <FONT COLOR=black><B>lambda</B></FONT> (key, value), s=self: s.modulelink(value))
+            result = result + self.bigsection(
+                <FONT COLOR=#FF0000>'Modules'</FONT>, <FONT COLOR=#FF0000>'#fffff'</FONT>, <FONT COLOR=#FF0000>'#aa55cc'</FONT>, contents)
+
+        <FONT COLOR=black><B>if</B></FONT> classes:
+            classlist = map(<FONT COLOR=black><B>lambda</B></FONT> (key, value): value, classes)
+            contents = [
+                self.formattree(inspect.getclasstree(classlist, 1), name)]
+            <FONT COLOR=black><B>for</B></FONT> key, value <FONT COLOR=black><B>in</B></FONT> classes:
+                contents.append(self.document(value, key, name, fdict, cdict))
+            result = result + self.bigsection(
+                <FONT COLOR=#FF0000>'Classes'</FONT>, <FONT COLOR=#FF0000>'#ffffff'</FONT>, <FONT COLOR=#FF0000>'#ee77aa'</FONT>, join(contents))
+        <FONT COLOR=black><B>if</B></FONT> funcs:
+            contents = []
+            <FONT COLOR=black><B>for</B></FONT> key, value <FONT COLOR=black><B>in</B></FONT> funcs:
+                contents.append(self.document(value, key, name, fdict, cdict))
+            result = result + self.bigsection(
+                <FONT COLOR=#FF0000>'Functions'</FONT>, <FONT COLOR=#FF0000>'#ffffff'</FONT>, <FONT COLOR=#FF0000>'#eeaa77'</FONT>, join(contents))
+        <FONT COLOR=black><B>if</B></FONT> data:
+            contents = []
+            <FONT COLOR=black><B>for</B></FONT> key, value <FONT COLOR=black><B>in</B></FONT> data:
+                contents.append(self.document(value, key))
+            result = result + self.bigsection(
+                <FONT COLOR=#FF0000>'Data'</FONT>, <FONT COLOR=#FF0000>'#ffffff'</FONT>, <FONT COLOR=#FF0000>'#55aa55'</FONT>, join(contents, <FONT COLOR=#FF0000>'&lt;br&gt;\n'</FONT>))
+        <FONT COLOR=black><B>if</B></FONT> hasattr(object, <FONT COLOR=#FF0000>'__author__'</FONT>):
+            contents = self.markup(str(object.__author__), self.preformat)
+            result = result + self.bigsection(
+                <FONT COLOR=#FF0000>'Author'</FONT>, <FONT COLOR=#FF0000>'#ffffff'</FONT>, <FONT COLOR=#FF0000>'#7799ee'</FONT>, contents)
+        <FONT COLOR=black><B>if</B></FONT> hasattr(object, <FONT COLOR=#FF0000>'__credits__'</FONT>):
+            contents = self.markup(str(object.__credits__), self.preformat)
+            result = result + self.bigsection(
+                <FONT COLOR=#FF0000>'Credits'</FONT>, <FONT COLOR=#FF0000>'#ffffff'</FONT>, <FONT COLOR=#FF0000>'#7799ee'</FONT>, contents)
+
+        <FONT COLOR=black><B>return</B></FONT> result
+
+    <FONT COLOR=black><B>def</B></FONT> docclass(self, object, name=None, mod=None, funcs={}, classes={}):
+        <FONT COLOR=#FF0000>"""Produce HTML documentation for a class object."""</FONT>
+        realname = object.__name__
+        name = name <FONT COLOR=black><B>or</B></FONT> realname
+        bases = object.__bases__
+        contents = <FONT COLOR=#FF0000>''</FONT>
+
+        methods, mdict = allmethods(object).items(), {}
+        methods.sort()
+        <FONT COLOR=black><B>for</B></FONT> key, value <FONT COLOR=black><B>in</B></FONT> methods:
+            mdict[key] = mdict[value] = <FONT COLOR=#FF0000>'#'</FONT> + name + <FONT COLOR=#FF0000>'-'</FONT> + key
+        <FONT COLOR=black><B>for</B></FONT> key, value <FONT COLOR=black><B>in</B></FONT> methods:
+            contents = contents + self.document(
+                value, key, mod, funcs, classes, mdict, object)
+
+        <FONT COLOR=black><B>if</B></FONT> name == realname:
+            title = <FONT COLOR=#FF0000>'&lt;a name="%s"&gt;class &lt;strong&gt;%s&lt;/strong&gt;&lt;/a&gt;'</FONT> % (
+                name, realname)
+        <FONT COLOR=black><B>else</B></FONT>:
+            title = <FONT COLOR=#FF0000>'&lt;strong&gt;%s&lt;/strong&gt; = &lt;a name="%s"&gt;class %s&lt;/a&gt;'</FONT> % (
+                name, name, realname)
+        <FONT COLOR=black><B>if</B></FONT> bases:
+            parents = []
+            <FONT COLOR=black><B>for</B></FONT> base <FONT COLOR=black><B>in</B></FONT> bases:
+                parents.append(self.classlink(base, object.__module__))
+            title = title + <FONT COLOR=#FF0000>'(%s)'</FONT> % join(parents, <FONT COLOR=#FF0000>', '</FONT>)
+        doc = self.markup(
+            getdoc(object), self.preformat, funcs, classes, mdict)
+        doc = self.small(doc <FONT COLOR=black><B>and</B></FONT> <FONT COLOR=#FF0000>'&lt;tt&gt;%s&lt;br&gt;&nbsp;&lt;/tt&gt;'</FONT> % doc <FONT COLOR=black><B>or</B></FONT>
+                                 self.small(<FONT COLOR=#FF0000>'&nbsp;'</FONT>))
+        <FONT COLOR=black><B>return</B></FONT> self.section(title, <FONT COLOR=#FF0000>'#000000'</FONT>, <FONT COLOR=#FF0000>'#ffc8d8'</FONT>, contents, 5, doc)
+
+    <FONT COLOR=black><B>def</B></FONT> formatvalue(self, object):
+        <FONT COLOR=#FF0000>"""Format an argument default value as text."""</FONT>
+        <FONT COLOR=black><B>return</B></FONT> self.small(self.grey(<FONT COLOR=#FF0000>'='</FONT> + self.repr(object)))
+
+    <FONT COLOR=black><B>def</B></FONT> docroutine(self, object, name=None, mod=None,
+                   funcs={}, classes={}, methods={}, cl=None):
+        <FONT COLOR=#FF0000>"""Produce HTML documentation for a function or method object."""</FONT>
+        realname = object.__name__
+        name = name <FONT COLOR=black><B>or</B></FONT> realname
+        anchor = (cl <FONT COLOR=black><B>and</B></FONT> cl.__name__ <FONT COLOR=black><B>or</B></FONT> <FONT COLOR=#FF0000>''</FONT>) + <FONT COLOR=#FF0000>'-'</FONT> + name
+        note = <FONT COLOR=#FF0000>''</FONT>
+        skipdocs = 0
+        <FONT COLOR=black><B>if</B></FONT> inspect.ismethod(object):
+            imclass = object.im_class
+            <FONT COLOR=black><B>if</B></FONT> cl:
+                <FONT COLOR=black><B>if</B></FONT> imclass <FONT COLOR=black><B>is</B></FONT> <FONT COLOR=black><B>not</B></FONT> cl:
+                    note = <FONT COLOR=#FF0000>' from '</FONT> + self.classlink(imclass, mod)
+                    skipdocs = 1
+            <FONT COLOR=black><B>else</B></FONT>:
+                <FONT COLOR=black><B>if</B></FONT> object.im_self:
+                    note = <FONT COLOR=#FF0000>' method of %s instance'</FONT> % self.classlink(
+                        object.im_self.__class__, mod)
+                <FONT COLOR=black><B>else</B></FONT>:
+                    note = <FONT COLOR=#FF0000>' unbound %s method'</FONT> % self.classlink(imclass,mod)
+            object = object.im_func
+
+        <FONT COLOR=black><B>if</B></FONT> name == realname:
+            title = <FONT COLOR=#FF0000>'&lt;a name="%s"&gt;&lt;strong&gt;%s&lt;/strong&gt;&lt;/a&gt;'</FONT> % (anchor, realname)
+        <FONT COLOR=black><B>else</B></FONT>:
+            <FONT COLOR=black><B>if</B></FONT> (cl <FONT COLOR=black><B>and</B></FONT> cl.__dict__.has_key(realname) <FONT COLOR=black><B>and</B></FONT>
+                cl.__dict__[realname] <FONT COLOR=black><B>is</B></FONT> object):
+                reallink = <FONT COLOR=#FF0000>'&lt;a href="#%s"&gt;%s&lt;/a&gt;'</FONT> % (
+                    cl.__name__ + <FONT COLOR=#FF0000>'-'</FONT> + realname, realname)
+                skipdocs = 1
+            <FONT COLOR=black><B>else</B></FONT>:
+                reallink = realname
+            title = <FONT COLOR=#FF0000>'&lt;a name="%s"&gt;&lt;strong&gt;%s&lt;/strong&gt;&lt;/a&gt; = %s'</FONT> % (
+                anchor, name, reallink)
+        <FONT COLOR=black><B>if</B></FONT> inspect.isbuiltin(object):
+            argspec = <FONT COLOR=#FF0000>'(...)'</FONT>
+        <FONT COLOR=black><B>else</B></FONT>:
+            args, varargs, varkw, defaults = inspect.getargspec(object)
+            argspec = inspect.formatargspec(
+                args, varargs, varkw, defaults, formatvalue=self.formatvalue)
+            <FONT COLOR=black><B>if</B></FONT> realname == <FONT COLOR=#FF0000>'&lt;lambda&gt;'</FONT>:
+                decl = <FONT COLOR=#FF0000>'&lt;em&gt;lambda&lt;/em&gt;'</FONT>
+                argspec = argspec[1:-1] <FONT COLOR=#1111CC># remove parentheses</FONT>
+
+        decl = title + argspec + (note <FONT COLOR=black><B>and</B></FONT> self.small(self.grey(
+            <FONT COLOR=#FF0000>'&lt;font face="helvetica, arial"&gt;%s&lt;/font&gt;'</FONT> % note)))
+
+        <FONT COLOR=black><B>if</B></FONT> skipdocs:
+            <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=#FF0000>'&lt;dl&gt;&lt;dt&gt;%s&lt;/dl&gt;\n'</FONT> % decl
+        <FONT COLOR=black><B>else</B></FONT>:
+            doc = self.markup(
+                getdoc(object), self.preformat, funcs, classes, methods)
+            doc = doc <FONT COLOR=black><B>and</B></FONT> <FONT COLOR=#FF0000>'&lt;dd&gt;'</FONT> + self.small(<FONT COLOR=#FF0000>'&lt;tt&gt;%s&lt;/tt&gt;'</FONT> % doc)
+            <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=#FF0000>'&lt;dl&gt;&lt;dt&gt;%s%s&lt;/dl&gt;\n'</FONT> % (decl, doc)
+
+    <FONT COLOR=black><B>def</B></FONT> docother(self, object, name=None, mod=None):
+        <FONT COLOR=#FF0000>"""Produce HTML documentation for a data object."""</FONT>
+        lhs = name <FONT COLOR=black><B>and</B></FONT> <FONT COLOR=#FF0000>'&lt;strong&gt;%s&lt;/strong&gt; = '</FONT> % name <FONT COLOR=black><B>or</B></FONT> <FONT COLOR=#FF0000>''</FONT>
+        <FONT COLOR=black><B>return</B></FONT> lhs + self.repr(object)
+
+    <FONT COLOR=black><B>def</B></FONT> index(self, dir, shadowed=None):
+        <FONT COLOR=#FF0000>"""Generate an HTML index for a directory of modules."""</FONT>
+        modpkgs = []
+        <FONT COLOR=black><B>if</B></FONT> shadowed <FONT COLOR=black><B>is</B></FONT> None: shadowed = {}
+        seen = {}
+        files = os.listdir(dir)
+
+        <FONT COLOR=black><B>def</B></FONT> found(name, ispackage,
+                  modpkgs=modpkgs, shadowed=shadowed, seen=seen):
+            <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> seen.has_key(name):
+                modpkgs.append((name, <FONT COLOR=#FF0000>''</FONT>, ispackage, shadowed.has_key(name)))
+                seen[name] = 1
+                shadowed[name] = 1
+
+        <FONT COLOR=#1111CC># Package spam/__init__.py takes precedence over module spam.py.</FONT>
+        <FONT COLOR=black><B>for</B></FONT> file <FONT COLOR=black><B>in</B></FONT> files:
+            path = os.path.join(dir, file)
+            <FONT COLOR=black><B>if</B></FONT> ispackage(path): found(file, 1)
+        <FONT COLOR=black><B>for</B></FONT> file <FONT COLOR=black><B>in</B></FONT> files:
+            path = os.path.join(dir, file)
+            <FONT COLOR=black><B>if</B></FONT> os.path.isfile(path):
+                modname = inspect.getmodulename(file)
+                <FONT COLOR=black><B>if</B></FONT> modname: found(modname, 0)
+
+        modpkgs.sort()
+        contents = self.multicolumn(modpkgs, self.modpkglink)
+        <FONT COLOR=black><B>return</B></FONT> self.bigsection(dir, <FONT COLOR=#FF0000>'#ffffff'</FONT>, <FONT COLOR=#FF0000>'#ee77aa'</FONT>, contents)
+
+<FONT COLOR=#1111CC># -------------------------------------------- text documentation generator</FONT>
+
+<FONT COLOR=black><B>class</B></FONT> TextRepr(Repr):
+    <FONT COLOR=#FF0000>"""Class for safely making a text representation of a Python object."""</FONT>
+    <FONT COLOR=black><B>def</B></FONT> __init__(self):
+        Repr.__init__(self)
+        self.maxlist = self.maxtuple = 20
+        self.maxdict = 10
+        self.maxstring = self.maxother = 100
+
+    <FONT COLOR=black><B>def</B></FONT> repr1(self, x, level):
+        methodname = <FONT COLOR=#FF0000>'repr_'</FONT> + join(split(type(x).__name__), <FONT COLOR=#FF0000>'_'</FONT>)
+        <FONT COLOR=black><B>if</B></FONT> hasattr(self, methodname):
+            <FONT COLOR=black><B>return</B></FONT> getattr(self, methodname)(x, level)
+        <FONT COLOR=black><B>else</B></FONT>:
+            <FONT COLOR=black><B>return</B></FONT> cram(stripid(repr(x)), self.maxother)
+
+    <FONT COLOR=black><B>def</B></FONT> repr_string(self, x, level):
+        test = cram(x, self.maxstring)
+        testrepr = repr(test)
+        <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=#FF0000>'\\'</FONT> <FONT COLOR=black><B>in</B></FONT> test <FONT COLOR=black><B>and</B></FONT> <FONT COLOR=#FF0000>'\\'</FONT> <FONT COLOR=black><B>not</B></FONT> <FONT COLOR=black><B>in</B></FONT> replace(testrepr, r<FONT COLOR=#FF0000>'\\'</FONT>, <FONT COLOR=#FF0000>''</FONT>):
+            <FONT COLOR=#1111CC># Backslashes are only literal in the string and are never</FONT>
+            <FONT COLOR=#1111CC># needed to make any special characters, so show a raw string.</FONT>
+            <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=#FF0000>'r'</FONT> + testrepr[0] + test + testrepr[0]
+        <FONT COLOR=black><B>return</B></FONT> testrepr
+
+    <FONT COLOR=black><B>def</B></FONT> repr_instance(self, x, level):
+        <FONT COLOR=black><B>try</B></FONT>:
+            <FONT COLOR=black><B>return</B></FONT> cram(stripid(repr(x)), self.maxstring)
+        <FONT COLOR=black><B>except</B></FONT>:
+            <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=#FF0000>'&lt;%s instance&gt;'</FONT> % x.__class__.__name__
+
+<FONT COLOR=black><B>class</B></FONT> TextDoc(Doc):
+    <FONT COLOR=#FF0000>"""Formatter class for text documentation."""</FONT>
+
+    <FONT COLOR=#1111CC># ------------------------------------------- text formatting utilities</FONT>
+
+    _repr_instance = TextRepr()
+    repr = _repr_instance.repr
+
+    <FONT COLOR=black><B>def</B></FONT> bold(self, text):
+        <FONT COLOR=#FF0000>"""Format a string in bold by overstriking."""</FONT>
+        <FONT COLOR=black><B>return</B></FONT> join(map(<FONT COLOR=black><B>lambda</B></FONT> ch: ch + <FONT COLOR=#FF0000>'\b'</FONT> + ch, text), <FONT COLOR=#FF0000>''</FONT>)
+
+    <FONT COLOR=black><B>def</B></FONT> indent(self, text, prefix=<FONT COLOR=#FF0000>'    '</FONT>):
+        <FONT COLOR=#FF0000>"""Indent text by prepending a given prefix to each line."""</FONT>
+        <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> text: <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=#FF0000>''</FONT>
+        lines = split(text, <FONT COLOR=#FF0000>'\n'</FONT>)
+        lines = map(<FONT COLOR=black><B>lambda</B></FONT> line, prefix=prefix: prefix + line, lines)
+        <FONT COLOR=black><B>if</B></FONT> lines: lines[-1] = rstrip(lines[-1])
+        <FONT COLOR=black><B>return</B></FONT> join(lines, <FONT COLOR=#FF0000>'\n'</FONT>)
+
+    <FONT COLOR=black><B>def</B></FONT> section(self, title, contents):
+        <FONT COLOR=#FF0000>"""Format a section with a given heading."""</FONT>
+        <FONT COLOR=black><B>return</B></FONT> self.bold(title) + <FONT COLOR=#FF0000>'\n'</FONT> + rstrip(self.indent(contents)) + <FONT COLOR=#FF0000>'\n\n'</FONT>
+
+    <FONT COLOR=#1111CC># ---------------------------------------------- type-specific routines</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> formattree(self, tree, modname, parent=None, prefix=<FONT COLOR=#FF0000>''</FONT>):
+        <FONT COLOR=#FF0000>"""Render in text a class tree as returned by inspect.getclasstree()."""</FONT>
+        result = <FONT COLOR=#FF0000>''</FONT>
+        <FONT COLOR=black><B>for</B></FONT> entry <FONT COLOR=black><B>in</B></FONT> tree:
+            <FONT COLOR=black><B>if</B></FONT> type(entry) <FONT COLOR=black><B>is</B></FONT> type(()):
+                c, bases = entry
+                result = result + prefix + classname(c, modname)
+                <FONT COLOR=black><B>if</B></FONT> bases <FONT COLOR=black><B>and</B></FONT> bases != (parent,):
+                    parents = map(<FONT COLOR=black><B>lambda</B></FONT> c, m=modname: classname(c, m), bases)
+                    result = result + <FONT COLOR=#FF0000>'(%s)'</FONT> % join(parents, <FONT COLOR=#FF0000>', '</FONT>)
+                result = result + <FONT COLOR=#FF0000>'\n'</FONT>
+            <FONT COLOR=black><B>elif</B></FONT> type(entry) <FONT COLOR=black><B>is</B></FONT> type([]):
+                result = result + self.formattree(
+                    entry, modname, c, prefix + <FONT COLOR=#FF0000>'    '</FONT>)
+        <FONT COLOR=black><B>return</B></FONT> result
+
+    <FONT COLOR=black><B>def</B></FONT> docmodule(self, object, name=None, mod=None):
+        <FONT COLOR=#FF0000>"""Produce text documentation for a given module object."""</FONT>
+        name = object.__name__ <FONT COLOR=#1111CC># ignore the passed-in name</FONT>
+        synop, desc = splitdoc(getdoc(object))
+        result = self.section(<FONT COLOR=#FF0000>'NAME'</FONT>, name + (synop <FONT COLOR=black><B>and</B></FONT> <FONT COLOR=#FF0000>' - '</FONT> + synop))
+
+        <FONT COLOR=black><B>try</B></FONT>:
+            file = inspect.getabsfile(object)
+        <FONT COLOR=black><B>except</B></FONT> TypeError:
+            file = <FONT COLOR=#FF0000>'(built-in)'</FONT>
+        result = result + self.section(<FONT COLOR=#FF0000>'FILE'</FONT>, file)
+        <FONT COLOR=black><B>if</B></FONT> desc:
+            result = result + self.section(<FONT COLOR=#FF0000>'DESCRIPTION'</FONT>, desc)
+
+        classes = []
+        <FONT COLOR=black><B>for</B></FONT> key, value <FONT COLOR=black><B>in</B></FONT> inspect.getmembers(object, inspect.isclass):
+            <FONT COLOR=black><B>if</B></FONT> (inspect.getmodule(value) <FONT COLOR=black><B>or</B></FONT> object) <FONT COLOR=black><B>is</B></FONT> object:
+                classes.append((key, value))
+        funcs = []
+        <FONT COLOR=black><B>for</B></FONT> key, value <FONT COLOR=black><B>in</B></FONT> inspect.getmembers(object, inspect.isroutine):
+            <FONT COLOR=black><B>if</B></FONT> inspect.isbuiltin(value) <FONT COLOR=black><B>or</B></FONT> inspect.getmodule(value) <FONT COLOR=black><B>is</B></FONT> object:
+                funcs.append((key, value))
+        data = []
+        <FONT COLOR=black><B>for</B></FONT> key, value <FONT COLOR=black><B>in</B></FONT> inspect.getmembers(object, isdata):
+            <FONT COLOR=black><B>if</B></FONT> key <FONT COLOR=black><B>not</B></FONT> <FONT COLOR=black><B>in</B></FONT> [<FONT COLOR=#FF0000>'__builtins__'</FONT>, <FONT COLOR=#FF0000>'__doc__'</FONT>]:
+                data.append((key, value))
+
+        <FONT COLOR=black><B>if</B></FONT> hasattr(object, <FONT COLOR=#FF0000>'__path__'</FONT>):
+            modpkgs = []
+            <FONT COLOR=black><B>for</B></FONT> file <FONT COLOR=black><B>in</B></FONT> os.listdir(object.__path__[0]):
+                path = os.path.join(object.__path__[0], file)
+                modname = inspect.getmodulename(file)
+                <FONT COLOR=black><B>if</B></FONT> modname <FONT COLOR=black><B>and</B></FONT> modname <FONT COLOR=black><B>not</B></FONT> <FONT COLOR=black><B>in</B></FONT> modpkgs:
+                    modpkgs.append(modname)
+                <FONT COLOR=black><B>elif</B></FONT> ispackage(path):
+                    modpkgs.append(file + <FONT COLOR=#FF0000>' (package)'</FONT>)
+            modpkgs.sort()
+            result = result + self.section(
+                <FONT COLOR=#FF0000>'PACKAGE CONTENTS'</FONT>, join(modpkgs, <FONT COLOR=#FF0000>'\n'</FONT>))
+
+        <FONT COLOR=black><B>if</B></FONT> classes:
+            classlist = map(<FONT COLOR=black><B>lambda</B></FONT> (key, value): value, classes)
+            contents = [self.formattree(
+                inspect.getclasstree(classlist, 1), name)]
+            <FONT COLOR=black><B>for</B></FONT> key, value <FONT COLOR=black><B>in</B></FONT> classes:
+                contents.append(self.document(value, key, name))
+            result = result + self.section(<FONT COLOR=#FF0000>'CLASSES'</FONT>, join(contents, <FONT COLOR=#FF0000>'\n'</FONT>))
+
+        <FONT COLOR=black><B>if</B></FONT> funcs:
+            contents = []
+            <FONT COLOR=black><B>for</B></FONT> key, value <FONT COLOR=black><B>in</B></FONT> funcs:
+                contents.append(self.document(value, key, name))
+            result = result + self.section(<FONT COLOR=#FF0000>'FUNCTIONS'</FONT>, join(contents, <FONT COLOR=#FF0000>'\n'</FONT>))
+
+        <FONT COLOR=black><B>if</B></FONT> data:
+            contents = []
+            <FONT COLOR=black><B>for</B></FONT> key, value <FONT COLOR=black><B>in</B></FONT> data:
+                contents.append(self.docother(value, key, name, 70))
+            result = result + self.section(<FONT COLOR=#FF0000>'DATA'</FONT>, join(contents, <FONT COLOR=#FF0000>'\n'</FONT>))
+
+        <FONT COLOR=black><B>if</B></FONT> hasattr(object, <FONT COLOR=#FF0000>'__version__'</FONT>):
+            version = str(object.__version__)
+            <FONT COLOR=black><B>if</B></FONT> version[:11] == <FONT COLOR=#FF0000>'$'</FONT> + <FONT COLOR=#FF0000>'Revision: '</FONT> <FONT COLOR=black><B>and</B></FONT> version[-1:] == <FONT COLOR=#FF0000>'$'</FONT>:
+                version = strip(version[11:-1])
+            result = result + self.section(<FONT COLOR=#FF0000>'VERSION'</FONT>, version)
+        <FONT COLOR=black><B>if</B></FONT> hasattr(object, <FONT COLOR=#FF0000>'__date__'</FONT>):
+            result = result + self.section(<FONT COLOR=#FF0000>'DATE'</FONT>, str(object.__date__))
+        <FONT COLOR=black><B>if</B></FONT> hasattr(object, <FONT COLOR=#FF0000>'__author__'</FONT>):
+            result = result + self.section(<FONT COLOR=#FF0000>'AUTHOR'</FONT>, str(object.__author__))
+        <FONT COLOR=black><B>if</B></FONT> hasattr(object, <FONT COLOR=#FF0000>'__credits__'</FONT>):
+            result = result + self.section(<FONT COLOR=#FF0000>'CREDITS'</FONT>, str(object.__credits__))
+        <FONT COLOR=black><B>return</B></FONT> result
+
+    <FONT COLOR=black><B>def</B></FONT> docclass(self, object, name=None, mod=None):
+        <FONT COLOR=#FF0000>"""Produce text documentation for a given class object."""</FONT>
+        realname = object.__name__
+        name = name <FONT COLOR=black><B>or</B></FONT> realname
+        bases = object.__bases__
+
+        <FONT COLOR=black><B>if</B></FONT> name == realname:
+            title = <FONT COLOR=#FF0000>'class '</FONT> + self.bold(realname)
+        <FONT COLOR=black><B>else</B></FONT>:
+            title = self.bold(name) + <FONT COLOR=#FF0000>' = class '</FONT> + realname
+        <FONT COLOR=black><B>if</B></FONT> bases:
+            <FONT COLOR=black><B>def</B></FONT> makename(c, m=object.__module__): <FONT COLOR=black><B>return</B></FONT> classname(c, m)
+            parents = map(makename, bases)
+            title = title + <FONT COLOR=#FF0000>'(%s)'</FONT> % join(parents, <FONT COLOR=#FF0000>', '</FONT>)
+
+        doc = getdoc(object)
+        contents = doc <FONT COLOR=black><B>and</B></FONT> doc + <FONT COLOR=#FF0000>'\n'</FONT>
+        methods = allmethods(object).items()
+        methods.sort()
+        <FONT COLOR=black><B>for</B></FONT> key, value <FONT COLOR=black><B>in</B></FONT> methods:
+            contents = contents + <FONT COLOR=#FF0000>'\n'</FONT> + self.document(value, key, mod, object)
+
+        <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> contents: <FONT COLOR=black><B>return</B></FONT> title + <FONT COLOR=#FF0000>'\n'</FONT>
+        <FONT COLOR=black><B>return</B></FONT> title + <FONT COLOR=#FF0000>'\n'</FONT> + self.indent(rstrip(contents), <FONT COLOR=#FF0000>' |  '</FONT>) + <FONT COLOR=#FF0000>'\n'</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> formatvalue(self, object):
+        <FONT COLOR=#FF0000>"""Format an argument default value as text."""</FONT>
+        <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=#FF0000>'='</FONT> + self.repr(object)
+
+    <FONT COLOR=black><B>def</B></FONT> docroutine(self, object, name=None, mod=None, cl=None):
+        <FONT COLOR=#FF0000>"""Produce text documentation for a function or method object."""</FONT>
+        realname = object.__name__
+        name = name <FONT COLOR=black><B>or</B></FONT> realname
+        note = <FONT COLOR=#FF0000>''</FONT>
+        skipdocs = 0
+        <FONT COLOR=black><B>if</B></FONT> inspect.ismethod(object):
+            imclass = object.im_class
+            <FONT COLOR=black><B>if</B></FONT> cl:
+                <FONT COLOR=black><B>if</B></FONT> imclass <FONT COLOR=black><B>is</B></FONT> <FONT COLOR=black><B>not</B></FONT> cl:
+                    note = <FONT COLOR=#FF0000>' from '</FONT> + classname(imclass, mod)
+                    skipdocs = 1
+            <FONT COLOR=black><B>else</B></FONT>:
+                <FONT COLOR=black><B>if</B></FONT> object.im_self:
+                    note = <FONT COLOR=#FF0000>' method of %s instance'</FONT> % classname(
+                        object.im_self.__class__, mod)
+                <FONT COLOR=black><B>else</B></FONT>:
+                    note = <FONT COLOR=#FF0000>' unbound %s method'</FONT> % classname(imclass,mod)
+            object = object.im_func
+
+        <FONT COLOR=black><B>if</B></FONT> name == realname:
+            title = self.bold(realname)
+        <FONT COLOR=black><B>else</B></FONT>:
+            <FONT COLOR=black><B>if</B></FONT> (cl <FONT COLOR=black><B>and</B></FONT> cl.__dict__.has_key(realname) <FONT COLOR=black><B>and</B></FONT>
+                cl.__dict__[realname] <FONT COLOR=black><B>is</B></FONT> object):
+                skipdocs = 1
+            title = self.bold(name) + <FONT COLOR=#FF0000>' = '</FONT> + realname
+        <FONT COLOR=black><B>if</B></FONT> inspect.isbuiltin(object):
+            argspec = <FONT COLOR=#FF0000>'(...)'</FONT>
+        <FONT COLOR=black><B>else</B></FONT>:
+            args, varargs, varkw, defaults = inspect.getargspec(object)
+            argspec = inspect.formatargspec(
+                args, varargs, varkw, defaults, formatvalue=self.formatvalue)
+            <FONT COLOR=black><B>if</B></FONT> realname == <FONT COLOR=#FF0000>'&lt;lambda&gt;'</FONT>:
+                title = <FONT COLOR=#FF0000>'lambda'</FONT>
+                argspec = argspec[1:-1] <FONT COLOR=#1111CC># remove parentheses</FONT>
+        decl = title + argspec + note
+
+        <FONT COLOR=black><B>if</B></FONT> skipdocs:
+            <FONT COLOR=black><B>return</B></FONT> decl + <FONT COLOR=#FF0000>'\n'</FONT>
+        <FONT COLOR=black><B>else</B></FONT>:
+            doc = getdoc(object) <FONT COLOR=black><B>or</B></FONT> <FONT COLOR=#FF0000>''</FONT>
+            <FONT COLOR=black><B>return</B></FONT> decl + <FONT COLOR=#FF0000>'\n'</FONT> + (doc <FONT COLOR=black><B>and</B></FONT> rstrip(self.indent(doc)) + <FONT COLOR=#FF0000>'\n'</FONT>)
+
+    <FONT COLOR=black><B>def</B></FONT> docother(self, object, name=None, mod=None, maxlen=None):
+        <FONT COLOR=#FF0000>"""Produce text documentation for a data object."""</FONT>
+        repr = self.repr(object)
+        <FONT COLOR=black><B>if</B></FONT> maxlen:
+            line = (name <FONT COLOR=black><B>and</B></FONT> name + <FONT COLOR=#FF0000>' = '</FONT> <FONT COLOR=black><B>or</B></FONT> <FONT COLOR=#FF0000>''</FONT>) + repr
+            chop = maxlen - len(line)
+            <FONT COLOR=black><B>if</B></FONT> chop &lt; 0: repr = repr[:chop] + <FONT COLOR=#FF0000>'...'</FONT>
+        line = (name <FONT COLOR=black><B>and</B></FONT> self.bold(name) + <FONT COLOR=#FF0000>' = '</FONT> <FONT COLOR=black><B>or</B></FONT> <FONT COLOR=#FF0000>''</FONT>) + repr
+        <FONT COLOR=black><B>return</B></FONT> line
+
+<FONT COLOR=#1111CC># --------------------------------------------------------- user interfaces</FONT>
+
+<FONT COLOR=black><B>def</B></FONT> pager(text):
+    <FONT COLOR=#FF0000>"""The first time this is called, determine what kind of pager to use."""</FONT>
+    <FONT COLOR=black><B>global</B></FONT> pager
+    pager = getpager()
+    pager(text)
+
+<FONT COLOR=black><B>def</B></FONT> getpager():
+    <FONT COLOR=#FF0000>"""Decide what method to use for paging through text."""</FONT>
+    <FONT COLOR=black><B>if</B></FONT> type(sys.stdout) <FONT COLOR=black><B>is</B></FONT> <FONT COLOR=black><B>not</B></FONT> types.FileType:
+        <FONT COLOR=black><B>return</B></FONT> plainpager
+    <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> sys.stdin.isatty() <FONT COLOR=black><B>or</B></FONT> <FONT COLOR=black><B>not</B></FONT> sys.stdout.isatty():
+        <FONT COLOR=black><B>return</B></FONT> plainpager
+    <FONT COLOR=black><B>if</B></FONT> os.environ.has_key(<FONT COLOR=#FF0000>'PAGER'</FONT>):
+        <FONT COLOR=black><B>if</B></FONT> sys.platform == <FONT COLOR=#FF0000>'win32'</FONT>: <FONT COLOR=#1111CC># pipes completely broken in Windows</FONT>
+            <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=black><B>lambda</B></FONT> text: tempfilepager(plain(text), os.environ[<FONT COLOR=#FF0000>'PAGER'</FONT>])
+        <FONT COLOR=black><B>elif</B></FONT> os.environ.get(<FONT COLOR=#FF0000>'TERM'</FONT>) <FONT COLOR=black><B>in</B></FONT> [<FONT COLOR=#FF0000>'dumb'</FONT>, <FONT COLOR=#FF0000>'emacs'</FONT>]:
+            <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=black><B>lambda</B></FONT> text: pipepager(plain(text), os.environ[<FONT COLOR=#FF0000>'PAGER'</FONT>])
+        <FONT COLOR=black><B>else</B></FONT>:
+            <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=black><B>lambda</B></FONT> text: pipepager(text, os.environ[<FONT COLOR=#FF0000>'PAGER'</FONT>])
+    <FONT COLOR=black><B>if</B></FONT> sys.platform == <FONT COLOR=#FF0000>'win32'</FONT>:
+        <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=black><B>lambda</B></FONT> text: tempfilepager(plain(text), <FONT COLOR=#FF0000>'more &lt;'</FONT>)
+    <FONT COLOR=black><B>if</B></FONT> hasattr(os, <FONT COLOR=#FF0000>'system'</FONT>) <FONT COLOR=black><B>and</B></FONT> os.system(<FONT COLOR=#FF0000>'less 2&gt;/dev/null'</FONT>) == 0:
+        <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=black><B>lambda</B></FONT> text: pipepager(text, <FONT COLOR=#FF0000>'less'</FONT>)
+
+    <FONT COLOR=black><B>import</B></FONT> tempfile
+    filename = tempfile.mktemp()
+    open(filename, <FONT COLOR=#FF0000>'w'</FONT>).close()
+    <FONT COLOR=black><B>try</B></FONT>:
+        <FONT COLOR=black><B>if</B></FONT> hasattr(os, <FONT COLOR=#FF0000>'system'</FONT>) <FONT COLOR=black><B>and</B></FONT> os.system(<FONT COLOR=#FF0000>'more %s'</FONT> % filename) == 0:
+            <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=black><B>lambda</B></FONT> text: pipepager(text, <FONT COLOR=#FF0000>'more'</FONT>)
+        <FONT COLOR=black><B>else</B></FONT>:
+            <FONT COLOR=black><B>return</B></FONT> ttypager
+    <FONT COLOR=black><B>finally</B></FONT>:
+        os.unlink(filename)
+
+<FONT COLOR=black><B>def</B></FONT> plain(text):
+    <FONT COLOR=#FF0000>"""Remove boldface formatting from text."""</FONT>
+    <FONT COLOR=black><B>return</B></FONT> re.sub(<FONT COLOR=#FF0000>'.\b'</FONT>, <FONT COLOR=#FF0000>''</FONT>, text)
+
+<FONT COLOR=black><B>def</B></FONT> pipepager(text, cmd):
+    <FONT COLOR=#FF0000>"""Page through text by feeding it to another program."""</FONT>
+    pipe = os.popen(cmd, <FONT COLOR=#FF0000>'w'</FONT>)
+    <FONT COLOR=black><B>try</B></FONT>:
+        pipe.write(text)
+        pipe.close()
+    <FONT COLOR=black><B>except</B></FONT> IOError:
+        <FONT COLOR=black><B>pass</B></FONT> <FONT COLOR=#1111CC># Ignore broken pipes caused by quitting the pager program.</FONT>
+
+<FONT COLOR=black><B>def</B></FONT> tempfilepager(text, cmd):
+    <FONT COLOR=#FF0000>"""Page through text by invoking a program on a temporary file."""</FONT>
+    <FONT COLOR=black><B>import</B></FONT> tempfile
+    filename = tempfile.mktemp()
+    file = open(filename, <FONT COLOR=#FF0000>'w'</FONT>)
+    file.write(text)
+    file.close()
+    <FONT COLOR=black><B>try</B></FONT>:
+        os.system(cmd + <FONT COLOR=#FF0000>' '</FONT> + filename)
+    <FONT COLOR=black><B>finally</B></FONT>:
+        os.unlink(filename)
+
+<FONT COLOR=black><B>def</B></FONT> ttypager(text):
+    <FONT COLOR=#FF0000>"""Page through text on a text terminal."""</FONT>
+    lines = split(plain(text), <FONT COLOR=#FF0000>'\n'</FONT>)
+    <FONT COLOR=black><B>try</B></FONT>:
+        <FONT COLOR=black><B>import</B></FONT> tty
+        fd = sys.stdin.fileno()
+        old = tty.tcgetattr(fd)
+        tty.setcbreak(fd)
+        getchar = <FONT COLOR=black><B>lambda</B></FONT>: sys.stdin.read(1)
+    <FONT COLOR=black><B>except</B></FONT> (ImportError, AttributeError):
+        tty = None
+        getchar = <FONT COLOR=black><B>lambda</B></FONT>: sys.stdin.readline()[:-1][:1]
+
+    <FONT COLOR=black><B>try</B></FONT>:
+        r = inc = os.environ.get(<FONT COLOR=#FF0000>'LINES'</FONT>, 25) - 1
+        sys.stdout.write(join(lines[:inc], <FONT COLOR=#FF0000>'\n'</FONT>) + <FONT COLOR=#FF0000>'\n'</FONT>)
+        <FONT COLOR=black><B>while</B></FONT> lines[r:]:
+            sys.stdout.write(<FONT COLOR=#FF0000>'-- more --'</FONT>)
+            sys.stdout.flush()
+            c = getchar()
+
+            <FONT COLOR=black><B>if</B></FONT> c <FONT COLOR=black><B>in</B></FONT> [<FONT COLOR=#FF0000>'q'</FONT>, <FONT COLOR=#FF0000>'Q'</FONT>]:
+                sys.stdout.write(<FONT COLOR=#FF0000>'\r          \r'</FONT>)
+                <FONT COLOR=black><B>break</B></FONT>
+            <FONT COLOR=black><B>elif</B></FONT> c <FONT COLOR=black><B>in</B></FONT> [<FONT COLOR=#FF0000>'\r'</FONT>, <FONT COLOR=#FF0000>'\n'</FONT>]:
+                sys.stdout.write(<FONT COLOR=#FF0000>'\r          \r'</FONT> + lines[r] + <FONT COLOR=#FF0000>'\n'</FONT>)
+                r = r + 1
+                <FONT COLOR=black><B>continue</B></FONT>
+            <FONT COLOR=black><B>if</B></FONT> c <FONT COLOR=black><B>in</B></FONT> [<FONT COLOR=#FF0000>'b'</FONT>, <FONT COLOR=#FF0000>'B'</FONT>, <FONT COLOR=#FF0000>'\x1b'</FONT>]:
+                r = r - inc - inc
+                <FONT COLOR=black><B>if</B></FONT> r &lt; 0: r = 0
+            sys.stdout.write(<FONT COLOR=#FF0000>'\n'</FONT> + join(lines[r:r+inc], <FONT COLOR=#FF0000>'\n'</FONT>) + <FONT COLOR=#FF0000>'\n'</FONT>)
+            r = r + inc
+
+    <FONT COLOR=black><B>finally</B></FONT>:
+        <FONT COLOR=black><B>if</B></FONT> tty:
+            tty.tcsetattr(fd, tty.TCSAFLUSH, old)
+
+<FONT COLOR=black><B>def</B></FONT> plainpager(text):
+    <FONT COLOR=#FF0000>"""Simply print unformatted text.  This is the ultimate fallback."""</FONT>
+    sys.stdout.write(plain(text))
+
+<FONT COLOR=black><B>def</B></FONT> describe(thing):
+    <FONT COLOR=#FF0000>"""Produce a short description of the given thing."""</FONT>
+    <FONT COLOR=black><B>if</B></FONT> inspect.ismodule(thing):
+        <FONT COLOR=black><B>if</B></FONT> thing.__name__ <FONT COLOR=black><B>in</B></FONT> sys.builtin_module_names:
+            <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=#FF0000>'built-in module '</FONT> + thing.__name__
+        <FONT COLOR=black><B>if</B></FONT> hasattr(thing, <FONT COLOR=#FF0000>'__path__'</FONT>):
+            <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=#FF0000>'package '</FONT> + thing.__name__
+        <FONT COLOR=black><B>else</B></FONT>:
+            <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=#FF0000>'module '</FONT> + thing.__name__
+    <FONT COLOR=black><B>if</B></FONT> inspect.isbuiltin(thing):
+        <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=#FF0000>'built-in function '</FONT> + thing.__name__
+    <FONT COLOR=black><B>if</B></FONT> inspect.isclass(thing):
+        <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=#FF0000>'class '</FONT> + thing.__name__
+    <FONT COLOR=black><B>if</B></FONT> inspect.isfunction(thing):
+        <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=#FF0000>'function '</FONT> + thing.__name__
+    <FONT COLOR=black><B>if</B></FONT> inspect.ismethod(thing):
+        <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=#FF0000>'method '</FONT> + thing.__name__
+    <FONT COLOR=black><B>if</B></FONT> type(thing) <FONT COLOR=black><B>is</B></FONT> types.InstanceType:
+        <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=#FF0000>'instance of '</FONT> + thing.__class__.__name__
+    <FONT COLOR=black><B>return</B></FONT> type(thing).__name__
+
+<FONT COLOR=black><B>def</B></FONT> locate(path, forceload=0):
+    <FONT COLOR=#FF0000>"""Locate an object by name or dotted path, importing as necessary."""</FONT>
+    parts = split(path, <FONT COLOR=#FF0000>'.'</FONT>)
+    module, n = None, 0
+    <FONT COLOR=black><B>while</B></FONT> n &lt; len(parts):
+        nextmodule = safeimport(join(parts[:n+1], <FONT COLOR=#FF0000>'.'</FONT>), forceload)
+        <FONT COLOR=black><B>if</B></FONT> nextmodule: module, n = nextmodule, n + 1
+        <FONT COLOR=black><B>else</B></FONT>: <FONT COLOR=black><B>break</B></FONT>
+    <FONT COLOR=black><B>if</B></FONT> module:
+        object = module
+        <FONT COLOR=black><B>for</B></FONT> part <FONT COLOR=black><B>in</B></FONT> parts[n:]:
+            <FONT COLOR=black><B>try</B></FONT>: object = getattr(object, part)
+            <FONT COLOR=black><B>except</B></FONT> AttributeError: <FONT COLOR=black><B>return</B></FONT> None
+        <FONT COLOR=black><B>return</B></FONT> object
+    <FONT COLOR=black><B>else</B></FONT>:
+        <FONT COLOR=black><B>import</B></FONT> __builtin__
+        <FONT COLOR=black><B>if</B></FONT> hasattr(__builtin__, path):
+            <FONT COLOR=black><B>return</B></FONT> getattr(__builtin__, path)
+
+<FONT COLOR=#1111CC># --------------------------------------- interactive interpreter interface</FONT>
+
+text = TextDoc()
+html = HTMLDoc()
+
+<FONT COLOR=black><B>def</B></FONT> doc(thing, title=<FONT COLOR=#FF0000>'Python Library Documentation: %s'</FONT>, forceload=0):
+    <FONT COLOR=#FF0000>"""Display text documentation, given an object or a path to an object."""</FONT>
+    suffix, name = <FONT COLOR=#FF0000>''</FONT>, None
+    <FONT COLOR=black><B>if</B></FONT> type(thing) <FONT COLOR=black><B>is</B></FONT> type(<FONT COLOR=#FF0000>''</FONT>):
+        <FONT COLOR=black><B>try</B></FONT>:
+            object = locate(thing, forceload)
+        <FONT COLOR=black><B>except</B></FONT> ErrorDuringImport, value:
+            <FONT COLOR=black><B>print</B></FONT> value
+            <FONT COLOR=black><B>return</B></FONT>
+        <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> object:
+            <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>'no Python documentation found for %s'</FONT> % repr(thing)
+            <FONT COLOR=black><B>return</B></FONT>
+        parts = split(thing, <FONT COLOR=#FF0000>'.'</FONT>)
+        <FONT COLOR=black><B>if</B></FONT> len(parts) &gt; 1: suffix = <FONT COLOR=#FF0000>' in '</FONT> + join(parts[:-1], <FONT COLOR=#FF0000>'.'</FONT>)
+        name = parts[-1]
+        thing = object
+
+    desc = describe(thing)
+    module = inspect.getmodule(thing)
+    <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> suffix <FONT COLOR=black><B>and</B></FONT> module <FONT COLOR=black><B>and</B></FONT> module <FONT COLOR=black><B>is</B></FONT> <FONT COLOR=black><B>not</B></FONT> thing:
+        suffix = <FONT COLOR=#FF0000>' in module '</FONT> + module.__name__
+    pager(title % (desc + suffix) + <FONT COLOR=#FF0000>'\n\n'</FONT> + text.document(thing, name))
+
+<FONT COLOR=black><B>def</B></FONT> writedoc(key, forceload=0):
+    <FONT COLOR=#FF0000>"""Write HTML documentation to a file in the current directory."""</FONT>
+    <FONT COLOR=black><B>try</B></FONT>:
+        object = locate(key, forceload)
+    <FONT COLOR=black><B>except</B></FONT> ErrorDuringImport, value:
+        <FONT COLOR=black><B>print</B></FONT> value
+    <FONT COLOR=black><B>else</B></FONT>:
+        <FONT COLOR=black><B>if</B></FONT> object:
+            page = html.page(describe(object),
+                             html.document(object, object.__name__))
+            file = open(key + <FONT COLOR=#FF0000>'.html'</FONT>, <FONT COLOR=#FF0000>'w'</FONT>)
+            file.write(page)
+            file.close()
+            <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>'wrote'</FONT>, key + <FONT COLOR=#FF0000>'.html'</FONT>
+        <FONT COLOR=black><B>else</B></FONT>:
+            <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>'no Python documentation found for %s'</FONT> % repr(key)
+
+<FONT COLOR=black><B>def</B></FONT> writedocs(dir, pkgpath=<FONT COLOR=#FF0000>''</FONT>, done=None):
+    <FONT COLOR=#FF0000>"""Write out HTML documentation for all modules in a directory tree."""</FONT>
+    <FONT COLOR=black><B>if</B></FONT> done <FONT COLOR=black><B>is</B></FONT> None: done = {}
+    <FONT COLOR=black><B>for</B></FONT> file <FONT COLOR=black><B>in</B></FONT> os.listdir(dir):
+        path = os.path.join(dir, file)
+        <FONT COLOR=black><B>if</B></FONT> ispackage(path):
+            writedocs(path, pkgpath + file + <FONT COLOR=#FF0000>'.'</FONT>, done)
+        <FONT COLOR=black><B>elif</B></FONT> os.path.isfile(path):
+            modname = inspect.getmodulename(path)
+            <FONT COLOR=black><B>if</B></FONT> modname:
+                modname = pkgpath + modname
+                <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> done.has_key(modname):
+                    done[modname] = 1
+                    writedoc(modname)
+
+<FONT COLOR=black><B>class</B></FONT> Helper:
+    keywords = {
+        <FONT COLOR=#FF0000>'and'</FONT>: <FONT COLOR=#FF0000>'BOOLEAN'</FONT>,
+        <FONT COLOR=#FF0000>'assert'</FONT>: (<FONT COLOR=#FF0000>'ref/assert'</FONT>, <FONT COLOR=#FF0000>''</FONT>),
+        <FONT COLOR=#FF0000>'break'</FONT>: (<FONT COLOR=#FF0000>'ref/break'</FONT>, <FONT COLOR=#FF0000>'while for'</FONT>),
+        <FONT COLOR=#FF0000>'class'</FONT>: (<FONT COLOR=#FF0000>'ref/class'</FONT>, <FONT COLOR=#FF0000>'CLASSES SPECIALMETHODS'</FONT>),
+        <FONT COLOR=#FF0000>'continue'</FONT>: (<FONT COLOR=#FF0000>'ref/continue'</FONT>, <FONT COLOR=#FF0000>'while for'</FONT>),
+        <FONT COLOR=#FF0000>'def'</FONT>: (<FONT COLOR=#FF0000>'ref/function'</FONT>, <FONT COLOR=#FF0000>''</FONT>),
+        <FONT COLOR=#FF0000>'del'</FONT>: (<FONT COLOR=#FF0000>'ref/del'</FONT>, <FONT COLOR=#FF0000>'BASICMETHODS'</FONT>),
+        <FONT COLOR=#FF0000>'elif'</FONT>: <FONT COLOR=#FF0000>'if'</FONT>,
+        <FONT COLOR=#FF0000>'else'</FONT>: (<FONT COLOR=#FF0000>'ref/if'</FONT>, <FONT COLOR=#FF0000>'while for'</FONT>),
+        <FONT COLOR=#FF0000>'except'</FONT>: <FONT COLOR=#FF0000>'try'</FONT>,
+        <FONT COLOR=#FF0000>'exec'</FONT>: (<FONT COLOR=#FF0000>'ref/exec'</FONT>, <FONT COLOR=#FF0000>''</FONT>),
+        <FONT COLOR=#FF0000>'finally'</FONT>: <FONT COLOR=#FF0000>'try'</FONT>,
+        <FONT COLOR=#FF0000>'for'</FONT>: (<FONT COLOR=#FF0000>'ref/for'</FONT>, <FONT COLOR=#FF0000>'break continue while'</FONT>),
+        <FONT COLOR=#FF0000>'from'</FONT>: <FONT COLOR=#FF0000>'import'</FONT>,
+        <FONT COLOR=#FF0000>'global'</FONT>: (<FONT COLOR=#FF0000>'ref/global'</FONT>, <FONT COLOR=#FF0000>'NAMESPACES'</FONT>),
+        <FONT COLOR=#FF0000>'if'</FONT>: (<FONT COLOR=#FF0000>'ref/if'</FONT>, <FONT COLOR=#FF0000>'TRUTHVALUE'</FONT>),
+        <FONT COLOR=#FF0000>'import'</FONT>: (<FONT COLOR=#FF0000>'ref/import'</FONT>, <FONT COLOR=#FF0000>'MODULES'</FONT>),
+        <FONT COLOR=#FF0000>'in'</FONT>: (<FONT COLOR=#FF0000>'ref/comparisons'</FONT>, <FONT COLOR=#FF0000>'SEQUENCEMETHODS2'</FONT>),
+        <FONT COLOR=#FF0000>'is'</FONT>: <FONT COLOR=#FF0000>'COMPARISON'</FONT>,
+        <FONT COLOR=#FF0000>'lambda'</FONT>: (<FONT COLOR=#FF0000>'ref/lambda'</FONT>, <FONT COLOR=#FF0000>'FUNCTIONS'</FONT>),
+        <FONT COLOR=#FF0000>'not'</FONT>: <FONT COLOR=#FF0000>'BOOLEAN'</FONT>,
+        <FONT COLOR=#FF0000>'or'</FONT>: <FONT COLOR=#FF0000>'BOOLEAN'</FONT>,
+        <FONT COLOR=#FF0000>'pass'</FONT>: <FONT COLOR=#FF0000>'PASS'</FONT>,
+        <FONT COLOR=#FF0000>'print'</FONT>: (<FONT COLOR=#FF0000>'ref/print'</FONT>, <FONT COLOR=#FF0000>''</FONT>),
+        <FONT COLOR=#FF0000>'raise'</FONT>: (<FONT COLOR=#FF0000>'ref/raise'</FONT>, <FONT COLOR=#FF0000>'EXCEPTIONS'</FONT>),
+        <FONT COLOR=#FF0000>'return'</FONT>: (<FONT COLOR=#FF0000>'ref/return'</FONT>, <FONT COLOR=#FF0000>'FUNCTIONS'</FONT>),
+        <FONT COLOR=#FF0000>'try'</FONT>: (<FONT COLOR=#FF0000>'ref/try'</FONT>, <FONT COLOR=#FF0000>'EXCEPTIONS'</FONT>),
+        <FONT COLOR=#FF0000>'while'</FONT>: (<FONT COLOR=#FF0000>'ref/while'</FONT>, <FONT COLOR=#FF0000>'break continue if TRUTHVALUE'</FONT>),
+    }
+
+    topics = {
+        <FONT COLOR=#FF0000>'TYPES'</FONT>: (<FONT COLOR=#FF0000>'ref/types'</FONT>, <FONT COLOR=#FF0000>'STRINGS UNICODE NUMBERS SEQUENCES MAPPINGS FUNCTIONS CLASSES MODULES FILES inspect'</FONT>),
+        <FONT COLOR=#FF0000>'STRINGS'</FONT>: (<FONT COLOR=#FF0000>'ref/strings'</FONT>, <FONT COLOR=#FF0000>'str UNICODE SEQUENCES STRINGMETHODS FORMATTING TYPES'</FONT>),
+        <FONT COLOR=#FF0000>'STRINGMETHODS'</FONT>: (<FONT COLOR=#FF0000>'lib/string-methods'</FONT>, <FONT COLOR=#FF0000>'STRINGS FORMATTING'</FONT>),
+        <FONT COLOR=#FF0000>'FORMATTING'</FONT>: (<FONT COLOR=#FF0000>'lib/typesseq-strings'</FONT>, <FONT COLOR=#FF0000>'OPERATORS'</FONT>),
+        <FONT COLOR=#FF0000>'UNICODE'</FONT>: (<FONT COLOR=#FF0000>'ref/unicode'</FONT>, <FONT COLOR=#FF0000>'encodings unicode TYPES STRING'</FONT>),
+        <FONT COLOR=#FF0000>'NUMBERS'</FONT>: (<FONT COLOR=#FF0000>'ref/numbers'</FONT>, <FONT COLOR=#FF0000>'INTEGER FLOAT COMPLEX TYPES'</FONT>),
+        <FONT COLOR=#FF0000>'INTEGER'</FONT>: (<FONT COLOR=#FF0000>'ref/integers'</FONT>, <FONT COLOR=#FF0000>'int range'</FONT>),
+        <FONT COLOR=#FF0000>'FLOAT'</FONT>: (<FONT COLOR=#FF0000>'ref/floating'</FONT>, <FONT COLOR=#FF0000>'float math'</FONT>),
+        <FONT COLOR=#FF0000>'COMPLEX'</FONT>: (<FONT COLOR=#FF0000>'ref/imaginary'</FONT>, <FONT COLOR=#FF0000>'complex cmath'</FONT>),
+        <FONT COLOR=#FF0000>'SEQUENCES'</FONT>: (<FONT COLOR=#FF0000>'lib/typesseq'</FONT>, <FONT COLOR=#FF0000>'STRINGMETHODS FORMATTING xrange LISTS'</FONT>),
+        <FONT COLOR=#FF0000>'MAPPINGS'</FONT>: <FONT COLOR=#FF0000>'DICTIONARIES'</FONT>,
+        <FONT COLOR=#FF0000>'FUNCTIONS'</FONT>: (<FONT COLOR=#FF0000>'lib/typesfunctions'</FONT>, <FONT COLOR=#FF0000>'def TYPES'</FONT>),
+        <FONT COLOR=#FF0000>'METHODS'</FONT>: (<FONT COLOR=#FF0000>'lib/typesmethods'</FONT>, <FONT COLOR=#FF0000>'class def CLASSES TYPES'</FONT>),
+        <FONT COLOR=#FF0000>'CODEOBJECTS'</FONT>: (<FONT COLOR=#FF0000>'lib/bltin-code-objects'</FONT>, <FONT COLOR=#FF0000>'compile FUNCTIONS TYPES'</FONT>),
+        <FONT COLOR=#FF0000>'TYPEOBJECTS'</FONT>: (<FONT COLOR=#FF0000>'lib/bltin-type-objects'</FONT>, <FONT COLOR=#FF0000>'types TYPES'</FONT>),
+        <FONT COLOR=#FF0000>'FRAMEOBJECTS'</FONT>: <FONT COLOR=#FF0000>'TYPES'</FONT>,
+        <FONT COLOR=#FF0000>'TRACEBACKS'</FONT>: <FONT COLOR=#FF0000>'TYPES'</FONT>,
+        <FONT COLOR=#FF0000>'NONE'</FONT>: (<FONT COLOR=#FF0000>'lib/bltin-null-object'</FONT>, <FONT COLOR=#FF0000>''</FONT>),
+        <FONT COLOR=#FF0000>'ELLIPSIS'</FONT>: (<FONT COLOR=#FF0000>'lib/bltin-ellipsis-object'</FONT>, <FONT COLOR=#FF0000>'SLICINGS'</FONT>),
+        <FONT COLOR=#FF0000>'FILES'</FONT>: (<FONT COLOR=#FF0000>'lib/bltin-file-objects'</FONT>, <FONT COLOR=#FF0000>''</FONT>),
+        <FONT COLOR=#FF0000>'SPECIALATTRIBUTES'</FONT>: (<FONT COLOR=#FF0000>'lib/specialattrs'</FONT>, <FONT COLOR=#FF0000>''</FONT>),
+        <FONT COLOR=#FF0000>'CLASSES'</FONT>: (<FONT COLOR=#FF0000>'ref/types'</FONT>, <FONT COLOR=#FF0000>'class SPECIALMETHODS PRIVATENAMES'</FONT>),
+        <FONT COLOR=#FF0000>'MODULES'</FONT>: (<FONT COLOR=#FF0000>'lib/typesmodules'</FONT>, <FONT COLOR=#FF0000>'import'</FONT>),
+        <FONT COLOR=#FF0000>'PACKAGES'</FONT>: <FONT COLOR=#FF0000>'import'</FONT>,
+        <FONT COLOR=#FF0000>'EXPRESSIONS'</FONT>: (<FONT COLOR=#FF0000>'ref/summary'</FONT>, <FONT COLOR=#FF0000>'lambda or and not in is BOOLEAN COMPARISON BITWISE SHIFTING BINARY FORMATTING POWER UNARY ATTRIBUTES SUBSCRIPTS SLICINGS CALLS TUPLES LISTS DICTIONARIES BACKQUOTES'</FONT>),
+        <FONT COLOR=#FF0000>'OPERATORS'</FONT>: <FONT COLOR=#FF0000>'EXPRESSIONS'</FONT>,
+        <FONT COLOR=#FF0000>'PRECEDENCE'</FONT>: <FONT COLOR=#FF0000>'EXPRESSIONS'</FONT>,
+        <FONT COLOR=#FF0000>'OBJECTS'</FONT>: (<FONT COLOR=#FF0000>'ref/objects'</FONT>, <FONT COLOR=#FF0000>'TYPES'</FONT>),
+        <FONT COLOR=#FF0000>'SPECIALMETHODS'</FONT>: (<FONT COLOR=#FF0000>'ref/specialnames'</FONT>, <FONT COLOR=#FF0000>'BASICMETHODS ATTRIBUTEMETHODS CALLABLEMETHODS SEQUENCEMETHODS1 MAPPINGMETHODS SEQUENCEMETHODS2 NUMBERMETHODS CLASSES'</FONT>),
+        <FONT COLOR=#FF0000>'BASICMETHODS'</FONT>: (<FONT COLOR=#FF0000>'ref/customization'</FONT>, <FONT COLOR=#FF0000>'cmp hash repr str SPECIALMETHODS'</FONT>),
+        <FONT COLOR=#FF0000>'ATTRIBUTEMETHODS'</FONT>: (<FONT COLOR=#FF0000>'ref/attribute-access'</FONT>, <FONT COLOR=#FF0000>'ATTRIBUTES SPECIALMETHODS'</FONT>),
+        <FONT COLOR=#FF0000>'CALLABLEMETHODS'</FONT>: (<FONT COLOR=#FF0000>'ref/callable-types'</FONT>, <FONT COLOR=#FF0000>'CALLS SPECIALMETHODS'</FONT>),
+        <FONT COLOR=#FF0000>'SEQUENCEMETHODS1'</FONT>: (<FONT COLOR=#FF0000>'ref/sequence-types'</FONT>, <FONT COLOR=#FF0000>'SEQUENCES SEQUENCEMETHODS2 SPECIALMETHODS'</FONT>),
+        <FONT COLOR=#FF0000>'SEQUENCEMETHODS2'</FONT>: (<FONT COLOR=#FF0000>'ref/sequence-methods'</FONT>, <FONT COLOR=#FF0000>'SEQUENCES SEQUENCEMETHODS1 SPECIALMETHODS'</FONT>),
+        <FONT COLOR=#FF0000>'MAPPINGMETHODS'</FONT>: (<FONT COLOR=#FF0000>'ref/sequence-types'</FONT>, <FONT COLOR=#FF0000>'MAPPINGS SPECIALMETHODS'</FONT>),
+        <FONT COLOR=#FF0000>'NUMBERMETHODS'</FONT>: (<FONT COLOR=#FF0000>'ref/numeric-types'</FONT>, <FONT COLOR=#FF0000>'NUMBERS AUGMENTEDASSIGNMENT SPECIALMETHODS'</FONT>),
+        <FONT COLOR=#FF0000>'EXECUTION'</FONT>: (<FONT COLOR=#FF0000>'ref/execframes'</FONT>, <FONT COLOR=#FF0000>''</FONT>),
+        <FONT COLOR=#FF0000>'NAMESPACES'</FONT>: (<FONT COLOR=#FF0000>'ref/execframes'</FONT>, <FONT COLOR=#FF0000>'global ASSIGNMENT DELETION'</FONT>),
+        <FONT COLOR=#FF0000>'SCOPING'</FONT>: <FONT COLOR=#FF0000>'NAMESPACES'</FONT>,
+        <FONT COLOR=#FF0000>'FRAMES'</FONT>: <FONT COLOR=#FF0000>'NAMESPACES'</FONT>,
+        <FONT COLOR=#FF0000>'EXCEPTIONS'</FONT>: (<FONT COLOR=#FF0000>'ref/exceptions'</FONT>, <FONT COLOR=#FF0000>'try except finally raise'</FONT>),
+        <FONT COLOR=#FF0000>'COERCIONS'</FONT>: <FONT COLOR=#FF0000>'CONVERSIONS'</FONT>,
+        <FONT COLOR=#FF0000>'CONVERSIONS'</FONT>: (<FONT COLOR=#FF0000>'ref/conversions'</FONT>, <FONT COLOR=#FF0000>''</FONT>),
+        <FONT COLOR=#FF0000>'IDENTIFIERS'</FONT>: (<FONT COLOR=#FF0000>'ref/identifiers'</FONT>, <FONT COLOR=#FF0000>'keywords SPECIALIDENTIFIERS'</FONT>),
+        <FONT COLOR=#FF0000>'SPECIALIDENTIFIERS'</FONT>: (<FONT COLOR=#FF0000>'ref/id-classes'</FONT>, <FONT COLOR=#FF0000>''</FONT>),
+        <FONT COLOR=#FF0000>'PRIVATENAMES'</FONT>: (<FONT COLOR=#FF0000>'ref/atom-identifiers'</FONT>, <FONT COLOR=#FF0000>''</FONT>),
+        <FONT COLOR=#FF0000>'LITERALS'</FONT>: (<FONT COLOR=#FF0000>'ref/atom-literals'</FONT>, <FONT COLOR=#FF0000>'STRINGS BACKQUOTES NUMBERS TUPLELITERALS LISTLITERALS DICTIONARYLITERALS'</FONT>),
+        <FONT COLOR=#FF0000>'TUPLES'</FONT>: <FONT COLOR=#FF0000>'SEQUENCES'</FONT>,
+        <FONT COLOR=#FF0000>'TUPLELITERALS'</FONT>: (<FONT COLOR=#FF0000>'ref/exprlists'</FONT>, <FONT COLOR=#FF0000>'TUPLES LITERALS'</FONT>),
+        <FONT COLOR=#FF0000>'LISTS'</FONT>: (<FONT COLOR=#FF0000>'lib/typesseq-mutable'</FONT>, <FONT COLOR=#FF0000>'LISTLITERALS'</FONT>),
+        <FONT COLOR=#FF0000>'LISTLITERALS'</FONT>: (<FONT COLOR=#FF0000>'ref/lists'</FONT>, <FONT COLOR=#FF0000>'LISTS LITERALS'</FONT>),
+        <FONT COLOR=#FF0000>'DICTIONARIES'</FONT>: (<FONT COLOR=#FF0000>'lib/typesmapping'</FONT>, <FONT COLOR=#FF0000>'DICTIONARYLITERALS'</FONT>),
+        <FONT COLOR=#FF0000>'DICTIONARYLITERALS'</FONT>: (<FONT COLOR=#FF0000>'ref/dict'</FONT>, <FONT COLOR=#FF0000>'DICTIONARIES LITERALS'</FONT>),
+        <FONT COLOR=#FF0000>'BACKQUOTES'</FONT>: (<FONT COLOR=#FF0000>'ref/string-conversions'</FONT>, <FONT COLOR=#FF0000>'repr str STRINGS LITERALS'</FONT>),
+        <FONT COLOR=#FF0000>'ATTRIBUTES'</FONT>: (<FONT COLOR=#FF0000>'ref/attribute-references'</FONT>, <FONT COLOR=#FF0000>'getattr hasattr setattr ATTRIBUTEMETHODS'</FONT>),
+        <FONT COLOR=#FF0000>'SUBSCRIPTS'</FONT>: (<FONT COLOR=#FF0000>'ref/subscriptions'</FONT>, <FONT COLOR=#FF0000>'SEQUENCEMETHODS1'</FONT>),
+        <FONT COLOR=#FF0000>'SLICINGS'</FONT>: (<FONT COLOR=#FF0000>'ref/slicings'</FONT>, <FONT COLOR=#FF0000>'SEQUENCEMETHODS2'</FONT>),
+        <FONT COLOR=#FF0000>'CALLS'</FONT>: (<FONT COLOR=#FF0000>'ref/calls'</FONT>, <FONT COLOR=#FF0000>'EXPRESSIONS'</FONT>),
+        <FONT COLOR=#FF0000>'POWER'</FONT>: (<FONT COLOR=#FF0000>'ref/power'</FONT>, <FONT COLOR=#FF0000>'EXPRESSIONS'</FONT>),
+        <FONT COLOR=#FF0000>'UNARY'</FONT>: (<FONT COLOR=#FF0000>'ref/unary'</FONT>, <FONT COLOR=#FF0000>'EXPRESSIONS'</FONT>),
+        <FONT COLOR=#FF0000>'BINARY'</FONT>: (<FONT COLOR=#FF0000>'ref/binary'</FONT>, <FONT COLOR=#FF0000>'EXPRESSIONS'</FONT>),
+        <FONT COLOR=#FF0000>'SHIFTING'</FONT>: (<FONT COLOR=#FF0000>'ref/shifting'</FONT>, <FONT COLOR=#FF0000>'EXPRESSIONS'</FONT>),
+        <FONT COLOR=#FF0000>'BITWISE'</FONT>: (<FONT COLOR=#FF0000>'ref/bitwise'</FONT>, <FONT COLOR=#FF0000>'EXPRESSIONS'</FONT>),
+        <FONT COLOR=#FF0000>'COMPARISON'</FONT>: (<FONT COLOR=#FF0000>'ref/comparisons'</FONT>, <FONT COLOR=#FF0000>'EXPRESSIONS BASICMETHODS'</FONT>),
+        <FONT COLOR=#FF0000>'BOOLEAN'</FONT>: (<FONT COLOR=#FF0000>'ref/lambda'</FONT>, <FONT COLOR=#FF0000>'EXPRESSIONS TRUTHVALUE'</FONT>),
+        <FONT COLOR=#FF0000>'ASSERTION'</FONT>: <FONT COLOR=#FF0000>'assert'</FONT>,
+        <FONT COLOR=#FF0000>'ASSIGNMENT'</FONT>: (<FONT COLOR=#FF0000>'ref/assignment'</FONT>, <FONT COLOR=#FF0000>'AUGMENTEDASSIGNMENT'</FONT>),
+        <FONT COLOR=#FF0000>'AUGMENTEDASSIGNMENT'</FONT>: (<FONT COLOR=#FF0000>'ref/augassign'</FONT>, <FONT COLOR=#FF0000>'NUMBERMETHODS'</FONT>),
+        <FONT COLOR=#FF0000>'DELETION'</FONT>: <FONT COLOR=#FF0000>'del'</FONT>,
+        <FONT COLOR=#FF0000>'PRINTING'</FONT>: <FONT COLOR=#FF0000>'print'</FONT>,
+        <FONT COLOR=#FF0000>'RETURNING'</FONT>: <FONT COLOR=#FF0000>'return'</FONT>,
+        <FONT COLOR=#FF0000>'IMPORTING'</FONT>: <FONT COLOR=#FF0000>'import'</FONT>,
+        <FONT COLOR=#FF0000>'CONDITIONAL'</FONT>: <FONT COLOR=#FF0000>'if'</FONT>,
+        <FONT COLOR=#FF0000>'LOOPING'</FONT>: (<FONT COLOR=#FF0000>'ref/compound'</FONT>, <FONT COLOR=#FF0000>'for while break continue'</FONT>),
+        <FONT COLOR=#FF0000>'TRUTHVALUE'</FONT>: (<FONT COLOR=#FF0000>'lib/truth'</FONT>, <FONT COLOR=#FF0000>'if while and or not BASICMETHODS'</FONT>),
+        <FONT COLOR=#FF0000>'DEBUGGING'</FONT>: (<FONT COLOR=#FF0000>'lib/module-pdb'</FONT>, <FONT COLOR=#FF0000>'pdb'</FONT>),
+    }
+
+    <FONT COLOR=black><B>def</B></FONT> __init__(self, input, output):
+        self.input = input
+        self.output = output
+        self.docdir = None
+        execdir = os.path.dirname(sys.executable)
+        homedir = os.environ.get(<FONT COLOR=#FF0000>'PYTHONHOME'</FONT>)
+        <FONT COLOR=black><B>for</B></FONT> dir <FONT COLOR=black><B>in</B></FONT> [os.environ.get(<FONT COLOR=#FF0000>'PYTHONDOCS'</FONT>),
+                    homedir <FONT COLOR=black><B>and</B></FONT> os.path.join(homedir, <FONT COLOR=#FF0000>'doc'</FONT>),
+                    os.path.join(execdir, <FONT COLOR=#FF0000>'doc'</FONT>),
+                    <FONT COLOR=#FF0000>'/usr/doc/python-docs-'</FONT> + split(sys.version)[0],
+                    <FONT COLOR=#FF0000>'/usr/doc/python-'</FONT> + split(sys.version)[0],
+                    <FONT COLOR=#FF0000>'/usr/doc/python-docs-'</FONT> + sys.version[:3],
+                    <FONT COLOR=#FF0000>'/usr/doc/python-'</FONT> + sys.version[:3]]:
+            <FONT COLOR=black><B>if</B></FONT> dir <FONT COLOR=black><B>and</B></FONT> os.path.isdir(os.path.join(dir, <FONT COLOR=#FF0000>'lib'</FONT>)):
+                self.docdir = dir
+
+    <FONT COLOR=black><B>def</B></FONT> __repr__(self):
+        <FONT COLOR=black><B>if</B></FONT> inspect.stack()[1][3] == <FONT COLOR=#FF0000>'?'</FONT>:
+            self()
+            <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=#FF0000>''</FONT>
+        <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=#FF0000>'&lt;pydoc.Helper instance&gt;'</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> __call__(self, request=None):
+        <FONT COLOR=black><B>if</B></FONT> request <FONT COLOR=black><B>is</B></FONT> <FONT COLOR=black><B>not</B></FONT> None:
+            self.help(request)
+        <FONT COLOR=black><B>else</B></FONT>:
+            self.intro()
+            self.interact()
+            self.output.write(<FONT COLOR=#FF0000>'''
+You're now leaving help and returning to the Python interpreter.
+If you want to ask for help on a particular object directly from the
+interpreter, you can type "help(object)".  Executing "help('string')"
+has the same effect as typing a particular string at the help&gt; prompt.
+'''</FONT>)
+
+    <FONT COLOR=black><B>def</B></FONT> interact(self):
+        self.output.write(<FONT COLOR=#FF0000>'\n'</FONT>)
+        <FONT COLOR=black><B>while</B></FONT> 1:
+            self.output.write(<FONT COLOR=#FF0000>'help&gt; '</FONT>)
+            self.output.flush()
+            <FONT COLOR=black><B>try</B></FONT>:
+                request = self.input.readline()
+                <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> request: <FONT COLOR=black><B>break</B></FONT>
+            <FONT COLOR=black><B>except</B></FONT> KeyboardInterrupt: <FONT COLOR=black><B>break</B></FONT>
+            request = strip(replace(request, <FONT COLOR=#FF0000>'"'</FONT>, <FONT COLOR=#FF0000>''</FONT>, <FONT COLOR=#FF0000>"'"</FONT>, <FONT COLOR=#FF0000>''</FONT>))
+            <FONT COLOR=black><B>if</B></FONT> lower(request) <FONT COLOR=black><B>in</B></FONT> [<FONT COLOR=#FF0000>'q'</FONT>, <FONT COLOR=#FF0000>'quit'</FONT>]: <FONT COLOR=black><B>break</B></FONT>
+            self.help(request)
+
+    <FONT COLOR=black><B>def</B></FONT> help(self, request):
+        <FONT COLOR=black><B>if</B></FONT> type(request) <FONT COLOR=black><B>is</B></FONT> type(<FONT COLOR=#FF0000>''</FONT>):
+            <FONT COLOR=black><B>if</B></FONT> request == <FONT COLOR=#FF0000>'help'</FONT>: self.intro()
+            <FONT COLOR=black><B>elif</B></FONT> request == <FONT COLOR=#FF0000>'keywords'</FONT>: self.listkeywords()
+            <FONT COLOR=black><B>elif</B></FONT> request == <FONT COLOR=#FF0000>'topics'</FONT>: self.listtopics()
+            <FONT COLOR=black><B>elif</B></FONT> request == <FONT COLOR=#FF0000>'modules'</FONT>: self.listmodules()
+            <FONT COLOR=black><B>elif</B></FONT> request[:8] == <FONT COLOR=#FF0000>'modules '</FONT>:
+                self.listmodules(split(request)[1])
+            <FONT COLOR=black><B>elif</B></FONT> self.keywords.has_key(request): self.showtopic(request)
+            <FONT COLOR=black><B>elif</B></FONT> self.topics.has_key(request): self.showtopic(request)
+            <FONT COLOR=black><B>elif</B></FONT> request: doc(request, <FONT COLOR=#FF0000>'Help on %s:'</FONT>)
+        <FONT COLOR=black><B>elif</B></FONT> isinstance(request, Helper): self()
+        <FONT COLOR=black><B>else</B></FONT>: doc(request, <FONT COLOR=#FF0000>'Help on %s:'</FONT>)
+        self.output.write(<FONT COLOR=#FF0000>'\n'</FONT>)
+
+    <FONT COLOR=black><B>def</B></FONT> intro(self):
+        self.output.write(<FONT COLOR=#FF0000>'''
+Welcome to Python %s!  This is the online help utility.
+
+If this is your first time using Python, you should definitely check out
+the tutorial on the Internet at http://www.python.org/doc/tut/.
+
+Enter the name of any module, keyword, or topic to get help on writing
+Python programs and using Python modules.  To quit this help utility and
+return to the interpreter, just type "quit".
+
+To get a list of available modules, keywords, or topics, type "modules",
+"keywords", or "topics".  Each module also comes with a one-line summary
+of what it does; to list the modules whose summaries contain a given word
+such as "spam", type "modules spam".
+'''</FONT> % sys.version[:3])
+
+    <FONT COLOR=black><B>def</B></FONT> list(self, items, columns=4, width=80):
+        items = items[:]
+        items.sort()
+        colw = width / columns
+        rows = (len(items) + columns - 1) / columns
+        <FONT COLOR=black><B>for</B></FONT> row <FONT COLOR=black><B>in</B></FONT> range(rows):
+            <FONT COLOR=black><B>for</B></FONT> col <FONT COLOR=black><B>in</B></FONT> range(columns):
+                i = col * rows + row
+                <FONT COLOR=black><B>if</B></FONT> i &lt; len(items):
+                    self.output.write(items[i])
+                    <FONT COLOR=black><B>if</B></FONT> col &lt; columns - 1:
+                        self.output.write(<FONT COLOR=#FF0000>' '</FONT> + <FONT COLOR=#FF0000>' '</FONT> * (colw-1 - len(items[i])))
+            self.output.write(<FONT COLOR=#FF0000>'\n'</FONT>)
+
+    <FONT COLOR=black><B>def</B></FONT> listkeywords(self):
+        self.output.write(<FONT COLOR=#FF0000>'''
+Here is a list of the Python keywords.  Enter any keyword to get more help.
+
+'''</FONT>)
+        self.list(self.keywords.keys())
+
+    <FONT COLOR=black><B>def</B></FONT> listtopics(self):
+        self.output.write(<FONT COLOR=#FF0000>'''
+Here is a list of available topics.  Enter any topic name to get more help.
+
+'''</FONT>)
+        self.list(self.topics.keys())
+
+    <FONT COLOR=black><B>def</B></FONT> showtopic(self, topic):
+        <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> self.docdir:
+            self.output.write(<FONT COLOR=#FF0000>'''
+Sorry, topic and keyword documentation is not available because the Python
+HTML documentation files could not be found.  If you have installed them,
+please set the environment variable PYTHONDOCS to indicate their location.
+'''</FONT>)
+            <FONT COLOR=black><B>return</B></FONT>
+        target = self.topics.get(topic, self.keywords.get(topic))
+        <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> target:
+            self.output.write(<FONT COLOR=#FF0000>'no documentation found for %s\n'</FONT> % repr(topic))
+            <FONT COLOR=black><B>return</B></FONT>
+        <FONT COLOR=black><B>if</B></FONT> type(target) <FONT COLOR=black><B>is</B></FONT> type(<FONT COLOR=#FF0000>''</FONT>):
+            <FONT COLOR=black><B>return</B></FONT> self.showtopic(target)
+
+        filename, xrefs = target
+        filename = self.docdir + <FONT COLOR=#FF0000>'/'</FONT> + filename + <FONT COLOR=#FF0000>'.html'</FONT>
+        <FONT COLOR=black><B>try</B></FONT>:
+            file = open(filename)
+        <FONT COLOR=black><B>except</B></FONT>:
+            self.output.write(<FONT COLOR=#FF0000>'could not read docs from %s\n'</FONT> % filename)
+            <FONT COLOR=black><B>return</B></FONT>
+
+        divpat = re.compile(<FONT COLOR=#FF0000>'&lt;div[^&gt;]*navigat.*?&lt;/div.*?&gt;'</FONT>, re.I | re.S)
+        addrpat = re.compile(<FONT COLOR=#FF0000>'&lt;address.*?&gt;.*?&lt;/address.*?&gt;'</FONT>, re.I | re.S)
+        document = re.sub(addrpat, <FONT COLOR=#FF0000>''</FONT>, re.sub(divpat, <FONT COLOR=#FF0000>''</FONT>, file.read()))
+        file.close()
+
+        <FONT COLOR=black><B>import</B></FONT> htmllib, formatter, StringIO
+        buffer = StringIO.StringIO()
+        parser = htmllib.HTMLParser(
+            formatter.AbstractFormatter(formatter.DumbWriter(buffer)))
+        parser.start_table = parser.do_p
+        parser.end_table = <FONT COLOR=black><B>lambda</B></FONT> parser=parser: parser.do_p({})
+        parser.start_tr = parser.do_br
+        parser.start_td = parser.start_th = <FONT COLOR=black><B>lambda</B></FONT> a, b=buffer: b.write(<FONT COLOR=#FF0000>'\t'</FONT>)
+        parser.feed(document)
+        buffer = replace(buffer.getvalue(), <FONT COLOR=#FF0000>'\xa0'</FONT>, <FONT COLOR=#FF0000>' '</FONT>, <FONT COLOR=#FF0000>'\n'</FONT>, <FONT COLOR=#FF0000>'\n  '</FONT>)
+        pager(<FONT COLOR=#FF0000>'  '</FONT> + strip(buffer) + <FONT COLOR=#FF0000>'\n'</FONT>)
+        <FONT COLOR=black><B>if</B></FONT> xrefs:
+            buffer = StringIO.StringIO()
+            formatter.DumbWriter(buffer).send_flowing_data(
+                <FONT COLOR=#FF0000>'Related help topics: '</FONT> + join(split(xrefs), <FONT COLOR=#FF0000>', '</FONT>) + <FONT COLOR=#FF0000>'\n'</FONT>)
+            self.output.write(<FONT COLOR=#FF0000>'\n%s\n'</FONT> % buffer.getvalue())
+
+    <FONT COLOR=black><B>def</B></FONT> listmodules(self, key=<FONT COLOR=#FF0000>''</FONT>):
+        <FONT COLOR=black><B>if</B></FONT> key:
+            self.output.write(<FONT COLOR=#FF0000>'''
+Here is a list of matching modules.  Enter any module name to get more help.
+
+'''</FONT>)
+            apropos(key)
+        <FONT COLOR=black><B>else</B></FONT>:
+            self.output.write(<FONT COLOR=#FF0000>'''
+Please wait a moment while I gather a list of all available modules...
+
+'''</FONT>)
+            modules = {}
+            <FONT COLOR=black><B>def</B></FONT> callback(path, modname, desc, modules=modules):
+                <FONT COLOR=black><B>if</B></FONT> modname <FONT COLOR=black><B>and</B></FONT> modname[-9:] == <FONT COLOR=#FF0000>'.__init__'</FONT>:
+                    modname = modname[:-9] + <FONT COLOR=#FF0000>' (package)'</FONT>
+                <FONT COLOR=black><B>if</B></FONT> find(modname, <FONT COLOR=#FF0000>'.'</FONT>) &lt; 0:
+                    modules[modname] = 1
+            ModuleScanner().run(callback)
+            self.list(modules.keys())
+            self.output.write(<FONT COLOR=#FF0000>'''
+Enter any module name to get more help.  Or, type "modules spam" to search
+for modules whose descriptions contain the word "spam".
+'''</FONT>)
+
+help = Helper(sys.stdin, sys.stdout)
+
+<FONT COLOR=black><B>class</B></FONT> Scanner:
+    <FONT COLOR=#FF0000>"""A generic tree iterator."""</FONT>
+    <FONT COLOR=black><B>def</B></FONT> __init__(self, roots, children, descendp):
+        self.roots = roots[:]
+        self.state = []
+        self.children = children
+        self.descendp = descendp
+
+    <FONT COLOR=black><B>def</B></FONT> next(self):
+        <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> self.state:
+            <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> self.roots:
+                <FONT COLOR=black><B>return</B></FONT> None
+            root = self.roots.pop(0)
+            self.state = [(root, self.children(root))]
+        node, children = self.state[-1]
+        <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> children:
+            self.state.pop()
+            <FONT COLOR=black><B>return</B></FONT> self.next()
+        child = children.pop(0)
+        <FONT COLOR=black><B>if</B></FONT> self.descendp(child):
+            self.state.append((child, self.children(child)))
+        <FONT COLOR=black><B>return</B></FONT> child
+
+<FONT COLOR=black><B>class</B></FONT> ModuleScanner(Scanner):
+    <FONT COLOR=#FF0000>"""An interruptible scanner that searches module synopses."""</FONT>
+    <FONT COLOR=black><B>def</B></FONT> __init__(self):
+        roots = map(<FONT COLOR=black><B>lambda</B></FONT> dir: (dir, <FONT COLOR=#FF0000>''</FONT>), pathdirs())
+        Scanner.__init__(self, roots, self.submodules, self.isnewpackage)
+        self.inodes = map(<FONT COLOR=black><B>lambda</B></FONT> (dir, pkg): os.stat(dir)[1], roots)
+
+    <FONT COLOR=black><B>def</B></FONT> submodules(self, (dir, package)):
+        children = []
+        <FONT COLOR=black><B>for</B></FONT> file <FONT COLOR=black><B>in</B></FONT> os.listdir(dir):
+            path = os.path.join(dir, file)
+            <FONT COLOR=black><B>if</B></FONT> ispackage(path):
+                children.append((path, package + (package <FONT COLOR=black><B>and</B></FONT> <FONT COLOR=#FF0000>'.'</FONT>) + file))
+            <FONT COLOR=black><B>else</B></FONT>:
+                children.append((path, package))
+        children.sort() <FONT COLOR=#1111CC># so that spam.py comes before spam.pyc or spam.pyo</FONT>
+        <FONT COLOR=black><B>return</B></FONT> children
+
+    <FONT COLOR=black><B>def</B></FONT> isnewpackage(self, (dir, package)):
+        inode = os.path.exists(dir) <FONT COLOR=black><B>and</B></FONT> os.stat(dir)[1]
+        <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> (os.path.islink(dir) <FONT COLOR=black><B>and</B></FONT> inode <FONT COLOR=black><B>in</B></FONT> self.inodes):
+            self.inodes.append(inode) <FONT COLOR=#1111CC># detect circular symbolic links</FONT>
+            <FONT COLOR=black><B>return</B></FONT> ispackage(dir)
+
+    <FONT COLOR=black><B>def</B></FONT> run(self, callback, key=None, completer=None):
+        <FONT COLOR=black><B>if</B></FONT> key: key = lower(key)
+        self.quit = 0
+        seen = {}
+
+        <FONT COLOR=black><B>for</B></FONT> modname <FONT COLOR=black><B>in</B></FONT> sys.builtin_module_names:
+            <FONT COLOR=black><B>if</B></FONT> modname != <FONT COLOR=#FF0000>'__main__'</FONT>:
+                seen[modname] = 1
+                <FONT COLOR=black><B>if</B></FONT> key <FONT COLOR=black><B>is</B></FONT> None:
+                    callback(None, modname, <FONT COLOR=#FF0000>''</FONT>)
+                <FONT COLOR=black><B>else</B></FONT>:
+                    desc = split(__import__(modname).__doc__ <FONT COLOR=black><B>or</B></FONT> <FONT COLOR=#FF0000>''</FONT>, <FONT COLOR=#FF0000>'\n'</FONT>)[0]
+                    <FONT COLOR=black><B>if</B></FONT> find(lower(modname + <FONT COLOR=#FF0000>' - '</FONT> + desc), key) &gt;= 0:
+                        callback(None, modname, desc)
+
+        <FONT COLOR=black><B>while</B></FONT> <FONT COLOR=black><B>not</B></FONT> self.quit:
+            node = self.next()
+            <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> node: <FONT COLOR=black><B>break</B></FONT>
+            path, package = node
+            modname = inspect.getmodulename(path)
+            <FONT COLOR=black><B>if</B></FONT> os.path.isfile(path) <FONT COLOR=black><B>and</B></FONT> modname:
+                modname = package + (package <FONT COLOR=black><B>and</B></FONT> <FONT COLOR=#FF0000>'.'</FONT>) + modname
+                <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> seen.has_key(modname):
+                    seen[modname] = 1 <FONT COLOR=#1111CC># if we see spam.py, skip spam.pyc</FONT>
+                    <FONT COLOR=black><B>if</B></FONT> key <FONT COLOR=black><B>is</B></FONT> None:
+                        callback(path, modname, <FONT COLOR=#FF0000>''</FONT>)
+                    <FONT COLOR=black><B>else</B></FONT>:
+                        desc = synopsis(path) <FONT COLOR=black><B>or</B></FONT> <FONT COLOR=#FF0000>''</FONT>
+                        <FONT COLOR=black><B>if</B></FONT> find(lower(modname + <FONT COLOR=#FF0000>' - '</FONT> + desc), key) &gt;= 0:
+                            callback(path, modname, desc)
+        <FONT COLOR=black><B>if</B></FONT> completer: completer()
+
+<FONT COLOR=black><B>def</B></FONT> apropos(key):
+    <FONT COLOR=#FF0000>"""Print all the one-line module summaries that contain a substring."""</FONT>
+    <FONT COLOR=black><B>def</B></FONT> callback(path, modname, desc):
+        <FONT COLOR=black><B>if</B></FONT> modname[-9:] == <FONT COLOR=#FF0000>'.__init__'</FONT>:
+            modname = modname[:-9] + <FONT COLOR=#FF0000>' (package)'</FONT>
+        <FONT COLOR=black><B>print</B></FONT> modname, desc <FONT COLOR=black><B>and</B></FONT> <FONT COLOR=#FF0000>'- '</FONT> + desc
+    <FONT COLOR=black><B>try</B></FONT>: <FONT COLOR=black><B>import</B></FONT> warnings
+    <FONT COLOR=black><B>except</B></FONT> ImportError: <FONT COLOR=black><B>pass</B></FONT>
+    <FONT COLOR=black><B>else</B></FONT>: warnings.filterwarnings(<FONT COLOR=#FF0000>'ignore'</FONT>) <FONT COLOR=#1111CC># ignore problems during import</FONT>
+    ModuleScanner().run(callback, key)
+
+<FONT COLOR=#1111CC># --------------------------------------------------- web browser interface</FONT>
+
+<FONT COLOR=black><B>def</B></FONT> serve(port, callback=None, completer=None):
+    <FONT COLOR=black><B>import</B></FONT> BaseHTTPServer, mimetools, select
+
+    <FONT COLOR=#1111CC># Patch up mimetools.Message so it doesn't break if rfc822 is reloaded.</FONT>
+    <FONT COLOR=black><B>class</B></FONT> Message(mimetools.Message):
+        <FONT COLOR=black><B>def</B></FONT> __init__(self, fp, seekable=1):
+            Message = self.__class__
+            Message.__bases__[0].__bases__[0].__init__(self, fp, seekable)
+            self.encodingheader = self.getheader(<FONT COLOR=#FF0000>'content-transfer-encoding'</FONT>)
+            self.typeheader = self.getheader(<FONT COLOR=#FF0000>'content-type'</FONT>)
+            self.parsetype()
+            self.parseplist()
+
+    <FONT COLOR=black><B>class</B></FONT> DocHandler(BaseHTTPServer.BaseHTTPRequestHandler):
+        <FONT COLOR=black><B>def</B></FONT> send_document(self, title, contents):
+            <FONT COLOR=black><B>try</B></FONT>:
+                self.send_response(200)
+                self.send_header(<FONT COLOR=#FF0000>'Content-Type'</FONT>, <FONT COLOR=#FF0000>'text/html'</FONT>)
+                self.end_headers()
+                self.wfile.write(html.page(title, contents))
+            <FONT COLOR=black><B>except</B></FONT> IOError: <FONT COLOR=black><B>pass</B></FONT>
+
+        <FONT COLOR=black><B>def</B></FONT> do_GET(self):
+            path = self.path
+            <FONT COLOR=black><B>if</B></FONT> path[-5:] == <FONT COLOR=#FF0000>'.html'</FONT>: path = path[:-5]
+            <FONT COLOR=black><B>if</B></FONT> path[:1] == <FONT COLOR=#FF0000>'/'</FONT>: path = path[1:]
+            <FONT COLOR=black><B>if</B></FONT> path <FONT COLOR=black><B>and</B></FONT> path != <FONT COLOR=#FF0000>'.'</FONT>:
+                <FONT COLOR=black><B>try</B></FONT>:
+                    obj = locate(path, forceload=1)
+                <FONT COLOR=black><B>except</B></FONT> ErrorDuringImport, value:
+                    self.send_document(path, html.escape(str(value)))
+                    <FONT COLOR=black><B>return</B></FONT>
+                <FONT COLOR=black><B>if</B></FONT> obj:
+                    self.send_document(describe(obj), html.document(obj, path))
+                <FONT COLOR=black><B>else</B></FONT>:
+                    self.send_document(path,
+<FONT COLOR=#FF0000>'no Python documentation found for %s'</FONT> % repr(path))
+            <FONT COLOR=black><B>else</B></FONT>:
+                heading = html.heading(
+<FONT COLOR=#FF0000>'&lt;big&gt;&lt;big&gt;&lt;strong&gt;Python: Index of Modules&lt;/strong&gt;&lt;/big&gt;&lt;/big&gt;'</FONT>,
+<FONT COLOR=#FF0000>'#ffffff'</FONT>, <FONT COLOR=#FF0000>'#7799ee'</FONT>)
+                <FONT COLOR=black><B>def</B></FONT> bltinlink(name):
+                    <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=#FF0000>'&lt;a href="%s.html"&gt;%s&lt;/a&gt;'</FONT> % (name, name)
+                names = filter(<FONT COLOR=black><B>lambda</B></FONT> x: x != <FONT COLOR=#FF0000>'__main__'</FONT>,
+                               sys.builtin_module_names)
+                contents = html.multicolumn(names, bltinlink)
+                indices = [<FONT COLOR=#FF0000>'&lt;p&gt;'</FONT> + html.bigsection(
+                    <FONT COLOR=#FF0000>'Built-in Modules'</FONT>, <FONT COLOR=#FF0000>'#ffffff'</FONT>, <FONT COLOR=#FF0000>'#ee77aa'</FONT>, contents)]
+
+                seen = {}
+                <FONT COLOR=black><B>for</B></FONT> dir <FONT COLOR=black><B>in</B></FONT> pathdirs():
+                    indices.append(html.index(dir, seen))
+                contents = heading + join(indices) + <FONT COLOR=#FF0000>'''&lt;p align=right&gt;
+&lt;small&gt;&lt;small&gt;&lt;font color="#909090" face="helvetica, arial"&gt;&lt;strong&gt;
+pydoc&lt;/strong&gt; by Ka-Ping Yee &lt;ping@lfw.org&gt;&lt;/font&gt;&lt;/small&gt;&lt;/small&gt;'''</FONT>
+                self.send_document(<FONT COLOR=#FF0000>'Index of Modules'</FONT>, contents)
+
+        <FONT COLOR=black><B>def</B></FONT> log_message(self, *args): <FONT COLOR=black><B>pass</B></FONT>
+
+    <FONT COLOR=black><B>class</B></FONT> DocServer(BaseHTTPServer.HTTPServer):
+        <FONT COLOR=black><B>def</B></FONT> __init__(self, port, callback):
+            host = (sys.platform == <FONT COLOR=#FF0000>'mac'</FONT>) <FONT COLOR=black><B>and</B></FONT> <FONT COLOR=#FF0000>'127.0.0.1'</FONT> <FONT COLOR=black><B>or</B></FONT> <FONT COLOR=#FF0000>'localhost'</FONT>
+            self.address = (<FONT COLOR=#FF0000>''</FONT>, port)
+            self.url = <FONT COLOR=#FF0000>'http://%s:%d/'</FONT> % (host, port)
+            self.callback = callback
+            self.base.__init__(self, self.address, self.handler)
+
+        <FONT COLOR=black><B>def</B></FONT> serve_until_quit(self):
+            <FONT COLOR=black><B>import</B></FONT> select
+            self.quit = 0
+            <FONT COLOR=black><B>while</B></FONT> <FONT COLOR=black><B>not</B></FONT> self.quit:
+                rd, wr, ex = select.select([self.socket.fileno()], [], [], 1)
+                <FONT COLOR=black><B>if</B></FONT> rd: self.handle_request()
+
+        <FONT COLOR=black><B>def</B></FONT> server_activate(self):
+            self.base.server_activate(self)
+            <FONT COLOR=black><B>if</B></FONT> self.callback: self.callback(self)
+
+    DocServer.base = BaseHTTPServer.HTTPServer
+    DocServer.handler = DocHandler
+    DocHandler.MessageClass = Message
+    <FONT COLOR=black><B>try</B></FONT>:
+        <FONT COLOR=black><B>try</B></FONT>:
+            DocServer(port, callback).serve_until_quit()
+        <FONT COLOR=black><B>except</B></FONT> (KeyboardInterrupt, select.error):
+            <FONT COLOR=black><B>pass</B></FONT>
+    <FONT COLOR=black><B>finally</B></FONT>:
+        <FONT COLOR=black><B>if</B></FONT> completer: completer()
+
+<FONT COLOR=#1111CC># ----------------------------------------------------- graphical interface</FONT>
+
+<FONT COLOR=black><B>def</B></FONT> gui():
+    <FONT COLOR=#FF0000>"""Graphical interface (starts web server and pops up a control window)."""</FONT>
+    <FONT COLOR=black><B>class</B></FONT> GUI:
+        <FONT COLOR=black><B>def</B></FONT> __init__(self, window, port=7464):
+            self.window = window
+            self.server = None
+            self.scanner = None
+
+            <FONT COLOR=black><B>import</B></FONT> Tkinter
+            self.server_frm = Tkinter.Frame(window)
+            self.title_lbl = Tkinter.Label(self.server_frm,
+                text=<FONT COLOR=#FF0000>'Starting server...\n '</FONT>)
+            self.open_btn = Tkinter.Button(self.server_frm,
+                text=<FONT COLOR=#FF0000>'open browser'</FONT>, command=self.open, state=<FONT COLOR=#FF0000>'disabled'</FONT>)
+            self.quit_btn = Tkinter.Button(self.server_frm,
+                text=<FONT COLOR=#FF0000>'quit serving'</FONT>, command=self.quit, state=<FONT COLOR=#FF0000>'disabled'</FONT>)
+
+            self.search_frm = Tkinter.Frame(window)
+            self.search_lbl = Tkinter.Label(self.search_frm, text=<FONT COLOR=#FF0000>'Search for'</FONT>)
+            self.search_ent = Tkinter.Entry(self.search_frm)
+            self.search_ent.bind(<FONT COLOR=#FF0000>'&lt;Return&gt;'</FONT>, self.search)
+            self.stop_btn = Tkinter.Button(self.search_frm,
+                text=<FONT COLOR=#FF0000>'stop'</FONT>, pady=0, command=self.stop, state=<FONT COLOR=#FF0000>'disabled'</FONT>)
+            <FONT COLOR=black><B>if</B></FONT> sys.platform == <FONT COLOR=#FF0000>'win32'</FONT>:
+                <FONT COLOR=#1111CC># Trying to hide and show this button crashes under Windows.</FONT>
+                self.stop_btn.pack(side=<FONT COLOR=#FF0000>'right'</FONT>)
+
+            self.window.title(<FONT COLOR=#FF0000>'pydoc'</FONT>)
+            self.window.protocol(<FONT COLOR=#FF0000>'WM_DELETE_WINDOW'</FONT>, self.quit)
+            self.title_lbl.pack(side=<FONT COLOR=#FF0000>'top'</FONT>, fill=<FONT COLOR=#FF0000>'x'</FONT>)
+            self.open_btn.pack(side=<FONT COLOR=#FF0000>'left'</FONT>, fill=<FONT COLOR=#FF0000>'x'</FONT>, expand=1)
+            self.quit_btn.pack(side=<FONT COLOR=#FF0000>'right'</FONT>, fill=<FONT COLOR=#FF0000>'x'</FONT>, expand=1)
+            self.server_frm.pack(side=<FONT COLOR=#FF0000>'top'</FONT>, fill=<FONT COLOR=#FF0000>'x'</FONT>)
+
+            self.search_lbl.pack(side=<FONT COLOR=#FF0000>'left'</FONT>)
+            self.search_ent.pack(side=<FONT COLOR=#FF0000>'right'</FONT>, fill=<FONT COLOR=#FF0000>'x'</FONT>, expand=1)
+            self.search_frm.pack(side=<FONT COLOR=#FF0000>'top'</FONT>, fill=<FONT COLOR=#FF0000>'x'</FONT>)
+            self.search_ent.focus_set()
+
+            font = (<FONT COLOR=#FF0000>'helvetica'</FONT>, sys.platform == <FONT COLOR=#FF0000>'win32'</FONT> <FONT COLOR=black><B>and</B></FONT> 8 <FONT COLOR=black><B>or</B></FONT> 10)
+            self.result_lst = Tkinter.Listbox(window, font=font, height=6)
+            self.result_lst.bind(<FONT COLOR=#FF0000>'&lt;Button-1&gt;'</FONT>, self.select)
+            self.result_lst.bind(<FONT COLOR=#FF0000>'&lt;Double-Button-1&gt;'</FONT>, self.goto)
+            self.result_scr = Tkinter.Scrollbar(window,
+                orient=<FONT COLOR=#FF0000>'vertical'</FONT>, command=self.result_lst.yview)
+            self.result_lst.config(yscrollcommand=self.result_scr.set)
+
+            self.result_frm = Tkinter.Frame(window)
+            self.goto_btn = Tkinter.Button(self.result_frm,
+                text=<FONT COLOR=#FF0000>'go to selected'</FONT>, command=self.goto)
+            self.hide_btn = Tkinter.Button(self.result_frm,
+                text=<FONT COLOR=#FF0000>'hide results'</FONT>, command=self.hide)
+            self.goto_btn.pack(side=<FONT COLOR=#FF0000>'left'</FONT>, fill=<FONT COLOR=#FF0000>'x'</FONT>, expand=1)
+            self.hide_btn.pack(side=<FONT COLOR=#FF0000>'right'</FONT>, fill=<FONT COLOR=#FF0000>'x'</FONT>, expand=1)
+
+            self.window.update()
+            self.minwidth = self.window.winfo_width()
+            self.minheight = self.window.winfo_height()
+            self.bigminheight = (self.server_frm.winfo_reqheight() +
+                                 self.search_frm.winfo_reqheight() +
+                                 self.result_lst.winfo_reqheight() +
+                                 self.result_frm.winfo_reqheight())
+            self.bigwidth, self.bigheight = self.minwidth, self.bigminheight
+            self.expanded = 0
+            self.window.wm_geometry(<FONT COLOR=#FF0000>'%dx%d'</FONT> % (self.minwidth, self.minheight))
+            self.window.wm_minsize(self.minwidth, self.minheight)
+
+            <FONT COLOR=black><B>import</B></FONT> threading
+            threading.Thread(
+                target=serve, args=(port, self.ready, self.quit)).start()
+
+        <FONT COLOR=black><B>def</B></FONT> ready(self, server):
+            self.server = server
+            self.title_lbl.config(
+                text=<FONT COLOR=#FF0000>'Python documentation server at\n'</FONT> + server.url)
+            self.open_btn.config(state=<FONT COLOR=#FF0000>'normal'</FONT>)
+            self.quit_btn.config(state=<FONT COLOR=#FF0000>'normal'</FONT>)
+
+        <FONT COLOR=black><B>def</B></FONT> open(self, event=None, url=None):
+            url = url <FONT COLOR=black><B>or</B></FONT> self.server.url
+            <FONT COLOR=black><B>try</B></FONT>:
+                <FONT COLOR=black><B>import</B></FONT> webbrowser
+                webbrowser.open(url)
+            <FONT COLOR=black><B>except</B></FONT> ImportError: <FONT COLOR=#1111CC># pre-webbrowser.py compatibility</FONT>
+                <FONT COLOR=black><B>if</B></FONT> sys.platform == <FONT COLOR=#FF0000>'win32'</FONT>:
+                    os.system(<FONT COLOR=#FF0000>'start "%s"'</FONT> % url)
+                <FONT COLOR=black><B>elif</B></FONT> sys.platform == <FONT COLOR=#FF0000>'mac'</FONT>:
+                    <FONT COLOR=black><B>try</B></FONT>: <FONT COLOR=black><B>import</B></FONT> ic
+                    <FONT COLOR=black><B>except</B></FONT> ImportError: <FONT COLOR=black><B>pass</B></FONT>
+                    <FONT COLOR=black><B>else</B></FONT>: ic.launchurl(url)
+                <FONT COLOR=black><B>else</B></FONT>:
+                    rc = os.system(<FONT COLOR=#FF0000>'netscape -remote "openURL(%s)" &'</FONT> % url)
+                    <FONT COLOR=black><B>if</B></FONT> rc: os.system(<FONT COLOR=#FF0000>'netscape "%s" &'</FONT> % url)
+
+        <FONT COLOR=black><B>def</B></FONT> quit(self, event=None):
+            <FONT COLOR=black><B>if</B></FONT> self.server:
+                self.server.quit = 1
+            self.window.quit()
+
+        <FONT COLOR=black><B>def</B></FONT> search(self, event=None):
+            key = self.search_ent.get()
+            self.stop_btn.pack(side=<FONT COLOR=#FF0000>'right'</FONT>)
+            self.stop_btn.config(state=<FONT COLOR=#FF0000>'normal'</FONT>)
+            self.search_lbl.config(text=<FONT COLOR=#FF0000>'Searching for "%s"...'</FONT> % key)
+            self.search_ent.forget()
+            self.search_lbl.pack(side=<FONT COLOR=#FF0000>'left'</FONT>)
+            self.result_lst.delete(0, <FONT COLOR=#FF0000>'end'</FONT>)
+            self.goto_btn.config(state=<FONT COLOR=#FF0000>'disabled'</FONT>)
+            self.expand()
+
+            <FONT COLOR=black><B>import</B></FONT> threading
+            <FONT COLOR=black><B>if</B></FONT> self.scanner:
+                self.scanner.quit = 1
+            self.scanner = ModuleScanner()
+            threading.Thread(target=self.scanner.run,
+                             args=(self.update, key, self.done)).start()
+
+        <FONT COLOR=black><B>def</B></FONT> update(self, path, modname, desc):
+            <FONT COLOR=black><B>if</B></FONT> modname[-9:] == <FONT COLOR=#FF0000>'.__init__'</FONT>:
+                modname = modname[:-9] + <FONT COLOR=#FF0000>' (package)'</FONT>
+            self.result_lst.insert(<FONT COLOR=#FF0000>'end'</FONT>,
+                modname + <FONT COLOR=#FF0000>' - '</FONT> + (desc <FONT COLOR=black><B>or</B></FONT> <FONT COLOR=#FF0000>'(no description)'</FONT>))
+
+        <FONT COLOR=black><B>def</B></FONT> stop(self, event=None):
+            <FONT COLOR=black><B>if</B></FONT> self.scanner:
+                self.scanner.quit = 1
+                self.scanner = None
+
+        <FONT COLOR=black><B>def</B></FONT> done(self):
+            self.scanner = None
+            self.search_lbl.config(text=<FONT COLOR=#FF0000>'Search for'</FONT>)
+            self.search_lbl.pack(side=<FONT COLOR=#FF0000>'left'</FONT>)
+            self.search_ent.pack(side=<FONT COLOR=#FF0000>'right'</FONT>, fill=<FONT COLOR=#FF0000>'x'</FONT>, expand=1)
+            <FONT COLOR=black><B>if</B></FONT> sys.platform != <FONT COLOR=#FF0000>'win32'</FONT>: self.stop_btn.forget()
+            self.stop_btn.config(state=<FONT COLOR=#FF0000>'disabled'</FONT>)
+
+        <FONT COLOR=black><B>def</B></FONT> select(self, event=None):
+            self.goto_btn.config(state=<FONT COLOR=#FF0000>'normal'</FONT>)
+
+        <FONT COLOR=black><B>def</B></FONT> goto(self, event=None):
+            selection = self.result_lst.curselection()
+            <FONT COLOR=black><B>if</B></FONT> selection:
+                modname = split(self.result_lst.get(selection[0]))[0]
+                self.open(url=self.server.url + modname + <FONT COLOR=#FF0000>'.html'</FONT>)
+
+        <FONT COLOR=black><B>def</B></FONT> collapse(self):
+            <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> self.expanded: <FONT COLOR=black><B>return</B></FONT>
+            self.result_frm.forget()
+            self.result_scr.forget()
+            self.result_lst.forget()
+            self.bigwidth = self.window.winfo_width()
+            self.bigheight = self.window.winfo_height()
+            self.window.wm_geometry(<FONT COLOR=#FF0000>'%dx%d'</FONT> % (self.minwidth, self.minheight))
+            self.window.wm_minsize(self.minwidth, self.minheight)
+            self.expanded = 0
+
+        <FONT COLOR=black><B>def</B></FONT> expand(self):
+            <FONT COLOR=black><B>if</B></FONT> self.expanded: <FONT COLOR=black><B>return</B></FONT>
+            self.result_frm.pack(side=<FONT COLOR=#FF0000>'bottom'</FONT>, fill=<FONT COLOR=#FF0000>'x'</FONT>)
+            self.result_scr.pack(side=<FONT COLOR=#FF0000>'right'</FONT>, fill=<FONT COLOR=#FF0000>'y'</FONT>)
+            self.result_lst.pack(side=<FONT COLOR=#FF0000>'top'</FONT>, fill=<FONT COLOR=#FF0000>'both'</FONT>, expand=1)
+            self.window.wm_geometry(<FONT COLOR=#FF0000>'%dx%d'</FONT> % (self.bigwidth, self.bigheight))
+            self.window.wm_minsize(self.minwidth, self.bigminheight)
+            self.expanded = 1
+
+        <FONT COLOR=black><B>def</B></FONT> hide(self, event=None):
+            self.stop()
+            self.collapse()
+
+    <FONT COLOR=black><B>import</B></FONT> Tkinter
+    <FONT COLOR=black><B>try</B></FONT>:
+        gui = GUI(Tkinter.Tk())
+        Tkinter.mainloop()
+    <FONT COLOR=black><B>except</B></FONT> KeyboardInterrupt:
+        <FONT COLOR=black><B>pass</B></FONT>
+
+<FONT COLOR=#1111CC># -------------------------------------------------- command-line interface</FONT>
+
+<FONT COLOR=black><B>def</B></FONT> ispath(x):
+    <FONT COLOR=black><B>return</B></FONT> type(x) <FONT COLOR=black><B>is</B></FONT> types.StringType <FONT COLOR=black><B>and</B></FONT> find(x, os.sep) &gt;= 0
+
+<FONT COLOR=black><B>def</B></FONT> cli():
+    <FONT COLOR=#FF0000>"""Command-line interface (looks at sys.argv to decide what to do)."""</FONT>
+    <FONT COLOR=black><B>import</B></FONT> getopt
+    <FONT COLOR=black><B>class</B></FONT> BadUsage: <FONT COLOR=black><B>pass</B></FONT>
+
+    <FONT COLOR=#1111CC># Scripts don't get the current directory in their path by default.</FONT>
+    scriptdir = os.path.dirname(sys.argv[0])
+    <FONT COLOR=black><B>if</B></FONT> scriptdir <FONT COLOR=black><B>in</B></FONT> sys.path:
+        sys.path.remove(scriptdir)
+    sys.path.insert(0, <FONT COLOR=#FF0000>'.'</FONT>)
+
+    <FONT COLOR=black><B>try</B></FONT>:
+        opts, args = getopt.getopt(sys.argv[1:], <FONT COLOR=#FF0000>'gk:p:w'</FONT>)
+        writing = 0
+
+        <FONT COLOR=black><B>for</B></FONT> opt, val <FONT COLOR=black><B>in</B></FONT> opts:
+            <FONT COLOR=black><B>if</B></FONT> opt == <FONT COLOR=#FF0000>'-g'</FONT>:
+                gui()
+                <FONT COLOR=black><B>return</B></FONT>
+            <FONT COLOR=black><B>if</B></FONT> opt == <FONT COLOR=#FF0000>'-k'</FONT>:
+                apropos(val)
+                <FONT COLOR=black><B>return</B></FONT>
+            <FONT COLOR=black><B>if</B></FONT> opt == <FONT COLOR=#FF0000>'-p'</FONT>:
+                <FONT COLOR=black><B>try</B></FONT>:
+                    port = int(val)
+                <FONT COLOR=black><B>except</B></FONT> ValueError:
+                    <FONT COLOR=black><B>raise</B></FONT> BadUsage
+                <FONT COLOR=black><B>def</B></FONT> ready(server):
+                    <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>'pydoc server ready at %s'</FONT> % server.url
+                <FONT COLOR=black><B>def</B></FONT> stopped():
+                    <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>'pydoc server stopped'</FONT>
+                serve(port, ready, stopped)
+                <FONT COLOR=black><B>return</B></FONT>
+            <FONT COLOR=black><B>if</B></FONT> opt == <FONT COLOR=#FF0000>'-w'</FONT>:
+                writing = 1
+
+        <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> args: <FONT COLOR=black><B>raise</B></FONT> BadUsage
+        <FONT COLOR=black><B>for</B></FONT> arg <FONT COLOR=black><B>in</B></FONT> args:
+            <FONT COLOR=black><B>try</B></FONT>:
+                <FONT COLOR=black><B>if</B></FONT> ispath(arg) <FONT COLOR=black><B>and</B></FONT> os.path.isfile(arg):
+                    arg = importfile(arg)
+                <FONT COLOR=black><B>if</B></FONT> writing:
+                    <FONT COLOR=black><B>if</B></FONT> ispath(arg) <FONT COLOR=black><B>and</B></FONT> os.path.isdir(arg):
+                        writedocs(arg)
+                    <FONT COLOR=black><B>else</B></FONT>:
+                        writedoc(arg)
+                <FONT COLOR=black><B>else</B></FONT>:
+                    doc(arg)
+            <FONT COLOR=black><B>except</B></FONT> ErrorDuringImport, value:
+                <FONT COLOR=black><B>print</B></FONT> value
+
+    <FONT COLOR=black><B>except</B></FONT> (getopt.error, BadUsage):
+        cmd = sys.argv[0]
+        <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>"""pydoc - the Python documentation tool
+
+%s &lt;name&gt; ...
+    Show text documentation on something.  &lt;name&gt; may be the name of a
+    function, module, or package, or a dotted reference to a class or
+    function within a module or module in a package.  If &lt;name&gt; contains
+    a '%s', it is used as the path to a Python source file to document.
+
+%s -k &lt;keyword&gt;
+    Search for a keyword in the synopsis lines of all available modules.
+
+%s -p &lt;port&gt;
+    Start an HTTP server on the given port on the local machine.
+
+%s -g
+    Pop up a graphical interface for finding and serving documentation.
+
+%s -w &lt;name&gt; ...
+    Write out the HTML documentation for a module to a file in the current
+    directory.  If &lt;name&gt; contains a '%s', it is treated as a filename; if
+    it names a directory, documentation is written for all the contents.
+"""</FONT> % (cmd, os.sep, cmd, cmd, cmd, cmd, os.sep)
+
+<FONT COLOR=black><B>if</B></FONT> __name__ == <FONT COLOR=#FF0000>'__main__'</FONT>: cli()
+</PRE>
+                  <!--footer-->
+                  </BODY>

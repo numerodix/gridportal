@@ -1,0 +1,55 @@
+# $File: src/gridportal/INSTALL
+
+1. In order to run GRIDportal, you must have Webware installed and WebKit
+   running on your system. The installation guide for WebKit[*] is
+   located at the Webware website and I will not duplicate it here. You
+   should set up WebKit as a system service running under its own user
+   account.
+
+	 You will also need to install pyGlobus[**].
+
+2. Next, create a working directory as per the instructions in the WebKit
+   install guide, for instance:
+
+    $ python /path/to/Webware/bin/MakeAppWorkDir -l -cvsignore \
+    -c context gridportal
+
+   The directory structure inside gridportal/ should now look like this:
+
+    404Text.txt Cache/ ErrorMsgs/ Logs/ WebKit.cgi lib/ AppServer 
+    Configs/ Launch.py Sessions/ context/
+
+3. Now unpack the GRIDportal source code and copy the contents of
+   src/gridportal/ to /path/to/context/.
+
+4. Next, open /path/to/Webware/WebKit/Configs/Application.config and add
+   under ''Contexts'':
+
+    'default': '/opt/gridportal/context',
+
+5. Now restart the WebKit application server and you should be able to
+   access gridportal. The exact URL will depend on your webserver/Adapter
+   configuration.
+
+6. I'm assuming you created a special user account for webware/webkit.
+   You should now create a homedir for this user. The homedir is crucial,
+   because this is where GRIDportal will write all of its data. For
+   example:
+
+    $ mkdir /var/webware
+
+   Now make sure this user owns the homedir:
+
+    $ chown webware:webware -R /var/webware
+
+7. Finally, set this url in the conf_main.py config file in the root 
+   gridportal directory:
+
+    env_homepath = "/var/webware"
+
+
+* Webkit installation guide
+  http://www.webwareforpython.org/Webware/WebKit/Docs/InstallGuide.html
+
+**PyGlobus
+	http://dsd.lbl.gov/gtg/projects/pyGlobus/

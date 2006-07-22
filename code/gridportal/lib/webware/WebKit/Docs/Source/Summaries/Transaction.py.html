@@ -1,0 +1,63 @@
+
+<html>
+    <head>
+        <title>WebKit/Transaction.py</title>
+        <style type="text/css">
+            .Line_class {
+            }
+
+            .Line_category {
+                color: 11B;
+            }
+
+            .Line_def {
+            }
+
+            .Name_class {
+                color: 909;
+                font-weight: bold;
+            }
+
+            .Name_def {
+                color: 909;
+                font-weight: bold;
+            }
+        </style>
+    </head>
+<body>
+<pre>
+
+<span class=Line_class>class <span class=Name_class>Transaction(Object)</span>:</span>
+
+<span class=Line_category>    ## Init ##</span>
+<span class=Line_def>    def <span class=Name_class>__init__</span>(self, application, request=None):</span>
+<span class=Line_def>    def <span class=Name_class>__repr__</span>(self):</span>
+
+<span class=Line_category>    ## Access ##</span>
+<span class=Line_def>    def <span class=Name_class>application</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>request</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>response</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>setResponse</span>(self, response):</span>
+<span class=Line_def>    def <span class=Name_class>hasSession</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>session</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>setSession</span>(self, session):</span>
+<span class=Line_def>    def <span class=Name_class>servlet</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>setServlet</span>(self, servlet):</span>
+<span class=Line_def>    def <span class=Name_class>duration</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>errorOccurred</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>setErrorOccurred</span>(self, flag):</span>
+
+<span class=Line_category>    ## Transaction stages ##</span>
+<span class=Line_def>    def <span class=Name_class>awake</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>respond</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>sleep</span>(self):</span>
+
+<span class=Line_category>    ## Debugging ##</span>
+<span class=Line_def>    def <span class=Name_class>dump</span>(self, file=None):</span>
+
+<span class=Line_category>    ## Die ##</span>
+<span class=Line_def>    def <span class=Name_class>die</span>(self):</span>
+
+<span class=Line_category>    ## Exception handling ##</span>
+<span class=Line_def>    def <span class=Name_class>writeExceptionReport</span>(self, handler):</span>
+</pre> </body> </html>

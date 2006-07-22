@@ -1,0 +1,154 @@
+<HTML><HEAD><TITLE>WebUtils/Funcs.py</TITLE></HEAD>
+                  <BODY BGCOLOR=#EEEEEE>
+                  <!--header-->
+                  <!--script--><PRE><FONT COLOR=#FF0000>"""
+WebUtils.Funcs provides some basic functions that are useful in HTML and web development.
+
+You can safely import * from WebUtils.Funcs if you like.
+
+
+TO DO
+
+* Document the 'codes' arg of htmlEncode/Decode.
+
+"""</FONT>
+
+<FONT COLOR=black><B>import</B></FONT> string
+
+
+htmlCodes = [
+    [<FONT COLOR=#FF0000>'&'</FONT>, <FONT COLOR=#FF0000>'&amp;'</FONT>],
+    [<FONT COLOR=#FF0000>'&lt;'</FONT>, <FONT COLOR=#FF0000>'&lt;'</FONT>],
+    [<FONT COLOR=#FF0000>'&gt;'</FONT>, <FONT COLOR=#FF0000>'&gt;'</FONT>],
+    [<FONT COLOR=#FF0000>'"'</FONT>, <FONT COLOR=#FF0000>'&quot;'</FONT>],
+<FONT COLOR=#1111CC>#   ['\n', '&lt;br&gt;']</FONT>
+]
+
+htmlCodesReversed = htmlCodes[:]
+htmlCodesReversed.reverse()
+
+
+<FONT COLOR=black><B>def</B></FONT> htmlEncode(s, codes=htmlCodes):
+    <FONT COLOR=#FF0000>""" Returns the HTML encoded version of the given string. This is useful to display a plain ASCII text string on a web page."""</FONT>
+    <FONT COLOR=black><B>for</B></FONT> code <FONT COLOR=black><B>in</B></FONT> codes:
+        s = string.replace(s, code[0], code[1])
+    <FONT COLOR=black><B>return</B></FONT> s
+
+<FONT COLOR=black><B>def</B></FONT> htmlDecode(s, codes=htmlCodesReversed):
+    <FONT COLOR=#FF0000>""" Returns the ASCII decoded version of the given HTML string. This does NOT remove normal HTML tags like &lt;p&gt;. It is the inverse of htmlEncode(). """</FONT>
+    <FONT COLOR=black><B>for</B></FONT> code <FONT COLOR=black><B>in</B></FONT> codes:
+        s = string.replace(s, code[1], code[0])
+    <FONT COLOR=black><B>return</B></FONT> s
+
+
+
+_urlEncode = {}
+<FONT COLOR=black><B>for</B></FONT> i <FONT COLOR=black><B>in</B></FONT> range(256):
+    _urlEncode[chr(i)] = <FONT COLOR=#FF0000>'%%%02x'</FONT> % i
+<FONT COLOR=black><B>for</B></FONT> c <FONT COLOR=black><B>in</B></FONT> string.letters + string.digits + <FONT COLOR=#FF0000>'_,.-/'</FONT>:
+    _urlEncode[c] = c
+_urlEncode[<FONT COLOR=#FF0000>' '</FONT>] = <FONT COLOR=#FF0000>'+'</FONT>
+
+<FONT COLOR=black><B>def</B></FONT> urlEncode(s):
+    <FONT COLOR=#FF0000>""" Returns the encoded version of the given string, safe for using as a URL. """</FONT>
+    <FONT COLOR=black><B>return</B></FONT> string.join(map(<FONT COLOR=black><B>lambda</B></FONT> c: _urlEncode[c], list(s)), <FONT COLOR=#FF0000>''</FONT>)
+
+<FONT COLOR=black><B>def</B></FONT> urlDecode(s):
+    <FONT COLOR=#FF0000>""" Returns the decoded version of the given string. Note that invalid URLs will throw exceptons. For example, a URL whose % coding is incorrect. """</FONT>
+    mychr = chr
+    atoi = string.atoi
+    parts = string.split(string.replace(s, <FONT COLOR=#FF0000>'+'</FONT>, <FONT COLOR=#FF0000>' '</FONT>), <FONT COLOR=#FF0000>'%'</FONT>)
+    <FONT COLOR=black><B>for</B></FONT> i <FONT COLOR=black><B>in</B></FONT> range(1, len(parts)):
+        part = parts[i]
+        parts[i] = mychr(atoi(part[:2], 16)) + part[2:]
+    <FONT COLOR=black><B>return</B></FONT> string.join(parts, <FONT COLOR=#FF0000>''</FONT>)
+
+
+<FONT COLOR=black><B>def</B></FONT> htmlForDict(dict, addSpace=None, filterValueCallBack=None, maxValueLength=None):
+    <FONT COLOR=#FF0000>""" Returns an HTML string with a &lt;table&gt; where each row is a key-value pair. """</FONT>
+    keys = dict.keys()
+    keys.sort()
+    <FONT COLOR=#1111CC># A really great (er, bad) example of hardcoding.  :-)</FONT>
+    html = [<FONT COLOR=#FF0000>'&lt;table width=100% border=0 cellpadding=2 cellspacing=2&gt;'</FONT>]
+    <FONT COLOR=black><B>for</B></FONT> key <FONT COLOR=black><B>in</B></FONT> keys:
+        value = dict[key]
+        <FONT COLOR=black><B>if</B></FONT> addSpace!=None  <FONT COLOR=black><B>and</B></FONT>  addSpace.has_key(key):
+            target = addSpace[key]
+            value = string.join(string.split(value, target), <FONT COLOR=#FF0000>'%s '</FONT>%target)
+        <FONT COLOR=black><B>if</B></FONT> filterValueCallBack:
+            value = filterValueCallBack(value, key, dict)
+        value = str(value)
+        <FONT COLOR=black><B>if</B></FONT> maxValueLength <FONT COLOR=black><B>and</B></FONT> len(value) &gt; maxValueLength:
+            value = value[:maxValueLength] + <FONT COLOR=#FF0000>'...'</FONT>
+        html.append(<FONT COLOR=#FF0000>'&lt;tr bgcolor=#F0F0F0&gt; &lt;td&gt; %s &lt;/td&gt; &lt;td&gt; %s &nbsp;&lt;/td&gt; &lt;/tr&gt;\n'</FONT> % (htmlEncode(key), htmlEncode(value)))
+    html.append(<FONT COLOR=#FF0000>'&lt;/table&gt;'</FONT>)
+    <FONT COLOR=black><B>return</B></FONT> string.join(html, <FONT COLOR=#FF0000>''</FONT>)
+
+
+<FONT COLOR=black><B>def</B></FONT> requestURI(dict):
+    <FONT COLOR=#FF0000>""" Returns the request URI for a given CGI-style dictionary. Uses REQUEST_URI if available, otherwise constructs and returns it from SCRIPT_NAME, PATH_INFO and QUERY_STRING. """</FONT>
+    uri = dict.get(<FONT COLOR=#FF0000>'REQUEST_URI'</FONT>, None)
+    <FONT COLOR=black><B>if</B></FONT> uri==None:
+        uri = dict.get(<FONT COLOR=#FF0000>'SCRIPT_NAME'</FONT>, <FONT COLOR=#FF0000>''</FONT>) + dict.get(<FONT COLOR=#FF0000>'PATH_INFO'</FONT>, <FONT COLOR=#FF0000>''</FONT>)
+        query = dict.get(<FONT COLOR=#FF0000>'QUERY_STRING'</FONT>, <FONT COLOR=#FF0000>''</FONT>)
+        <FONT COLOR=black><B>if</B></FONT> query!=<FONT COLOR=#FF0000>''</FONT>:
+            uri = uri + <FONT COLOR=#FF0000>'?'</FONT> + query
+    <FONT COLOR=black><B>return</B></FONT> uri
+
+<FONT COLOR=black><B>def</B></FONT> normURL(path):
+        <FONT COLOR=#FF0000>"""Normalizes a URL path, like os.path.normpath, but acts on
+        a URL independant of operating system environmant.
+        """</FONT>
+        <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> path:
+                <FONT COLOR=black><B>return</B></FONT>
+        
+        initialslash = path[0] == <FONT COLOR=#FF0000>'/'</FONT>
+        lastslash = path[-1] == <FONT COLOR=#FF0000>'/'</FONT>
+        comps = string.split(path, <FONT COLOR=#FF0000>'/'</FONT>)
+        
+        newcomps = []
+        <FONT COLOR=black><B>for</B></FONT> comp <FONT COLOR=black><B>in</B></FONT> comps:
+                <FONT COLOR=black><B>if</B></FONT> comp <FONT COLOR=black><B>in</B></FONT> (<FONT COLOR=#FF0000>''</FONT>,<FONT COLOR=#FF0000>'.'</FONT>):
+                        <FONT COLOR=black><B>continue</B></FONT>
+                <FONT COLOR=black><B>if</B></FONT> comp != <FONT COLOR=#FF0000>'..'</FONT>:
+                        newcomps.append(comp)
+                <FONT COLOR=black><B>elif</B></FONT> newcomps:
+                        newcomps.pop()
+        path = string.join(newcomps, <FONT COLOR=#FF0000>'/'</FONT>)
+        <FONT COLOR=black><B>if</B></FONT> path <FONT COLOR=black><B>and</B></FONT> lastslash:
+                path = path + <FONT COLOR=#FF0000>'/'</FONT>
+        <FONT COLOR=black><B>if</B></FONT> initialslash:
+                path = <FONT COLOR=#FF0000>'/'</FONT> + path
+        <FONT COLOR=black><B>return</B></FONT> path
+
+<FONT COLOR=#1111CC>### Deprecated</FONT>
+
+HTMLCodes = htmlCodes
+HTMLCodesReversed = htmlCodesReversed
+
+<FONT COLOR=black><B>def</B></FONT> HTMLEncode(s):
+    <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>'DEPRECATED: WebUtils.Funcs.HTMLEncode() on 02/24/01 in ver 0.3. Use htmlEncode() instead.'</FONT>
+    <FONT COLOR=black><B>return</B></FONT> htmlEncode(s)
+
+<FONT COLOR=black><B>def</B></FONT> HTMLDecode(s):
+    <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>'DEPRECATED: WebUtils.Funcs.HTMLDecode() on 02/24/01 in ver 0.3. Use htmlDecode() instead.'</FONT>
+    <FONT COLOR=black><B>return</B></FONT> htmlDecode(s)
+
+<FONT COLOR=black><B>def</B></FONT> URLEncode(s):
+    <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>'DEPRECATED: WebUtils.Funcs.URLEncode() on 02/24/01 in ver 0.3. Use urlEncode() instead.'</FONT>
+    <FONT COLOR=black><B>return</B></FONT> urlEncode(s)
+
+<FONT COLOR=black><B>def</B></FONT> URLDecode(s):
+    <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>'DEPRECATED: WebUtils.Funcs.URLDecode() on 02/24/01 in ver 0.3. Use urlDecode() instead.'</FONT>
+    <FONT COLOR=black><B>return</B></FONT> urlDecode(s)
+
+<FONT COLOR=black><B>def</B></FONT> HTMLForDictionary(dict, addSpace=None):
+    <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>'DEPRECATED: WebUtils.Funcs.HTMLForDictionary() on 02/24/01 in ver 0.3. Use htmlForDict() instead.'</FONT>
+    <FONT COLOR=black><B>return</B></FONT> htmlForDict(dict, addSpace)
+
+<FONT COLOR=black><B>def</B></FONT> RequestURI(dict):
+    <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>'DEPRECATED: WebUtils.Funcs.RequestURI() on 02/24/01 in ver 0.3. Use requestURI() instead.'</FONT>
+    <FONT COLOR=black><B>return</B></FONT> requestURI(dict)
+</PRE>
+                  <!--footer-->
+                  </BODY>

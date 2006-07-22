@@ -1,0 +1,65 @@
+# $File: src/mdu/README
+
+Q. What is mdu all about?
+A. mdu is a shell-driven application, which allows you to easily install and/or
+update a set of databases for use with mpiBLAST. It sets out to automate the
+process of updating databases, requiring no user intervention, whether you 
+choose to monitor the update process or submit it to the cluster as a PBS job.
+
+
+Q. How do I get started?
+A. Open conf_user.py and follow the instructions. Have a quick look at 
+conf_sys.py to see if maybe there are some system specific options you should 
+set.
+
+
+Q. How do I run mdu?
+A. mdu is nothing more than a glorified shell script, so you can run it any
+way you would run a shell script. Invoked without any flags, it will print
+the help on usage. A typical invokation would look something like:
+
+$ python mdu.py --debug --start
+
+A pbs job script is included with mdu, you can submit that as a job like so:
+$ qsub job.pbs
+
+
+Q. What do the runtime flags mean?
+A. This is what the flags mean:
+
+--debug               
+Recommended, prints verbose output from mdu and every command mdu executes.
+
+--dry-run
+mdu will download, unpack and format the database, but not install it. And it
+will preserve the working directory (which is otherwise cleared). Useful for
+debugging.
+
+--help
+Displays help on usage.
+
+--keep-downloaded
+After a database is downloaded and unpacked, it will be formatted and
+installed. With this flag, the unpacked files will not be removed and can be
+used to run mdu again.
+
+--no-color
+Turns off color output in the terminal. Recommended for batch execution when 
+you wish to capture the output in a log file for later review.
+
+--skip-reorder
+mpiformatdb will reorder a database before segmenting it, to ensure that the
+segments will be roughly equal in size. This process takes a long time 
+(relative to the whole process of updating a database,) and skipping it saves 
+both time and the temporary space required to process a database. When set, this
+flag may cause mpiformatdb to output segments of varying size (depending on the
+database itself).
+
+--start
+mdu will not do anything unless you include this flag.
+
+--use-downloaded
+If downloaded files are found in the workdir from a previous run of mdu, they 
+will be used. Otherwise any existing files will be overwritten. (This pertains
+to the workdir, not the mpiBLAST shared directory, where the databases are
+installed.)

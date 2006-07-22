@@ -1,0 +1,134 @@
+<HTML><HEAD><TITLE>MiscUtils/DBPool.py</TITLE></HEAD>
+                  <BODY BGCOLOR=#EEEEEE>
+                  <!--header-->
+                  <!--script--><PRE><FONT COLOR=#FF0000>"""
+DBPool.py
+
+Implements a pool of cached connections to a database. This should result in
+a speedup for persistent apps. The pool of connections is threadsafe
+regardless of whether the DB API module question in general has a
+threadsafety of 1 or 2.
+
+For more information on the DB API, see:
+    http://www.python.org/topics/database/DatabaseAPI-2.0.html
+
+The idea behind DBPool is that it's completely seamless, so once you have
+established your connection, use it just as you would any other DB-API
+compliant module. For example:
+
+    dbPool = DBPool(MySQLdb, 5, host=xxx, user=xxx, ...)
+    db = dbPool.getConnection()
+
+Now use "db" exactly as if it were a MySQLdb connection. It's really
+just a proxy class.
+
+db.close() will return the connection to the pool, not actually
+close it. This is so your existing code works nicely.
+
+
+FUTURE
+
+* If in the presence of WebKit, register ourselves as a Can.
+
+
+CREDIT
+
+* Contributed by Dan Green
+* thread safety bug found by Tom Schwaller
+* Fixes by Geoff Talvola (thread safety in _threadsafe_getConnection()).
+* Clean up by Chuck Esterbrook.
+* Fix unthreadsafe functions which were leaking, Jay Love
+* Eli Green's webware-discuss comments were lifted for additional docs.
+"""</FONT>
+
+
+<FONT COLOR=black><B>import</B></FONT> threading
+
+
+<FONT COLOR=black><B>class</B></FONT> DBPoolError(Exception): <FONT COLOR=black><B>pass</B></FONT>
+<FONT COLOR=black><B>class</B></FONT> UnsupportedError(DBPoolError): <FONT COLOR=black><B>pass</B></FONT>
+
+
+<FONT COLOR=black><B>class</B></FONT> PooledConnection:
+    <FONT COLOR=#FF0000>""" A wrapper for database connections to help with DBPool. You don't normally deal with this class directly, but use DBPool to get new connections. """</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> __init__(self, pool, con):
+        self._con = con
+        self._pool = pool
+
+    <FONT COLOR=black><B>def</B></FONT> close(self):
+        <FONT COLOR=black><B>if</B></FONT> self._con <FONT COLOR=black><B>is</B></FONT> <FONT COLOR=black><B>not</B></FONT> None:
+            self._pool.returnConnection(self)
+            self._con = None
+
+    <FONT COLOR=black><B>def</B></FONT> __getattr__(self, name):
+        <FONT COLOR=black><B>return</B></FONT> getattr(self._con, name)
+
+    <FONT COLOR=black><B>def</B></FONT> __del__(self):
+        self.close()
+
+
+<FONT COLOR=black><B>class</B></FONT> DBPool:
+
+    <FONT COLOR=black><B>def</B></FONT> __init__(self, dbModule, maxConnections, *args, **kwargs):
+        <FONT COLOR=black><B>if</B></FONT> dbModule.threadsafety==0:
+            <FONT COLOR=black><B>raise</B></FONT> UnsupportedError, <FONT COLOR=#FF0000>"Database module does not support any level of threading."</FONT>
+        <FONT COLOR=black><B>elif</B></FONT> dbModule.threadsafety==1:
+            <FONT COLOR=black><B>from</B></FONT> Queue <FONT COLOR=black><B>import</B></FONT> Queue
+            self._queue = Queue(maxConnections)
+            self.addConnection = self._unthreadsafe_addConnection
+            self.getConnection = self._unthreadsafe_getConnection
+            self.returnConnection = self._unthreadsafe_returnConnection
+        <FONT COLOR=black><B>elif</B></FONT> dbModule.threadsafety&gt;=2:
+            self._lock = threading.Lock()
+            self._nextCon = 0
+            self._connections = []
+            self.addConnection = self._threadsafe_addConnection
+            self.getConnection = self._threadsafe_getConnection
+            self.returnConnection = self._threadsafe_returnConnection
+
+        <FONT COLOR=#1111CC># @@ 2000-12-04 ce: Should we really make all the connections now?</FONT>
+        <FONT COLOR=#1111CC># Couldn't we do this on demand?</FONT>
+        <FONT COLOR=black><B>for</B></FONT> i <FONT COLOR=black><B>in</B></FONT> range(maxConnections):
+            con = apply(dbModule.connect, args, kwargs)
+            self.addConnection(con)
+
+
+    <FONT COLOR=#1111CC># threadsafe/unthreadsafe refers to the database _module_, not THIS class..</FONT>
+    <FONT COLOR=#1111CC># this class is definitely threadsafe (um. that is, I hope so - Dan)</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> _threadsafe_addConnection(self, con):
+        self._connections.append(con)
+
+
+    <FONT COLOR=black><B>def</B></FONT> _threadsafe_getConnection(self):
+        self._lock.acquire()
+        <FONT COLOR=black><B>try</B></FONT>:
+            con = PooledConnection(self, self._connections[self._nextCon])
+            self._nextCon = self._nextCon + 1
+            <FONT COLOR=black><B>if</B></FONT> self._nextCon &gt;= len(self._connections):
+                self._nextCon = 0
+            <FONT COLOR=black><B>return</B></FONT> con
+        <FONT COLOR=black><B>finally</B></FONT>:
+            self._lock.release()
+
+    <FONT COLOR=black><B>def</B></FONT> _threadsafe_returnConnection(self, con):
+        <FONT COLOR=black><B>return</B></FONT>
+
+    <FONT COLOR=#1111CC># These functions are used with DB modules that have connection level threadsafety, like PostgreSQL.</FONT>
+    <FONT COLOR=#1111CC>#</FONT>
+    <FONT COLOR=black><B>def</B></FONT> _unthreadsafe_addConnection(self, con):
+        self._queue.put(con)
+
+    <FONT COLOR=black><B>def</B></FONT> _unthreadsafe_getConnection(self):
+        <FONT COLOR=black><B>return</B></FONT> PooledConnection(self, self._queue.get())
+
+    <FONT COLOR=black><B>def</B></FONT> _unthreadsafe_returnConnection(self, conpool):
+        <FONT COLOR=#FF0000>"""
+        This should never be called explicitly outside of this module.
+        """</FONT>
+        self.addConnection(conpool._con)
+
+</PRE>
+                  <!--footer-->
+                  </BODY>

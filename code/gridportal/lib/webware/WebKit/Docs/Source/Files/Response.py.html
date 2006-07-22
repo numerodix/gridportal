@@ -1,0 +1,68 @@
+<HTML><HEAD><TITLE>WebKit/Response.py</TITLE></HEAD>
+                  <BODY BGCOLOR=#EEEEEE>
+                  <!--header-->
+                  <!--script--><PRE><FONT COLOR=black><B>from</B></FONT> Common <FONT COLOR=black><B>import</B></FONT> *
+<FONT COLOR=black><B>from</B></FONT> Message <FONT COLOR=black><B>import</B></FONT> Message
+
+
+<FONT COLOR=black><B>class</B></FONT> Response(Message):
+    <FONT COLOR=#FF0000>"""
+    Response is a type of Message that offers the following:
+
+        * @@ 20000-04-17 ce
+        *
+
+    Response is an abstract class; developers typically use HTTPResponse.
+
+    FUTURE
+        * Consider implementing the buffer/flush logic here including buffer size.
+        * Also, consider then having a method that doesn't allow committment until the end.
+    """</FONT>
+
+    <FONT COLOR=#1111CC>## Init ##</FONT>
+    
+    <FONT COLOR=black><B>def</B></FONT> __init__(self, trans, strmOut):
+        Message.__init__(self)
+        self._strmOut = strmOut
+        self._transaction = trans
+
+    <FONT COLOR=#1111CC>## End time ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> endTime(self):
+        <FONT COLOR=black><B>return</B></FONT> self._endTime
+    
+    <FONT COLOR=black><B>def</B></FONT> recordEndTime(self):
+        <FONT COLOR=#FF0000>""" Stores the current time as the end time of the response. This should be invoked at the end of deliver(). It may also be invoked by the application for those responses that never deliver due to an error. """</FONT>
+        self._endTime = time.time()
+
+            
+    <FONT COLOR=#1111CC>## Output ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> write(self, string):
+        <FONT COLOR=black><B>raise</B></FONT> AbstractError, self.__class__
+    
+    <FONT COLOR=black><B>def</B></FONT> isCommitted(self):
+        <FONT COLOR=black><B>raise</B></FONT> AbstractError, self.__class__
+
+    <FONT COLOR=black><B>def</B></FONT> deliver(self):
+        <FONT COLOR=black><B>raise</B></FONT> AbstractError, self.__class__
+
+    <FONT COLOR=black><B>def</B></FONT> reset(self):
+        <FONT COLOR=black><B>raise</B></FONT> AbstractError, self.__class__
+
+    <FONT COLOR=black><B>def</B></FONT> streamOut(self):
+        <FONT COLOR=black><B>return</B></FONT> self._strmOut
+
+        
+    <FONT COLOR=#1111CC>## Cleanup ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> clearTransaction(self):
+        <FONT COLOR=black><B>del</B></FONT> self._transaction
+
+
+    <FONT COLOR=#1111CC>## Exception reporting ##</FONT>
+
+    exceptionReportAttrNames = Message.exceptionReportAttrNames + [<FONT COLOR=#FF0000>'endTime'</FONT>]
+</PRE>
+                  <!--footer-->
+                  </BODY>

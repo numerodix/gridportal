@@ -1,0 +1,164 @@
+<HTML><HEAD><TITLE>WebKit/SidebarPage.py</TITLE></HEAD>
+                  <BODY BGCOLOR=#EEEEEE>
+                  <!--header-->
+                  <!--script--><PRE><FONT COLOR=black><B>from</B></FONT> Page <FONT COLOR=black><B>import</B></FONT> Page
+
+
+<FONT COLOR=black><B>class</B></FONT> SidebarPage(Page):
+    <FONT COLOR=#FF0000>"""
+    SidebarPage is an abstract superclass for pages that have a sidebar (as well as a header and "content well"). Sidebars are normally used for navigation (e.g., a menu or list of links), showing small bits of info and occasionally a simple form (such as login or search).
+
+    Subclasses should override cornerTitle(), writeSidebar() and writeContent() (and title() if necessary; see Page).
+
+    The utility methods menuHeading() and menuItem() can be used by subclasses, typically in their implementation of writeSidebar().
+
+    WebKit itself uses this class: Examples/ExamplePage and Admin/AdminPage both inherit from it.
+
+    TO DO
+    -----
+    * Use of MenuBar.gif needs reconsideration.
+    * Consider using a DIV tag to set the min width of the menu bar.
+    * Use style sheets.
+    * After style sheets, consider removal of startMenu() and endMenu().
+    * It's not easy to customize, via subclasses:
+        * what's between &lt;head&gt; and &lt;/head&gt;
+        * the corner
+        * the colors
+        * the spacer
+    """</FONT>
+
+
+    <FONT COLOR=#1111CC>## Init ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> __init__(self):
+        Page.__init__(self)
+        self._indentBase = <FONT COLOR=#FF0000>'&nbsp; '</FONT> <FONT COLOR=#1111CC># used in menuItem()</FONT>
+
+
+    <FONT COLOR=#1111CC>## Content methods ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> writeBodyParts(self):
+        <FONT COLOR=#1111CC># begin</FONT>
+        wr = self.writeln
+        wr(<FONT COLOR=#FF0000>'&lt;table border=0 cellpadding=0 cellspacing=0 width=100%&gt;'</FONT>)
+
+        <FONT COLOR=#1111CC># banner</FONT>
+        self.writeBanner()
+
+        <FONT COLOR=#1111CC># sidebar</FONT>
+        wr(<FONT COLOR=#FF0000>'&lt;tr&gt; &lt;td bgcolor="#EEEEEF" valign=top nowrap&gt;'</FONT>)
+        self.writeSidebar()
+        wr(<FONT COLOR=#FF0000>'&lt;/td&gt;'</FONT>)
+
+        <FONT COLOR=#1111CC># spacer</FONT>
+        wr(<FONT COLOR=#FF0000>'&lt;td&gt; &nbsp;&nbsp;&nbsp; &lt;/td&gt;'</FONT>)
+
+        <FONT COLOR=#1111CC># content</FONT>
+        wr(<FONT COLOR=#FF0000>'&lt;td valign=top width=90%&gt;&lt;p&gt;&lt;br&gt;'</FONT>)
+        self.writeContent()
+        wr(<FONT COLOR=#FF0000>'&lt;/td&gt;'</FONT>)
+
+        <FONT COLOR=#1111CC># end</FONT>
+        wr(<FONT COLOR=#FF0000>'&lt;/tr&gt; &lt;/table&gt;'</FONT>)
+
+    <FONT COLOR=black><B>def</B></FONT> writeBanner(self):
+        <FONT COLOR=#1111CC># header</FONT>
+        title = self.title()
+        startFont1 = <FONT COLOR=#FF0000>'&lt;font face="Tahoma, Arial, Helvetica, sans-serif" color=white size=+1&gt;'</FONT>
+        endFont1 = <FONT COLOR=#FF0000>'&lt;/font&gt;'</FONT>
+        startFont2 = <FONT COLOR=#FF0000>'&lt;font face="Tahoma, Arial, Helvetica, sans-serif" color=white size=+2&gt;&lt;b&gt;'</FONT>
+        endFont2 = <FONT COLOR=#FF0000>'&lt;/b&gt;&lt;/font&gt;'</FONT>
+        cornerTitle = self.cornerTitle()
+        self.writeln(<FONT COLOR=#FF0000>'''
+            &lt;tr&gt;
+                &lt;td align=center bgcolor="#000000"&gt;%(startFont1)s%(cornerTitle)s%(endFont1)s&lt;/td&gt;
+                &lt;td align=center bgcolor="#00008B" colspan=2&gt;&nbsp;&lt;br&gt;%(startFont2)s%(title)s%(endFont2)s&lt;br&gt;&nbsp;&lt;/td&gt;
+            &lt;/tr&gt;'''</FONT> % locals())
+
+    <FONT COLOR=black><B>def</B></FONT> writeSidebar(self):
+        self.startMenu()
+        self.writeln(<FONT COLOR=#FF0000>'Woops. Someone forgot to override writeSidebar().'</FONT>)
+        self.endMenu()
+
+    <FONT COLOR=black><B>def</B></FONT> cornerTitle(self):
+        <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=#FF0000>''</FONT>
+
+
+    <FONT COLOR=#1111CC>## Menu ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> startMenu(self):
+        self.writeln(<FONT COLOR=#FF0000>'&lt;table border=0 cellpadding=0 cellspacing=4&gt;&lt;tr&gt;&lt;td nowrap&gt;&lt;font face=Arial size=-1&gt;'</FONT>)
+        self._wroteHeading = 0
+
+    <FONT COLOR=black><B>def</B></FONT> menuHeading(self, title):
+        <FONT COLOR=black><B>if</B></FONT> self._wroteHeading:
+            self.write(<FONT COLOR=#FF0000>'&lt;br&gt;'</FONT>)
+        self.writeln(<FONT COLOR=#FF0000>'&lt;b&gt;%s&lt;/b&gt;&lt;br&gt;'</FONT> % title)
+        self._wroteHeading = 1
+
+    <FONT COLOR=black><B>def</B></FONT> menuItem(self, title, url=None, suffix=None, indentLevel=1):
+        <FONT COLOR=black><B>if</B></FONT> suffix:
+            suffix = suffix + <FONT COLOR=#FF0000>' '</FONT>
+        <FONT COLOR=black><B>else</B></FONT>:
+            suffix = <FONT COLOR=#FF0000>''</FONT>
+        indent = self._indentBase*indentLevel
+        <FONT COLOR=black><B>if</B></FONT> url <FONT COLOR=black><B>is</B></FONT> <FONT COLOR=black><B>not</B></FONT> None:
+            self.writeln(<FONT COLOR=#FF0000>' %s&lt;a href="%s"&gt;%s&lt;/a&gt; %s&lt;br&gt;'</FONT> % (
+                indent, url, title, suffix))
+        <FONT COLOR=black><B>else</B></FONT>:
+            self.writeln(<FONT COLOR=#FF0000>' %s%s %s&lt;br&gt;'</FONT> % (indent, title, suffix))
+
+    <FONT COLOR=black><B>def</B></FONT> endMenu(self):
+        self.writeln(<FONT COLOR=#FF0000>'&lt;/font&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;'</FONT>)
+
+
+    <FONT COLOR=#1111CC>## WebKit sidebar sections ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> writeWebKitSidebarSections(self):
+        <FONT COLOR=#FF0000>""" This method (and consequently the methods it invokes) are provided for WebKit's example and admin pages. It writes sections such as contexts, e-mails, exits and versions. """</FONT>
+        self.writeContextsMenu()
+        self.writeWebwareEmailMenu()
+        self.writeWebwareExitsMenu()
+        self.writeVersions()
+
+    <FONT COLOR=black><B>def</B></FONT> writeContextsMenu(self):
+        self.menuHeading(<FONT COLOR=#FF0000>'Contexts'</FONT>)
+        adapterName = self.request().adapterName()
+        ctxs = self.application().contexts().keys()
+        ctxs = filter(<FONT COLOR=black><B>lambda</B></FONT> ctx: ctx!=<FONT COLOR=#FF0000>'default'</FONT>, ctxs)
+        ctxs.sort()
+        <FONT COLOR=black><B>for</B></FONT> ctx <FONT COLOR=black><B>in</B></FONT> ctxs:
+            self.menuItem(ctx, <FONT COLOR=#FF0000>'%s/%s/'</FONT> % (adapterName, ctx))
+
+    <FONT COLOR=black><B>def</B></FONT> writeWebwareEmailMenu(self):
+        self.menuHeading(<FONT COLOR=#FF0000>'E-mail'</FONT>)
+        self.menuItem(<FONT COLOR=#FF0000>'webware-discuss'</FONT>, <FONT COLOR=#FF0000>'mailto:webware-discuss@lists.sourceforge.net'</FONT>)
+
+    <FONT COLOR=black><B>def</B></FONT> writeWebwareExitsMenu(self):
+        self.menuHeading(<FONT COLOR=#FF0000>'Exits'</FONT>)
+        self.menuItem(<FONT COLOR=#FF0000>'Webware'</FONT>, <FONT COLOR=#FF0000>'http://webware.sourceforge.net'</FONT>)
+        self.menuItem(<FONT COLOR=#FF0000>'Python'</FONT>, <FONT COLOR=#FF0000>'http://www.python.org'</FONT>)
+
+    <FONT COLOR=black><B>def</B></FONT> writeVersions(self):
+        app = self.application()
+        self.menuHeading(<FONT COLOR=#FF0000>'Versions'</FONT>)
+        self.menuItem(<FONT COLOR=#FF0000>'WebKit '</FONT> + app.webKitVersionString())
+        self.menuItem(<FONT COLOR=#FF0000>'Webware '</FONT> + app.webwareVersionString())
+        <FONT COLOR=black><B>import</B></FONT> string, sys
+        self.menuItem(<FONT COLOR=#FF0000>'Python '</FONT> + string.split(sys.version)[0])
+
+    <FONT COLOR=black><B>def</B></FONT> writeContent(self):
+        self.writeln(<FONT COLOR=#FF0000>'Woops, someone forgot to override writeContent().'</FONT>)
+
+
+    <FONT COLOR=#1111CC>## Deprecated ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> writeMenuBarMinWidthImage(self):
+        <FONT COLOR=#FF0000>""" DEPRECATED: SidebarPage.writeMenuBarMinWidthImage() deprecated on 1/26/01 in ver 0.5. HTML's nowrap is used instead. """</FONT>
+        <FONT COLOR=#1111CC># To ensure a minimum width of the sidebar</FONT>
+        <FONT COLOR=#1111CC># Technique learned from www.python.org in 6/2000</FONT>
+        self.deprecated(self.writeMenuBarMinWidthImage)
+        self.writeln(<FONT COLOR=#FF0000>'&lt;img width=175 height=1 src=MenuBar.gif&gt;'</FONT>)
+</PRE>
+                  <!--footer-->
+                  </BODY>

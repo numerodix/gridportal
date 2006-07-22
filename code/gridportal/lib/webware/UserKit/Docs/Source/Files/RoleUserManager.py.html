@@ -1,0 +1,18 @@
+<HTML><HEAD><TITLE>UserKit/RoleUserManager.py</TITLE></HEAD>
+                  <BODY BGCOLOR=#EEEEEE>
+                  <!--header-->
+                  <!--script--><PRE><FONT COLOR=black><B>from</B></FONT> RoleUserManagerMixIn <FONT COLOR=black><B>import</B></FONT> RoleUserManagerMixIn
+<FONT COLOR=black><B>from</B></FONT> UserManager <FONT COLOR=black><B>import</B></FONT> UserManager
+
+
+<FONT COLOR=black><B>class</B></FONT> RoleUserManager(UserManager, RoleUserManagerMixIn):
+    <FONT COLOR=#FF0000>"""
+    See the base classes for more information.
+    """</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> __init__(self, userClass=None):
+        UserManager.__init__(self, userClass)
+        RoleUserManagerMixIn.__init__(self)
+</PRE>
+                  <!--footer-->
+                  </BODY>

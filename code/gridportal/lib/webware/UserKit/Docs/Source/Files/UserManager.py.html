@@ -1,0 +1,234 @@
+<HTML><HEAD><TITLE>UserKit/UserManager.py</TITLE></HEAD>
+                  <BODY BGCOLOR=#EEEEEE>
+                  <!--header-->
+                  <!--script--><PRE><FONT COLOR=black><B>import</B></FONT> types
+<FONT COLOR=black><B>from</B></FONT> MiscUtils <FONT COLOR=black><B>import</B></FONT> NoDefault
+<FONT COLOR=black><B>from</B></FONT> User <FONT COLOR=black><B>import</B></FONT> User
+
+
+<FONT COLOR=black><B>class</B></FONT> UserManager:
+    <FONT COLOR=#FF0000>"""
+    A UserManager manages a set of users including authentication, indexing and persistence. Keep in mind that UserManager is abstract; you will always use one of the concrete subclasses (but please read the rest of this doc string):
+        * UserManagerToFile
+        * UserManagerToMiddleKit
+
+
+    You can create a user through the manager (preferred):
+        user = manager.createUser(name, password)
+
+    Or directly through the user class:
+        user = RoleUser(manager, name, password)
+        manager.addUser(user)
+
+    The manager tracks users by whether or not they are "active" (e.g., logged in) and indexes them by:
+        * user serial number
+        * external user id
+        * user name
+
+    These methods provide access to the users by these keys:
+        def userForSerialNum(self, serialNum, default=NoDefault)
+        def userForExternalId(self, extId, default=NoDefault)
+        def userForName(self, name, default=NoDefault)
+
+
+    UserManager provides convenient methods for iterating through the various users. Each method returns an object that can be used in a for loop and asked for its len():
+        def users(self)
+        def activeUsers(self)
+        def inactiveUsers(self)
+
+
+    You can authenticate a user by passing the user object and attempted password to login(). If the authentication is successful, then login() returns the User, otherwise it returns None:
+
+        user = mgr.userForExternalId(externalId)
+        if mgr.login(user, password):
+            self.doSomething()
+
+    As a convenience, you can authenticate by passing the serialNum, externalId or name of the user:
+
+        def loginSerialNum(self, serialNum, password):
+        def loginExternalId(self, externalId, password):
+        def loginName(self, userName, password):
+
+
+    The user will automatically log out after a period of inactivity (see below), or you can make it happen with:
+        def logout(self, user):
+
+
+    There are three user states that are important to the manager:
+        * modified
+        * cached
+        * authenticated or "active"
+
+    A modified user is one whose data has changed and eventually requires storage to a persistent location. A cached user is a user whose data resides in memory (regardless of the other states). An active user has been authenticated (e.g., their username and password were checked) and has not yet logged out or timed out.
+
+    The manager keeps three timeouts, expressed in minutes, to:
+        * save modified users after a period of time following the first unsaved modification
+        * push users out of memory after a period of inactivity
+        * deactive (e.g., log out) users after a period of inactivity
+
+    The methods for managing these values deal with the timeouts as number-of-minutes. The default values and the methods are:
+        * 20  modifiedUserTimeout()  setModifiedUserTimeout()
+        * 20  cachedUserTimeout()    setCachedUserTimeout()
+        * 20  activeUserTimeout()    setActiveUserTimeout()
+
+    @@ 2001-02-16 ce: Should we take out "User" in the names of the above 6 methods? Maybe it's redundant.
+
+    Subclasses of UserManager provide persistence such as to the file system or a MiddleKit store. Subclasses must implement all methods that raise AbstractError's. Subclasses typically override (while still invoking super) addUser().
+
+    Subclasses should ensure "uniqueness" of users. For example, invoking any of the userForSomething() methods repeatedly should always return the same user instance for a given key. Without uniqueness, consistency issues could arise with users that are modified.
+
+    Please read the method doc strings and other class documentation to fully understand UserKit.
+    """</FONT>
+
+    <FONT COLOR=#1111CC>## Init ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> __init__(self, userClass=None):
+        <FONT COLOR=black><B>if</B></FONT> userClass <FONT COLOR=black><B>is</B></FONT> None:
+            self._userClass = None
+        <FONT COLOR=black><B>else</B></FONT>:
+            self.setUserClass(userClass)
+        self._cachedUsers = []
+        self._cachedUsersBySerialNum = {}
+        self.setModifiedUserTimeout(20)
+        self.setCachedUserTimeout(20)
+        self.setActiveUserTimeout(20)
+        self._numActive = 0
+
+    <FONT COLOR=black><B>def</B></FONT> shutDown(self):
+        <FONT COLOR=#FF0000>""" Performs any tasks necessary to shut down the user manager. Subclasses may override and must invoke super as their *last* step. """</FONT>
+        <FONT COLOR=black><B>pass</B></FONT>
+
+
+    <FONT COLOR=#1111CC>## Settings ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> userClass(self):
+        <FONT COLOR=#FF0000>""" Returns the userClass, which is used by createUser. The default value is UserKit.User.User. """</FONT>
+        <FONT COLOR=black><B>if</B></FONT> self._userClass <FONT COLOR=black><B>is</B></FONT> None:
+            <FONT COLOR=black><B>from</B></FONT> User <FONT COLOR=black><B>import</B></FONT> User
+            self.setUserClass(User)
+        <FONT COLOR=black><B>return</B></FONT> self._userClass
+
+    <FONT COLOR=black><B>def</B></FONT> setUserClass(self, userClass):
+        <FONT COLOR=#FF0000>""" Sets the userClass, which cannot be None and must inherit from User. See also: userClass(). """</FONT>
+        <FONT COLOR=black><B>assert</B></FONT> type(userClass) <FONT COLOR=black><B>is</B></FONT> types.ClassType
+        <FONT COLOR=black><B>from</B></FONT> User <FONT COLOR=black><B>import</B></FONT> User
+        <FONT COLOR=black><B>assert</B></FONT> issubclass(userClass, User)
+        self._userClass = userClass
+
+    <FONT COLOR=black><B>def</B></FONT> modifiedUserTimeout(self):
+        <FONT COLOR=black><B>return</B></FONT> self._modifiedUserTimeout
+
+    <FONT COLOR=black><B>def</B></FONT> setModifiedUserTimeout(self, value):
+        self._modifiedUserTimeout = value
+
+    <FONT COLOR=black><B>def</B></FONT> cachedUserTimeout(self):
+        <FONT COLOR=black><B>return</B></FONT> self._cachedUserTimeout
+
+    <FONT COLOR=black><B>def</B></FONT> setCachedUserTimeout(self, value):
+        self._cachedUserTimeout = value
+
+    <FONT COLOR=black><B>def</B></FONT> activeUserTimeout(self):
+        <FONT COLOR=black><B>return</B></FONT> self._activeUserTimeout
+
+    <FONT COLOR=black><B>def</B></FONT> setActiveUserTimeout(self, value):
+        self._activeUserTimeout = value
+
+
+    <FONT COLOR=#1111CC>## Basic user access ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> createUser(self, name, password, userClass=None):
+        <FONT COLOR=#FF0000>"""
+        Returns a newly created user that is added to the manager. If userClass is not specified, the manager's default user class is instantiated.
+        This not imply that the user is logged in.
+        This method invokes self.addUser().
+        See also: userClass(), setUserClass()
+        """</FONT>
+        <FONT COLOR=black><B>if</B></FONT> userClass <FONT COLOR=black><B>is</B></FONT> None:
+            userClass = self.userClass()
+        user = userClass(manager=self, name=name, password=password)
+        self.addUser(user)
+        <FONT COLOR=black><B>return</B></FONT> user
+
+    <FONT COLOR=black><B>def</B></FONT> addUser(self, user):
+        <FONT COLOR=black><B>assert</B></FONT> isinstance(user, User)
+        self._cachedUsers.append(user)
+        <FONT COLOR=black><B>assert</B></FONT> <FONT COLOR=black><B>not</B></FONT> self._cachedUsersBySerialNum.has_key(user.serialNum())
+        self._cachedUsersBySerialNum[user.serialNum()] = user
+
+    <FONT COLOR=black><B>def</B></FONT> userForSerialNum(self, serialNum, default=NoDefault):
+        <FONT COLOR=#FF0000>""" Returns the user with the given serialNum, pulling that user record into memory if needed. """</FONT>
+        <FONT COLOR=black><B>raise</B></FONT> AbstractError, self.__class__
+
+    <FONT COLOR=black><B>def</B></FONT> userForExternalId(self, externalId, default=NoDefault):
+        <FONT COLOR=#FF0000>""" Returns the user with the given external id, pulling that user record into memory if needed. """</FONT>
+        <FONT COLOR=black><B>raise</B></FONT> AbstractError, self.__class__
+
+    <FONT COLOR=black><B>def</B></FONT> userForName(self, name, default=NoDefault):
+        <FONT COLOR=#FF0000>""" Returns the user with the given name, pulling that user record into memory if needed. """</FONT>
+        <FONT COLOR=black><B>raise</B></FONT> AbstractError, self.__class__
+
+    <FONT COLOR=black><B>def</B></FONT> users(self):
+        <FONT COLOR=#FF0000>""" Returns a list of all users (regardless of login status). """</FONT>
+        <FONT COLOR=black><B>raise</B></FONT> AbstractError, self.__class__
+
+    <FONT COLOR=black><B>def</B></FONT> numActiveUsers(self):
+        <FONT COLOR=#FF0000>""" Returns the number of active users, e.g., users that are logged in. """</FONT>
+        <FONT COLOR=black><B>return</B></FONT> self._numActive
+
+    <FONT COLOR=black><B>def</B></FONT> activeUsers(self):
+        <FONT COLOR=#FF0000>""" Returns a list of all active users. """</FONT>
+        <FONT COLOR=black><B>raise</B></FONT> AbstractError, self.__class__
+
+    <FONT COLOR=black><B>def</B></FONT> inactiveUsers(self):
+        <FONT COLOR=black><B>raise</B></FONT> AbstractError, self.__class__
+
+
+    <FONT COLOR=#1111CC>## Logging in and out ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> login(self, user, password):
+        <FONT COLOR=#FF0000>""" Returns the user if the login is successful, otherwise returns None. """</FONT>
+        <FONT COLOR=black><B>assert</B></FONT> isinstance(user, User)
+        result = user.login(password, fromMgr=1)
+        <FONT COLOR=black><B>if</B></FONT> result:
+            self._numActive += 1
+        <FONT COLOR=black><B>return</B></FONT> result
+
+    <FONT COLOR=black><B>def</B></FONT> logout(self, user):
+        <FONT COLOR=black><B>assert</B></FONT> isinstance(user, User)
+        user.logout(fromMgr=1)
+        self._numActive -= 1
+
+    <FONT COLOR=black><B>def</B></FONT> loginSerialNum(self, serialNum, password):
+        user = self.userForSerialNum(serialNum, None)
+        <FONT COLOR=black><B>if</B></FONT> user:
+            <FONT COLOR=black><B>return</B></FONT> self.login(user, password)
+        <FONT COLOR=black><B>else</B></FONT>:
+            <FONT COLOR=black><B>return</B></FONT> None
+
+    <FONT COLOR=black><B>def</B></FONT> loginExternalId(self, externalId, password):
+        user = self.userForExternalId(externalId, None)
+        <FONT COLOR=black><B>if</B></FONT> user:
+            <FONT COLOR=black><B>return</B></FONT> self.login(user, password)
+        <FONT COLOR=black><B>else</B></FONT>:
+            <FONT COLOR=black><B>return</B></FONT> None
+
+    <FONT COLOR=black><B>def</B></FONT> loginName(self, userName, password):
+        user = self.userForName(userName, None)
+        <FONT COLOR=black><B>if</B></FONT> user:
+            <FONT COLOR=black><B>return</B></FONT> self.login(user, password)
+        <FONT COLOR=black><B>else</B></FONT>:
+            <FONT COLOR=black><B>return</B></FONT> None
+
+
+    <FONT COLOR=#1111CC>## Cached ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> clearCache(self):
+        <FONT COLOR=#FF0000>"""
+        Clears the cache of the manager. Use with extreme caution. If your program maintains a reference to a user object, but the manager loads in a new copy later on, then consistency problems could occur.
+        The most popular use of this method is in the regression test suite.
+        """</FONT>
+        self._cachedUsers = []
+        self._cachedUsersBySerialNum = {}
+</PRE>
+                  <!--footer-->
+                  </BODY>

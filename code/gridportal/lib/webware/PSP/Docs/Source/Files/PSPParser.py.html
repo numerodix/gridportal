@@ -1,0 +1,407 @@
+<HTML><HEAD><TITLE>PSP/PSPParser.py</TITLE></HEAD>
+                  <BODY BGCOLOR=#EEEEEE>
+                  <!--header-->
+                  <!--script--><PRE><FONT COLOR=#FF0000>"""
+This module handles the actual reading of the characters in the source psp file
+and checking it for valid psp tokens.  When it finds one, it calls ParseEventHandler
+with the characters it found.
+
+--------------------------------------------------------------------------
+   (c) Copyright by Jay Love, 2000 (mailto:jsliv@jslove.net)
+
+    Permission to use, copy, modify, and distribute this software and its
+    documentation for any purpose and without fee or royalty is hereby granted,
+    provided that the above copyright notice appear in all copies and that
+    both that copyright notice and this permission notice appear in
+    supporting documentation or portions thereof, including modifications,
+    that you make.
+
+    THE AUTHORS DISCLAIM ALL WARRANTIES WITH REGARD TO
+    THIS SOFTWARE, INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
+    FITNESS, IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL,
+    INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING
+    FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
+    NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
+    WITH THE USE OR PERFORMANCE OF THIS SOFTWARE !
+
+        This software is based in part on work done by the Jakarta group.
+
+"""</FONT>
+
+
+<FONT COLOR=black><B>from</B></FONT> Generators <FONT COLOR=black><B>import</B></FONT> *
+
+<FONT COLOR=black><B>try</B></FONT>:
+    <FONT COLOR=black><B>from</B></FONT> cStringIO <FONT COLOR=black><B>import</B></FONT> StringIO
+<FONT COLOR=black><B>except</B></FONT>:
+    <FONT COLOR=black><B>from</B></FONT> StringIO <FONT COLOR=black><B>import</B></FONT> StringIO
+
+
+<FONT COLOR=black><B>class</B></FONT> PSPParser:
+    <FONT COLOR=#FF0000>""" The PSPParser class does the actual sniffing through the input file looking for anything we're interested in.
+    Basically, it starts by looking at the code looking for a '&lt;' symbol. It looks at the code by working with a PSPReader
+    object, which handle the current location in the code. When it finds one, it calls a list of functions, the xxxChecks,
+    asking each if it recognizes the characters as its kind of input.  When the check functions look at the characters,
+    if they want it, they go ahead and gobble it up and set up to create it in the Servlet when the time comes.  When they
+    return, they return true if they acceptes the character, and the PSPReader object cursor is positioned past the end of
+    the block that the check function accepted."""</FONT>
+
+    checklist=[]
+    
+    <FONT COLOR=black><B>def</B></FONT> __init__(self,ctxt):
+
+        self._reader = ctxt.getReader()
+        self._writer = ctxt.getServletWriter()
+        self._handler = None
+    
+        self.cout = StringIO() <FONT COLOR=#1111CC>#This is where we dump straight HTML code that none of the checks want</FONT>
+        self.tmplStart=0 <FONT COLOR=#1111CC>#marks the start of HTML code</FONT>
+        self.tmplStop = 0 <FONT COLOR=#1111CC>#marks the end of HTML code</FONT>
+        self.currentFile = self._reader.Mark().getFile()
+
+    <FONT COLOR=black><B>def</B></FONT> setEventHandler(self,handler):
+        <FONT COLOR=#FF0000>"""Set the handler this parser will use when it finds psp code."""</FONT>
+        self._handler = handler
+
+    <FONT COLOR=black><B>def</B></FONT> flushCharData(self, start, stop):
+        <FONT COLOR=#FF0000>"""Dump all the HTML that we've accumulated over to the character data handler in the event handler object."""</FONT>
+        data = self.cout.getvalue()
+        self.cout.close()
+        <FONT COLOR=black><B>if</B></FONT> len(data) &gt; 0: <FONT COLOR=#1111CC># make sure there's something there</FONT>
+            self._handler.handleCharData(start, stop, data)
+        self.cout = StringIO()
+
+    <FONT COLOR=black><B>def</B></FONT> commentCheck(self, handler, reader):
+        <FONT COLOR=#FF0000>"""Comments just get eaten"""</FONT>
+        OPEN_COMMENT = <FONT COLOR=#FF0000>'&lt;%--'</FONT>
+        CLOSE_COMMENT = <FONT COLOR=#FF0000>'--%&gt;'</FONT>
+
+        <FONT COLOR=black><B>if</B></FONT> reader.Matches(OPEN_COMMENT):
+            reader.Advance(len(OPEN_COMMENT))
+            start = reader.Mark()
+            stop = reader.skipUntil(CLOSE_COMMENT)
+            <FONT COLOR=black><B>if</B></FONT> stop == None:
+                <FONT COLOR=black><B>raise</B></FONT> <FONT COLOR=#FF0000>'ParseException'</FONT>
+
+            self.flushCharData(self.tmplStart, self.tmplStop)
+            <FONT COLOR=black><B>return</B></FONT> 1
+        <FONT COLOR=black><B>return</B></FONT> 0
+
+    checklist.append(commentCheck) <FONT COLOR=#1111CC>#add this checker to the list that the parse function will call</FONT>
+
+
+    <FONT COLOR=black><B>def</B></FONT> checkExpression(self, handler, reader):
+        <FONT COLOR=#FF0000>""" Look for "expressions" and handle them"""</FONT>
+    
+        OPEN_EXPR = <FONT COLOR=#FF0000>'&lt;%='</FONT>
+        CLOSE_EXPR = <FONT COLOR=#FF0000>'%&gt;'</FONT>
+        end_open = None
+        attrs=None
+    
+        <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> reader.Matches(OPEN_EXPR):
+            <FONT COLOR=black><B>return</B></FONT> 0
+
+        reader.Advance(len(OPEN_EXPR)) <FONT COLOR=#1111CC>#eat the opening tag</FONT>
+
+        <FONT COLOR=black><B>if</B></FONT> end_open != None:
+            attrs = reader.parseTagAttributes()
+            reader.skipSpaces()
+            <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> reader.matches(end_open):
+                <FONT COLOR=black><B>raise</B></FONT> <FONT COLOR=#FF0000>'ParseException'</FONT>
+            reader.Advance(len(end_open))
+            reader.skipSpaces()
+        <FONT COLOR=#1111CC>#below not implemented</FONT>
+        <FONT COLOR=#1111CC>#PSPUtil.checkAttrs('Expression',attrs,validAttrs)</FONT>
+
+        reader.peekChar()
+        reader.skipSpaces()
+        start = reader.Mark()
+        stop = reader.skipUntil(CLOSE_EXPR)
+        <FONT COLOR=black><B>if</B></FONT> stop == None:
+            <FONT COLOR=black><B>raise</B></FONT> <FONT COLOR=#FF0000>'ParserException'</FONT>
+        handler.setTemplateInfo(self.tmplStart, self.tmplStop)
+        handler.handleExpression(start, stop, attrs)
+        <FONT COLOR=black><B>return</B></FONT> 1
+
+    checklist.append(checkExpression)
+
+
+
+    <FONT COLOR=black><B>def</B></FONT> checkDirective(self, handler, reader):
+        <FONT COLOR=#FF0000>""" Check for directives.  I support two right now, page and include."""</FONT>
+        validDirectives = [<FONT COLOR=#FF0000>'page'</FONT>,<FONT COLOR=#FF0000>'include'</FONT>]
+        OPEN_DIRECTIVE = r<FONT COLOR=#FF0000>'&lt;%@'</FONT>
+        CLOSE_DIRECTIVE = r<FONT COLOR=#FF0000>'%&gt;'</FONT>
+
+        <FONT COLOR=black><B>if</B></FONT> reader.Matches(OPEN_DIRECTIVE):
+            opening = OPEN_DIRECTIVE
+            close = CLOSE_DIRECTIVE
+        <FONT COLOR=black><B>else</B></FONT>:
+            <FONT COLOR=black><B>return</B></FONT> 0
+        start = reader.Mark()
+
+        reader.Advance(len(OPEN_DIRECTIVE))
+
+        match = None    
+        reader.skipSpaces()
+        <FONT COLOR=black><B>for</B></FONT> i <FONT COLOR=black><B>in</B></FONT> validDirectives:           
+            <FONT COLOR=black><B>if</B></FONT> reader.Matches(i):
+                match = i
+                <FONT COLOR=black><B>break</B></FONT>
+
+        <FONT COLOR=black><B>if</B></FONT> match == None:
+            <FONT COLOR=black><B>raise</B></FONT> <FONT COLOR=#FF0000>'Invalid Directive'</FONT>
+    
+        reader.Advance(len(match))
+
+        <FONT COLOR=#1111CC>#parse the directive attr:val pair dictionary</FONT>
+        attrs = reader.parseTagAttributes()
+<FONT COLOR=#1111CC>##      not checking for validity yet</FONT>
+<FONT COLOR=#1111CC>##      if match == 'page':</FONT>
+<FONT COLOR=#1111CC>##          PSPUtils.checkAttributes('Page Directive', attrs, pageDvalidAttrs)</FONT>
+<FONT COLOR=#1111CC>##      elif match == 'include':</FONT>
+<FONT COLOR=#1111CC>##          PSPUtils.checkAttributes('Include Directive', attrs, includeDvalidAttrs)</FONT>
+<FONT COLOR=#1111CC>##      elif match == 'taglib':</FONT>
+<FONT COLOR=#1111CC>##          raise 'Not Implemented Error'</FONT>
+
+        <FONT COLOR=#1111CC>#match close</FONT>
+        reader.skipSpaces() <FONT COLOR=#1111CC>#skip to where we expect a close tag</FONT>
+        <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> reader.Matches(close):
+            <FONT COLOR=black><B>raise</B></FONT> <FONT COLOR=#FF0000>'Unterminated directive error'</FONT>
+        <FONT COLOR=black><B>else</B></FONT>:
+            reader.Advance(len(close)) <FONT COLOR=#1111CC>#advance past it</FONT>
+        stop = reader.Mark()
+
+        handler.setTemplateInfo(self.tmplStart, self.tmplStop)
+        handler.handleDirective(match, start, stop, attrs)
+        
+        <FONT COLOR=black><B>return</B></FONT> 1
+
+    checklist.append(checkDirective)
+
+    
+    <FONT COLOR=black><B>def</B></FONT> checkEndBlock(self, handler, reader):
+        OPEN_SCRIPT=<FONT COLOR=#FF0000>'&lt;%'</FONT>
+        CLOSE_SCRIPT=<FONT COLOR=#FF0000>'%&gt;'</FONT>
+        CLOSE_SCRIPT2=<FONT COLOR=#FF0000>'$%&gt;'</FONT>
+        CENTER_SCRIPT=<FONT COLOR=#FF0000>'end'</FONT>
+        start=reader.Mark()
+
+        <FONT COLOR=black><B>if</B></FONT> reader.Matches(OPEN_SCRIPT):
+            reader.Advance(len(OPEN_SCRIPT))
+            reader.skipSpaces()
+            <FONT COLOR=black><B>if</B></FONT> reader.Matches(CENTER_SCRIPT):
+                reader.Advance(len(CENTER_SCRIPT))
+                reader.skipSpaces()
+                <FONT COLOR=black><B>if</B></FONT> reader.Matches(CLOSE_SCRIPT):
+                    reader.Advance(len(CLOSE_SCRIPT))
+                    handler.setTemplateInfo(self.tmplStart, self.tmplStop)
+                    handler.handleEndBlock()
+                    <FONT COLOR=black><B>return</B></FONT> 1
+                <FONT COLOR=black><B>if</B></FONT> reader.Matches(CLOSE_SCRIPT2):
+                    reader.Advance(len(CLOSE_SCRIPT2))
+                    handler.setTemplateInfo(self.tmplStart, self.tmplStop)
+                    handler.handleEndBlock()
+                    <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>"&gt;&gt;&gt;&gt;Putting a $ at the end of an end tag does nothing, I Say"</FONT>
+                    <FONT COLOR=black><B>return</B></FONT> 1
+        <FONT COLOR=#1111CC>#that wasn't it</FONT>
+        reader.reset(start)
+        <FONT COLOR=black><B>return</B></FONT> 0
+
+    checklist.append(checkEndBlock)
+    
+    
+
+
+    <FONT COLOR=black><B>def</B></FONT> checkScript(self, handler, reader):
+        <FONT COLOR=#FF0000>""" The main thing we're after.  Check for embedded scripts"""</FONT>
+        OPEN_SCRIPT = <FONT COLOR=#FF0000>'&lt;%'</FONT>
+        CLOSE_SCRIPT = <FONT COLOR=#FF0000>'%&gt;'</FONT>
+        attrs=None
+
+        end_open = None
+
+        <FONT COLOR=black><B>if</B></FONT> reader.Matches(OPEN_SCRIPT):
+            open = OPEN_SCRIPT
+            close = CLOSE_SCRIPT
+        <FONT COLOR=black><B>else</B></FONT>:
+            <FONT COLOR=black><B>return</B></FONT> 0
+
+        reader.Advance(len(open))<FONT COLOR=#1111CC>#Matches advances it</FONT>
+
+        <FONT COLOR=black><B>if</B></FONT> end_open != None:
+            attrs = reader.parseTagAttributes()
+
+            reader.skipSpaces()
+            <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> reader.Matches(end_open):
+                <FONT COLOR=black><B>raise</B></FONT> <FONT COLOR=#FF0000>'Unterminated script'</FONT>
+            reader.Advance(len(end_open))
+            reader.skipSpaces()
+            PSPUtils.checkAttributes(<FONT COLOR=#FF0000>'Script'</FONT>, attrs, ValidAttributes)
+        <FONT COLOR=#1111CC>#reader.skipSpaces() #don't skip as spaces may be significant, leave this for the generator</FONT>
+        start = reader.Mark()
+        <FONT COLOR=black><B>try</B></FONT>:
+            stop = reader.skipUntil(close)
+        <FONT COLOR=black><B>except</B></FONT> EOFError:
+            <FONT COLOR=black><B>raise</B></FONT> EOFError(<FONT COLOR=#FF0000>"Reached EOF while looking for ending script tag"</FONT>)
+        <FONT COLOR=black><B>if</B></FONT> stop == None:
+            <FONT COLOR=black><B>raise</B></FONT> <FONT COLOR=#FF0000>'Unterminated Script'</FONT>
+        handler.setTemplateInfo(self.tmplStart, self.tmplStop)
+        handler.handleScript(start, stop, attrs)
+        <FONT COLOR=black><B>return</B></FONT> 1
+
+    checklist.append(checkScript)
+
+
+
+    <FONT COLOR=black><B>def</B></FONT> checkMethod(self, handler, reader):
+        <FONT COLOR=#FF0000>""" Check for class methods defined in the page. I only support one format for these,
+        &lt;psp:method name="xxx" params="xxx,xxx"&gt; Then the function BODY, then &lt;psp:method&gt; """</FONT>
+        OPEN_METHOD=<FONT COLOR=#FF0000>'&lt;psp:method'</FONT>
+        CLOSE_METHOD=<FONT COLOR=#FF0000>'/&gt;'</FONT>
+        CLOSE_METHOD_2=<FONT COLOR=#FF0000>'&lt;/psp:method&gt;'</FONT>
+        CLOSE_METHOD_3=<FONT COLOR=#FF0000>'&gt;'</FONT>
+
+        attrs=None
+
+        validAttributes=(<FONT COLOR=#FF0000>'name'</FONT>,<FONT COLOR=#FF0000>'params'</FONT>)
+
+        <FONT COLOR=black><B>if</B></FONT> reader.Matches(OPEN_METHOD):
+            start = reader.Mark()
+            reader.Advance(len(OPEN_METHOD))
+            attrs=reader.parseTagAttributes()
+            <FONT COLOR=#1111CC>#PSPUtils.checkAttributes('method',attrs,validAttributes)</FONT>
+            reader.skipSpaces()
+            <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> reader.Matches(CLOSE_METHOD_3):
+                <FONT COLOR=black><B>raise</B></FONT> <FONT COLOR=#FF0000>'Expected method declaration close'</FONT>
+            reader.Advance(len(CLOSE_METHOD_3))
+            stop = reader.Mark()
+            handler.setTemplateInfo(self.tmplStart, self.tmplStop)
+            handler.handleMethod(start, stop, attrs)
+            start=stop
+            stop=reader.skipUntil(CLOSE_METHOD_2) <FONT COLOR=#1111CC>#skip past the close marker, return the point before the close marker</FONT>
+            handler.handleMethodEnd(start, stop, attrs)
+            <FONT COLOR=black><B>return</B></FONT> 1
+        <FONT COLOR=black><B>return</B></FONT> 0
+
+    checklist.append(checkMethod)
+
+
+
+    <FONT COLOR=black><B>def</B></FONT> checkInclude(self, handler, reader):
+        <FONT COLOR=#FF0000>"""
+        Check for inserting another pages output in this spot.
+        """</FONT>
+    
+        OPEN_INCLUDE = <FONT COLOR=#FF0000>'&lt;psp:include'</FONT>
+        CLOSE_INCLUDE_NO_BODY = <FONT COLOR=#FF0000>"/&gt;"</FONT>
+        CLOSE_INCLUDE_BODY = <FONT COLOR=#FF0000>"&gt;"</FONT>
+        CLOSE_INCLUDE = <FONT COLOR=#FF0000>"&lt;/psp:include&gt;"</FONT>
+        OPEN_INDIVIDUAL_PARAM = <FONT COLOR=#FF0000>"&lt;psp:param"</FONT>
+        CLOSE_INDIVIDUAL_PARAM = <FONT COLOR=#FF0000>"/&gt;"</FONT>
+
+        <FONT COLOR=black><B>if</B></FONT> reader.Matches(OPEN_INCLUDE):
+            param={}
+            start = reader.Mark()
+            reader.Advance(len(OPEN_INCLUDE))
+            reader.skipSpaces()
+            attrs = reader.parseTagAttributes()
+            <FONT COLOR=#1111CC>#PSPUtils.checkTagAttributes()....</FONT>
+            reader.skipSpaces()
+            <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> reader.Matches(CLOSE_INCLUDE_BODY):
+                <FONT COLOR=black><B>raise</B></FONT> <FONT COLOR=#FF0000>"Include bodies not implemented"</FONT>
+            reader.Advance(len(CLOSE_INCLUDE_BODY))
+            stop = reader.Mark()
+            handler.setTemplateInfo(self.tmplStart, self.tmplStop)
+            handler.handleInclude(attrs, param)
+            <FONT COLOR=black><B>return</B></FONT> 1
+        <FONT COLOR=black><B>return</B></FONT> 0
+
+    checklist.append(checkInclude)
+    
+
+
+    <FONT COLOR=black><B>def</B></FONT> checkInsert(self, handler, reader):
+        <FONT COLOR=#FF0000>"""Check for straight character dumps.  No big hurry for this.  It's almost the same as
+        as the page include directive.  This is only a partial implementation of what JSP does.
+        JSP can pull it from another server, servlet, JSP page, etc."""</FONT>
+    
+        OPEN_INSERT = <FONT COLOR=#FF0000>'&lt;psp:insert'</FONT>
+        CLOSE_INSERT_NO_BODY = <FONT COLOR=#FF0000>"/&gt;"</FONT>
+        CLOSE_INSERT_BODY = <FONT COLOR=#FF0000>"&gt;"</FONT>
+        CLOSE_INSERT = <FONT COLOR=#FF0000>"&lt;/psp:insert&gt;"</FONT>
+        OPEN_INDIVIDUAL_PARAM = <FONT COLOR=#FF0000>"&lt;psp:param"</FONT>
+        CLOSE_INDIVIDUAL_PARAM = <FONT COLOR=#FF0000>"/&gt;"</FONT>
+
+        <FONT COLOR=black><B>if</B></FONT> reader.Matches(OPEN_INSERT):
+            param={}
+            start = reader.Mark()
+            reader.Advance(len(OPEN_INSERT))
+            reader.skipSpaces()
+            attrs = reader.parseTagAttributes()
+            <FONT COLOR=#1111CC>#PSPUtils.checkTagAttributes()....</FONT>
+            reader.skipSpaces()
+            <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> reader.Matches(CLOSE_INSERT_BODY):
+                <FONT COLOR=black><B>raise</B></FONT> <FONT COLOR=#FF0000>"Insert bodies not implemented"</FONT>
+            reader.Advance(len(CLOSE_INSERT_BODY))
+            stop = reader.Mark()
+            handler.setTemplateInfo(self.tmplStart, self.tmplStop)
+            handler.handleInsert(attrs, param)
+            <FONT COLOR=black><B>return</B></FONT> 1
+        <FONT COLOR=black><B>return</B></FONT> 0
+
+    checklist.append(checkInsert)
+
+
+    <FONT COLOR=black><B>def</B></FONT> parse(self, until=None, accept=None):
+        <FONT COLOR=#FF0000>""" Parse the PSP file"""</FONT>
+        noPspElement = 0
+        reader = self._reader
+        handler = self._handler
+
+        <FONT COLOR=black><B>while</B></FONT> reader.hasMoreInput():
+        
+            <FONT COLOR=#1111CC>#This is for XML style blocks, which I'm not handling yet</FONT>
+            <FONT COLOR=black><B>if</B></FONT> until !=None <FONT COLOR=black><B>and</B></FONT> reader.Matches(until):
+                <FONT COLOR=black><B>return</B></FONT>
+
+    
+
+            <FONT COLOR=#1111CC>#If the file the reader is working on has changed due to a push or pop,</FONT>
+            <FONT COLOR=#1111CC>#flush any char data from the old file</FONT>
+            <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> reader.Mark().getFile() == self.currentFile:
+                self.flushCharData(self.tmplStart, self.tmplStop)
+                self.currentFile = reader.Mark().getFile()
+                self.tmplStart = reader.Mark()
+        
+
+        <FONT COLOR=#1111CC>##in JSP, this is an array of valid tag type to check for, I'm not using it now,</FONT>
+        <FONT COLOR=#1111CC>## and I don't think JSP does either</FONT>
+            <FONT COLOR=black><B>if</B></FONT> accept:
+                <FONT COLOR=black><B>pass</B></FONT>
+
+            accepted = 0
+
+            <FONT COLOR=black><B>for</B></FONT> checkfunc <FONT COLOR=black><B>in</B></FONT> self.checklist:
+                <FONT COLOR=black><B>if</B></FONT> checkfunc(self, handler, reader):
+                    accepted = 1
+                    noPspElement = 0
+                    <FONT COLOR=black><B>break</B></FONT>
+
+            <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> accepted:
+                <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> noPspElement:
+                    self.tmplStart = reader.Mark()
+                    noPspElement = 1
+                st = reader.nextContent() <FONT COLOR=#1111CC>#skip till the next possible tag</FONT>
+                self.tmplStop = reader.Mark() <FONT COLOR=#1111CC>#mark the end of HTML data</FONT>
+                self.cout.write(st) <FONT COLOR=#1111CC>#write out the raw HTML data</FONT>
+        
+            self.flushCharData(self.tmplStart, self.tmplStop) <FONT COLOR=#1111CC>#dump remaining raw HTML</FONT>
+    
+
+        
+        
+    
+</PRE>
+                  <!--footer-->
+                  </BODY>

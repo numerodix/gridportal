@@ -1,0 +1,641 @@
+<HTML><HEAD><TITLE>CGIWrapper/CGIWrapper.py</TITLE></HEAD>
+                  <BODY BGCOLOR=#EEEEEE>
+                  <!--header-->
+                  <!--script--><PRE><FONT COLOR=#1111CC>#!/usr/bin/env python</FONT>
+
+<FONT COLOR=#1111CC># CGIWrapper.py</FONT>
+<FONT COLOR=#1111CC># Webware for Python</FONT>
+<FONT COLOR=#1111CC># See the CGIWrapper.html documentation for more information.</FONT>
+
+
+<FONT COLOR=#1111CC># We first record the starting time, in case we're being run as a CGI script.</FONT>
+<FONT COLOR=black><B>from</B></FONT> time <FONT COLOR=black><B>import</B></FONT> time, localtime, gmtime, asctime
+serverStartTime  = time()
+
+<FONT COLOR=#1111CC># Some imports</FONT>
+<FONT COLOR=black><B>import</B></FONT> cgi, os, string, sys, traceback, whrandom
+<FONT COLOR=black><B>from</B></FONT> types <FONT COLOR=black><B>import</B></FONT> *
+
+<FONT COLOR=black><B>if</B></FONT> <FONT COLOR=#FF0000>''</FONT> <FONT COLOR=black><B>not</B></FONT> <FONT COLOR=black><B>in</B></FONT> sys.path:
+    sys.path.insert(0, <FONT COLOR=#FF0000>''</FONT>)
+
+<FONT COLOR=black><B>try</B></FONT>:
+    <FONT COLOR=black><B>import</B></FONT> WebUtils
+<FONT COLOR=black><B>except</B></FONT>:
+    sys.path.append(os.path.abspath(<FONT COLOR=#FF0000>'..'</FONT>))
+    <FONT COLOR=black><B>import</B></FONT> WebUtils
+<FONT COLOR=black><B>from</B></FONT> WebUtils.HTMLForException <FONT COLOR=black><B>import</B></FONT> HTMLForException
+
+<FONT COLOR=black><B>import</B></FONT> MiscUtils
+<FONT COLOR=black><B>from</B></FONT> MiscUtils.NamedValueAccess <FONT COLOR=black><B>import</B></FONT> NamedValueAccess
+<FONT COLOR=black><B>from</B></FONT> UserDict <FONT COLOR=black><B>import</B></FONT> UserDict
+
+<FONT COLOR=#1111CC># @@ 2000-05-01 ce:</FONT>
+<FONT COLOR=#1111CC># PROBLEM: For reasons unknown, target scripts cannot import modules of</FONT>
+<FONT COLOR=#1111CC>#   the WebUtils package *unless* they are already imported.</FONT>
+<FONT COLOR=#1111CC># TEMP SOLUTION: Import all the modules.</FONT>
+<FONT COLOR=#1111CC># TO DO: distill this problem and post to comp.lang.python for help.</FONT>
+<FONT COLOR=#1111CC># begin</FONT>
+<FONT COLOR=black><B>import</B></FONT> WebUtils.Cookie
+<FONT COLOR=black><B>import</B></FONT> WebUtils.HTTPStatusCodes
+<FONT COLOR=#1111CC># end</FONT>
+
+
+<FONT COLOR=#1111CC># Beef up UserDict with the NamedValueAccess base class and custom versions of</FONT>
+<FONT COLOR=#1111CC># hasValueForKey() and valueForKey(). This all means that UserDict's (such as</FONT>
+<FONT COLOR=#1111CC># os.environ) are key/value accessible. At some point, this probably needs to</FONT>
+<FONT COLOR=#1111CC># move somewhere else as other Webware components will need this "patch".</FONT>
+<FONT COLOR=#1111CC># @@ 2000-01-14 ce: move this</FONT>
+<FONT COLOR=#1111CC>#</FONT>
+<FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> NamedValueAccess <FONT COLOR=black><B>in</B></FONT> UserDict.__bases__:
+    UserDict.__bases__ = UserDict.__bases__ + (NamedValueAccess,)
+
+    <FONT COLOR=black><B>def</B></FONT> _UserDict_hasValueForKey(self, key):
+        <FONT COLOR=black><B>return</B></FONT> self.has_key(key)
+
+    <FONT COLOR=black><B>def</B></FONT> _UserDict_valueForKey(self, key, default=None):
+        <FONT COLOR=black><B>return</B></FONT> self.get(key, default)
+
+    setattr(UserDict, <FONT COLOR=#FF0000>'hasValueForKey'</FONT>, _UserDict_hasValueForKey)
+    setattr(UserDict, <FONT COLOR=#FF0000>'valueForKey'</FONT>, _UserDict_valueForKey)
+
+<FONT COLOR=black><B>try</B></FONT>:
+    <FONT COLOR=black><B>from</B></FONT> cStringIO <FONT COLOR=black><B>import</B></FONT> StringIO
+<FONT COLOR=black><B>except</B></FONT> ImportError:
+    <FONT COLOR=black><B>from</B></FONT> StringIO <FONT COLOR=black><B>import</B></FONT> StringIO
+
+
+<FONT COLOR=black><B>class</B></FONT> CGIWrapper(NamedValueAccess):
+    <FONT COLOR=#FF0000>"""
+    A CGIWrapper executes a target script and provides various services for
+    the both the script and website developer and administrator.
+
+    See the CGIWrapper.html documentation for full information.
+    """</FONT>
+
+
+    <FONT COLOR=#1111CC>## Init ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> __init__(self):
+        self._config = self.config()
+
+
+    <FONT COLOR=#1111CC>## Configuration ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> defaultConfig(self):
+        <FONT COLOR=#FF0000>"""
+        Returns a dictionary with the default
+        configuration. Subclasses could override to customize
+        the values or where they're taken from.
+        """</FONT>
+
+        <FONT COLOR=black><B>return</B></FONT> {
+            <FONT COLOR=#FF0000>'ScriptsHomeDir'</FONT>:         <FONT COLOR=#FF0000>'Scripts'</FONT>,
+            <FONT COLOR=#FF0000>'ChangeDir'</FONT>:              1,
+            <FONT COLOR=#FF0000>'ExtraPaths'</FONT>:             [],
+            <FONT COLOR=#FF0000>'ExtraPathsIndex'</FONT>:        1,
+            <FONT COLOR=#FF0000>'LogScripts'</FONT>:             1,
+            <FONT COLOR=#FF0000>'ScriptLogFilename'</FONT>:      <FONT COLOR=#FF0000>'Scripts.csv'</FONT>,
+            <FONT COLOR=#FF0000>'ScriptLogColumns'</FONT>:       [<FONT COLOR=#FF0000>'environ.REMOTE_ADDR'</FONT>, <FONT COLOR=#FF0000>'environ.REQUEST_METHOD'</FONT>, <FONT COLOR=#FF0000>'environ.REQUEST_URI'</FONT>, <FONT COLOR=#FF0000>'responseSize'</FONT>, <FONT COLOR=#FF0000>'scriptName'</FONT>, <FONT COLOR=#FF0000>'serverStartTimeStamp'</FONT>, <FONT COLOR=#FF0000>'serverDuration'</FONT>, <FONT COLOR=#FF0000>'scriptDuration'</FONT>, <FONT COLOR=#FF0000>'errorOccurred'</FONT>],
+            <FONT COLOR=#FF0000>'ClassNames'</FONT>:           [<FONT COLOR=#FF0000>''</FONT>, <FONT COLOR=#FF0000>'Page'</FONT>],
+            <FONT COLOR=#FF0000>'ShowDebugInfoOnErrors'</FONT>:  1,
+            <FONT COLOR=#FF0000>'UserErrorMessage'</FONT>:       <FONT COLOR=#FF0000>'The site is having technical difficulties with this page. An error has been logged, and the problem will be fixed as soon as possible. Sorry!'</FONT>,
+            <FONT COLOR=#FF0000>'ErrorLogFilename'</FONT>:       <FONT COLOR=#FF0000>'Errors.csv'</FONT>,
+            <FONT COLOR=#FF0000>'SaveErrorMessages'</FONT>:      1,
+            <FONT COLOR=#FF0000>'ErrorMessagesDir'</FONT>:       <FONT COLOR=#FF0000>'ErrorMsgs'</FONT>,
+            <FONT COLOR=#FF0000>'EmailErrors'</FONT>:            0, <FONT COLOR=#1111CC># be sure to review the following settings when enabling error e-mails</FONT>
+            <FONT COLOR=#FF0000>'ErrorEmailServer'</FONT>:       <FONT COLOR=#FF0000>'mail.-.com'</FONT>,
+            <FONT COLOR=#FF0000>'ErrorEmailHeaders'</FONT>:      { <FONT COLOR=#FF0000>'From'</FONT>:         <FONT COLOR=#FF0000>'-@-.com'</FONT>,
+                                        <FONT COLOR=#FF0000>'To'</FONT>:           [<FONT COLOR=#FF0000>'-@-.com'</FONT>],
+                                        <FONT COLOR=#FF0000>'Reply-to'</FONT>:     <FONT COLOR=#FF0000>'-@-.com'</FONT>,
+                                        <FONT COLOR=#FF0000>'Content-type'</FONT>: <FONT COLOR=#FF0000>'text/html'</FONT>,
+                                        <FONT COLOR=#FF0000>'Subject'</FONT>:      <FONT COLOR=#FF0000>'Error'</FONT>
+                                    }
+        }
+
+    <FONT COLOR=black><B>def</B></FONT> configFilename(self):
+        <FONT COLOR=#FF0000>"""Used by userConfig()."""</FONT>
+        <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=#FF0000>'Config.dict'</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> userConfig(self):
+        <FONT COLOR=#FF0000>"""
+        Returns the user config overrides found in the
+        optional config file, or {} if there is no such
+        file. The config filename is taken from
+        configFilename().
+        """</FONT>
+        
+        <FONT COLOR=black><B>try</B></FONT>:
+            file = open(self.configFilename())
+        <FONT COLOR=black><B>except</B></FONT> IOError:
+            <FONT COLOR=black><B>return</B></FONT> {}
+        <FONT COLOR=black><B>else</B></FONT>:
+            config = eval(file.read())
+            file.close()
+            <FONT COLOR=black><B>assert</B></FONT> type(config) <FONT COLOR=black><B>is</B></FONT> type({})
+            <FONT COLOR=black><B>return</B></FONT> config
+
+    <FONT COLOR=black><B>def</B></FONT> config(self):
+        <FONT COLOR=#FF0000>"""
+        Returns the configuration for the wrapper which is a
+        combination of defaultConfig() and userConfig(). This
+        method does no caching.
+        """</FONT>
+        config = self.defaultConfig()
+        config.update(self.userConfig())
+        <FONT COLOR=black><B>return</B></FONT> config
+
+    <FONT COLOR=black><B>def</B></FONT> setting(self, name):
+        <FONT COLOR=#FF0000>"""Returns the value of a particular setting in the configuration."""</FONT>
+        <FONT COLOR=black><B>return</B></FONT> self._config[name]
+
+
+    <FONT COLOR=#1111CC>## Utilities ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> makeHeaders(self):
+        <FONT COLOR=#FF0000>"""Returns a default header dictionary containing {'Content-type': 'text/html'}."""</FONT>
+        <FONT COLOR=black><B>return</B></FONT> {<FONT COLOR=#FF0000>'Content-type'</FONT>: <FONT COLOR=#FF0000>'text/html'</FONT>}
+
+    <FONT COLOR=black><B>def</B></FONT> makeFieldStorage(self):
+        <FONT COLOR=#FF0000>"""Returns a default field storage object created from the cgi module."""</FONT>
+        <FONT COLOR=black><B>return</B></FONT> cgi.FieldStorage()
+
+    <FONT COLOR=black><B>def</B></FONT> enhanceThePath(self):
+        <FONT COLOR=#FF0000>"""Enhance sys.path according to our configuration."""</FONT>
+        extraPathsIndex = self.setting(<FONT COLOR=#FF0000>'ExtraPathsIndex'</FONT>)
+        sys.path[extraPathsIndex:extraPathsIndex] = self.setting(<FONT COLOR=#FF0000>'ExtraPaths'</FONT>)
+
+    <FONT COLOR=black><B>def</B></FONT> requireEnvs(self, names):
+        <FONT COLOR=#FF0000>"""
+        Checks that given environment variable names exist. If
+        they don't, a basic HTML error message is printed and
+        we exit.
+        """</FONT>
+        badNames = []
+        <FONT COLOR=black><B>for</B></FONT> name <FONT COLOR=black><B>in</B></FONT> names:
+            <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> self._environ.has_key(name):
+                badNames.append(name)
+        <FONT COLOR=black><B>if</B></FONT> badNames:
+            <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>'Content-type: text/html\n'</FONT>
+            <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>'&lt;html&gt;&lt;body&gt;'</FONT>
+            <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>'&lt;p&gt;ERROR: Missing'</FONT>, string.join(badNames, <FONT COLOR=#FF0000>', '</FONT>)
+            <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>'&lt;/body&gt;&lt;/html&gt;'</FONT>
+            sys.exit(0)
+
+    <FONT COLOR=black><B>def</B></FONT> scriptPathname(self):
+        <FONT COLOR=#FF0000>"""
+        Returns the full pathname of the target
+        script. Scripts that start with an underscore are
+        special--they run out of the same directory as the CGI
+        Wrapper and are typically CGI Wrapper support
+        scripts.
+        """</FONT>
+        pathname = os.path.split(self._environ[<FONT COLOR=#FF0000>'SCRIPT_FILENAME'</FONT>])[0] <FONT COLOR=#1111CC># This removes the CGI Wrapper's filename part</FONT>
+        filename = self._environ[<FONT COLOR=#FF0000>'PATH_INFO'</FONT>][1:]
+        ext      = os.path.splitext(filename)[1]
+        <FONT COLOR=black><B>if</B></FONT> ext==<FONT COLOR=#FF0000>''</FONT>:
+            <FONT COLOR=#1111CC># No extension - we assume a Python CGI script</FONT>
+            <FONT COLOR=black><B>if</B></FONT> filename[0]==<FONT COLOR=#FF0000>'_'</FONT>:
+                <FONT COLOR=#1111CC># underscores denote private scripts packaged with CGI Wrapper, such as '_admin.py'</FONT>
+                filename = os.path.join(pathname, filename+<FONT COLOR=#FF0000>'.py'</FONT>)
+            <FONT COLOR=black><B>else</B></FONT>:
+                <FONT COLOR=#1111CC># all other scripts are based in the directory named by the 'ScriptsHomeDir' setting</FONT>
+                filename = os.path.join(pathname, self.setting(<FONT COLOR=#FF0000>'ScriptsHomeDir'</FONT>), filename+<FONT COLOR=#FF0000>'.py'</FONT>)
+            self._servingScript = 1
+        <FONT COLOR=black><B>else</B></FONT>:
+            <FONT COLOR=#1111CC># Hmmm, some kind of extension like maybe '.html'. Leave out the 'ScriptsHomeDir' and leave the extension alone</FONT>
+            filename = os.path.join(pathname, filename)
+            self._servingScript = 0
+        <FONT COLOR=black><B>return</B></FONT> filename
+
+    <FONT COLOR=black><B>def</B></FONT> writeScriptLog(self):
+        <FONT COLOR=#FF0000>"""
+        Writes an entry to the script log file. Uses settings
+        ScriptLogFilename and ScriptLogColumns.
+        """</FONT>
+        filename = self.setting(<FONT COLOR=#FF0000>'ScriptLogFilename'</FONT>)
+        <FONT COLOR=black><B>if</B></FONT> os.path.exists(filename):
+            file = open(filename, <FONT COLOR=#FF0000>'a'</FONT>)
+        <FONT COLOR=black><B>else</B></FONT>:
+            file = open(filename, <FONT COLOR=#FF0000>'w'</FONT>)
+            file.write(string.join(self.setting(<FONT COLOR=#FF0000>'ScriptLogColumns'</FONT>), <FONT COLOR=#FF0000>','</FONT>)+<FONT COLOR=#FF0000>'\n'</FONT>)
+        values = []
+        <FONT COLOR=black><B>for</B></FONT> column <FONT COLOR=black><B>in</B></FONT> self.setting(<FONT COLOR=#FF0000>'ScriptLogColumns'</FONT>):
+            value = self.valueForName(column)
+            <FONT COLOR=black><B>if</B></FONT> type(value) <FONT COLOR=black><B>is</B></FONT> FloatType:
+                value = <FONT COLOR=#FF0000>'%0.2f'</FONT> % value   <FONT COLOR=#1111CC># might need more flexibility in the future</FONT>
+            <FONT COLOR=black><B>else</B></FONT>:
+                value = str(value)
+            values.append(value)
+        file.write(string.join(values, <FONT COLOR=#FF0000>','</FONT>)+<FONT COLOR=#FF0000>'\n'</FONT>)
+        file.close()
+
+    <FONT COLOR=black><B>def</B></FONT> version(self):
+        <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=#FF0000>'0.2'</FONT>
+
+
+    <FONT COLOR=#1111CC>## Exception handling ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> handleException(self, excInfo):
+        <FONT COLOR=#FF0000>"""
+        Invoked by self when an exception occurs in the target
+        script. &lt;code&gt;excInfo&lt;/code&gt; is a sys.exc_info()-style
+        tuple of information about the exception.
+        """</FONT>
+
+        self._scriptEndTime = time() <FONT COLOR=#1111CC># Note the duration of the script and time of the exception</FONT>
+        self.logExceptionToConsole()
+        self.reset()
+        <FONT COLOR=black><B>print</B></FONT> self.htmlErrorPage(showDebugInfo=self.setting(<FONT COLOR=#FF0000>'ShowDebugInfoOnErrors'</FONT>))
+        fullErrorMsg = None
+        <FONT COLOR=black><B>if</B></FONT> self.setting(<FONT COLOR=#FF0000>'SaveErrorMessages'</FONT>):
+            fullErrorMsg = self.htmlErrorPage(showDebugInfo=1)
+            filename = self.saveHTMLErrorPage(fullErrorMsg)
+        <FONT COLOR=black><B>else</B></FONT>:
+            filename = <FONT COLOR=#FF0000>''</FONT>
+        self.logExceptionToDisk(filename)
+        <FONT COLOR=black><B>if</B></FONT> self.setting(<FONT COLOR=#FF0000>'EmailErrors'</FONT>):
+            <FONT COLOR=black><B>if</B></FONT> fullErrorMsg <FONT COLOR=black><B>is</B></FONT> None:
+                fullErrorMsg = self.htmlErrorPage(showDebugInfo=1)
+            self.emailException(fullErrorMsg)
+
+    <FONT COLOR=black><B>def</B></FONT> logExceptionToConsole(self, stderr=sys.stderr):
+        <FONT COLOR=#FF0000>"""
+        Logs the time, script name and traceback to the
+        console (typically stderr). This usually results in
+        the information appearing in the web server's error
+        log. Used by handleException().
+        """</FONT>
+        <FONT COLOR=#1111CC># stderr logging</FONT>
+        stderr.write(<FONT COLOR=#FF0000>'[%s] [error] CGI Wrapper: Error while executing script %s\n'</FONT> % (
+            asctime(localtime(self._scriptEndTime)), self._scriptPathname))
+        traceback.print_exc(file=stderr)
+
+    <FONT COLOR=black><B>def</B></FONT> reset(self):
+        <FONT COLOR=#FF0000>"""
+        Used by handleException() to clear out the current CGI
+        output results in preparation of delivering an HTML
+        error message page. Currently resets headers and
+        deletes cookies, if present.
+        """</FONT>
+        <FONT COLOR=#1111CC># Set headers to basic text/html. We don't want stray headers from a script that failed.</FONT>
+        headers = {<FONT COLOR=#FF0000>'Content-Type'</FONT>: <FONT COLOR=#FF0000>'text/html'</FONT>}
+
+        <FONT COLOR=#1111CC># Get rid of cookies, too</FONT>
+        <FONT COLOR=black><B>if</B></FONT> self._namespace.has_key(<FONT COLOR=#FF0000>'cookies'</FONT>):
+            <FONT COLOR=black><B>del</B></FONT> self._namespace[<FONT COLOR=#FF0000>'cookies'</FONT>]
+
+    <FONT COLOR=black><B>def</B></FONT> htmlErrorPage(self, showDebugInfo=1):
+        <FONT COLOR=#FF0000>"""
+        Returns an HTML page explaining that there is an
+        error. There could be more options in the future so
+        using named arguments (e.g., 'showDebugInfo=1') is
+        recommended. Invoked by handleException().
+        """</FONT>
+        html = [<FONT COLOR=#FF0000>'''
+&lt;html&gt;
+    &lt;title&gt;Error&lt;/title&gt;
+    &lt;body fgcolor=black bgcolor=white&gt;
+%s
+&lt;p&gt; %s'''</FONT> % (htTitle(<FONT COLOR=#FF0000>'Error'</FONT>), self.setting(<FONT COLOR=#FF0000>'UserErrorMessage'</FONT>))]
+
+        <FONT COLOR=black><B>if</B></FONT> self.setting(<FONT COLOR=#FF0000>'ShowDebugInfoOnErrors'</FONT>):
+            html.append(self.htmlDebugInfo())
+
+        html.append(<FONT COLOR=#FF0000>'&lt;/body&gt;&lt;/html&gt;'</FONT>)
+        <FONT COLOR=black><B>return</B></FONT> string.join(html, <FONT COLOR=#FF0000>''</FONT>)
+
+    <FONT COLOR=black><B>def</B></FONT> htmlDebugInfo(self):
+        <FONT COLOR=#FF0000>"""
+        Return HTML-formatted debugging information about the
+        current exception. Used by handleException().
+        """</FONT>
+        html = [<FONT COLOR=#FF0000>'''
+%s
+&lt;p&gt; &lt;i&gt;%s&lt;/i&gt;
+'''</FONT> % (htTitle(<FONT COLOR=#FF0000>'Traceback'</FONT>), self._scriptPathname)]
+
+        html.append(HTMLForException())
+
+        html.extend([
+            htTitle(<FONT COLOR=#FF0000>'Misc Info'</FONT>),
+            htDictionary({
+                <FONT COLOR=#FF0000>'time'</FONT>:          asctime(localtime(self._scriptEndTime)),
+                <FONT COLOR=#FF0000>'filename'</FONT>:      self._scriptPathname,
+                <FONT COLOR=#FF0000>'os.getcwd()'</FONT>:   os.getcwd(),
+                <FONT COLOR=#FF0000>'sys.path'</FONT>:      sys.path
+            }),
+            htTitle(<FONT COLOR=#FF0000>'Fields'</FONT>),        htDictionary(self._fields),
+            htTitle(<FONT COLOR=#FF0000>'Headers'</FONT>),       htDictionary(self._headers),
+            htTitle(<FONT COLOR=#FF0000>'Environment'</FONT>),   htDictionary(self._environ, {<FONT COLOR=#FF0000>'PATH'</FONT>: <FONT COLOR=#FF0000>';'</FONT>}),
+            htTitle(<FONT COLOR=#FF0000>'Ids'</FONT>),           htTable(osIdTable(), [<FONT COLOR=#FF0000>'name'</FONT>, <FONT COLOR=#FF0000>'value'</FONT>])])
+
+        <FONT COLOR=black><B>return</B></FONT> string.join(html, <FONT COLOR=#FF0000>''</FONT>)
+
+    <FONT COLOR=black><B>def</B></FONT> saveHTMLErrorPage(self, html):
+        <FONT COLOR=#FF0000>"""
+        Saves the given HTML error page for later viewing by
+        the developer, and returns the filename used. Invoked
+        by handleException().
+        """</FONT>
+        filename = os.path.join(self.setting(<FONT COLOR=#FF0000>'ErrorMessagesDir'</FONT>), self.htmlErrorPageFilename())
+        f = open(filename, <FONT COLOR=#FF0000>'w'</FONT>)
+        f.write(html)
+        f.close()
+        <FONT COLOR=black><B>return</B></FONT> filename
+
+    <FONT COLOR=black><B>def</B></FONT> htmlErrorPageFilename(self):
+        <FONT COLOR=#FF0000>"""Construct a filename for an HTML error page, not including the 'ErrorMessagesDir' setting."""</FONT>
+        <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=#FF0000>'Error-%s-%s-%d.html'</FONT> % (
+            os.path.split(self._scriptPathname)[1],
+            string.join(map(<FONT COLOR=black><B>lambda</B></FONT> x: <FONT COLOR=#FF0000>'%02d'</FONT> % x, localtime(self._scriptEndTime)[:6]), <FONT COLOR=#FF0000>'-'</FONT>),
+            whrandom.whrandom().randint(10000, 99999))
+            <FONT COLOR=#1111CC># @@ 2000-04-21 ce: Using the timestamp & a random number is a poor technique for filename uniqueness, but this works for now</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> logExceptionToDisk(self, errorMsgFilename=<FONT COLOR=#FF0000>''</FONT>, excInfo=None):
+        <FONT COLOR=#FF0000>"""
+        Writes a tuple containing (date-time, filename,
+        pathname, exception-name, exception-data,error report
+        filename) to the errors file (typically 'Errors.csv')
+        in CSV format. Invoked by handleException().
+        """</FONT>
+        <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> excInfo:
+            excInfo = sys.exc_info()
+        logline = (
+            asctime(localtime(self._scriptEndTime)),
+            os.path.split(self._scriptPathname)[1],
+            self._scriptPathname,
+            str(excInfo[0]),
+            str(excInfo[1]),
+            errorMsgFilename)
+        filename = self.setting(<FONT COLOR=#FF0000>'ErrorLogFilename'</FONT>)
+        <FONT COLOR=black><B>if</B></FONT> os.path.exists(filename):
+            f = open(filename, <FONT COLOR=#FF0000>'a'</FONT>)
+        <FONT COLOR=black><B>else</B></FONT>:
+            f = open(filename, <FONT COLOR=#FF0000>'w'</FONT>)
+            f.write(<FONT COLOR=#FF0000>'time,filename,pathname,exception name,exception data,error report filename\n'</FONT>)
+        f.write(string.join(logline, <FONT COLOR=#FF0000>','</FONT>))
+        f.write(<FONT COLOR=#FF0000>'\n'</FONT>)
+        f.close()
+
+    <FONT COLOR=black><B>def</B></FONT> emailException(self, html, excInfo=None):
+        <FONT COLOR=#1111CC># Construct the message</FONT>
+        <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> excInfo:
+            excInfo = sys.exc_info()
+        headers = self.setting(<FONT COLOR=#FF0000>'ErrorEmailHeaders'</FONT>)
+        msg = []
+        <FONT COLOR=black><B>for</B></FONT> key <FONT COLOR=black><B>in</B></FONT> headers.keys():
+            <FONT COLOR=black><B>if</B></FONT> key!=<FONT COLOR=#FF0000>'From'</FONT> <FONT COLOR=black><B>and</B></FONT> key!=<FONT COLOR=#FF0000>'To'</FONT>:
+                msg.append(<FONT COLOR=#FF0000>'%s: %s\n'</FONT> % (key, headers[key]))
+        msg.append(<FONT COLOR=#FF0000>'\n'</FONT>)
+        msg.append(html)
+        msg = string.join(msg, <FONT COLOR=#FF0000>''</FONT>)
+
+        <FONT COLOR=#1111CC># dbg code, in case you're having problems with your e-mail</FONT>
+        <FONT COLOR=#1111CC># open('error-email-msg.text', 'w').write(msg)</FONT>
+
+        <FONT COLOR=#1111CC># Send the message</FONT>
+        <FONT COLOR=black><B>import</B></FONT> smtplib
+        server = smtplib.SMTP(self.setting(<FONT COLOR=#FF0000>'ErrorEmailServer'</FONT>))
+        server.set_debuglevel(0)
+        server.sendmail(headers[<FONT COLOR=#FF0000>'From'</FONT>], headers[<FONT COLOR=#FF0000>'To'</FONT>], msg)
+        server.quit()
+
+
+
+    <FONT COLOR=#1111CC>## Serve ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> serve(self, environ=os.environ):
+        <FONT COLOR=#1111CC># Record the time</FONT>
+        <FONT COLOR=black><B>if</B></FONT> globals().has_key(<FONT COLOR=#FF0000>'isMain'</FONT>):
+            self._serverStartTime = serverStartTime
+        <FONT COLOR=black><B>else</B></FONT>:
+            self._serverStartTime = time()
+        self._serverStartTimeStamp = asctime(localtime(self._serverStartTime))
+
+        <FONT COLOR=#1111CC># Set up environment</FONT>
+        self._environ = environ
+
+        <FONT COLOR=#1111CC># Ensure that filenames and paths have been provided</FONT>
+        self.requireEnvs([<FONT COLOR=#FF0000>'SCRIPT_FILENAME'</FONT>, <FONT COLOR=#FF0000>'PATH_INFO'</FONT>])
+
+        <FONT COLOR=#1111CC># Set up the namespace</FONT>
+        self._headers = self.makeHeaders()
+        self._fields = self.makeFieldStorage()
+        self._scriptPathname = self.scriptPathname()
+        self._scriptName = os.path.split(self._scriptPathname)[1]
+
+        <FONT COLOR=#1111CC># @@ 2000-04-16 ce: Does _namespace need to be an ivar?</FONT>
+        self._namespace = {
+            <FONT COLOR=#FF0000>'headers'</FONT>:  self._headers,
+            <FONT COLOR=#FF0000>'fields'</FONT>:   self._fields,
+            <FONT COLOR=#FF0000>'environ'</FONT>:  self._environ,
+            <FONT COLOR=#FF0000>'wrapper'</FONT>:  self,
+<FONT COLOR=#1111CC>#           'WebUtils':  WebUtils   # @@ 2000-05-01 ce: Resolve.</FONT>
+        }
+        info = self._namespace.copy()
+
+        <FONT COLOR=#1111CC># Set up sys.stdout to be captured as a string. This allows scripts</FONT>
+        <FONT COLOR=#1111CC># to set CGI headers at any time, which we then print prior to</FONT>
+        <FONT COLOR=#1111CC># printing the main output. This also allows us to skip on writing</FONT>
+        <FONT COLOR=#1111CC># any of the script's output if there was an error.</FONT>
+        <FONT COLOR=#1111CC>#</FONT>
+        <FONT COLOR=#1111CC># This technique was taken from Andrew M. Kuchling's Feb 1998</FONT>
+        <FONT COLOR=#1111CC># WebTechniques article.</FONT>
+        <FONT COLOR=#1111CC>#</FONT>
+        self._realStdout = sys.stdout
+        sys.stdout = StringIO()
+
+        <FONT COLOR=#1111CC># Change directories if needed</FONT>
+        <FONT COLOR=black><B>if</B></FONT> self.setting(<FONT COLOR=#FF0000>'ChangeDir'</FONT>):
+            origDir = os.getcwd()
+            os.chdir(os.path.split(self._scriptPathname)[0])
+        <FONT COLOR=black><B>else</B></FONT>:
+            origDir = None
+
+        <FONT COLOR=#1111CC># A little more setup</FONT>
+        self._errorOccurred = 0
+        self._scriptStartTime = time()
+
+        <FONT COLOR=#1111CC># Run the target script</FONT>
+        <FONT COLOR=black><B>try</B></FONT>:
+            <FONT COLOR=black><B>if</B></FONT> self._servingScript:
+                execfile(self._scriptPathname, self._namespace)
+                <FONT COLOR=black><B>for</B></FONT> name <FONT COLOR=black><B>in</B></FONT> self.setting(<FONT COLOR=#FF0000>'ClassNames'</FONT>):
+                    <FONT COLOR=black><B>if</B></FONT> name==<FONT COLOR=#FF0000>''</FONT>:
+                        name = os.path.splitext(self._scriptName)[0]
+                    <FONT COLOR=black><B>if</B></FONT> self._namespace.has_key(name):         <FONT COLOR=#1111CC># our hook for class-oriented scripts</FONT>
+                        <FONT COLOR=black><B>print</B></FONT> self._namespace[name](info).html()
+                        <FONT COLOR=black><B>break</B></FONT>
+            <FONT COLOR=black><B>else</B></FONT>:
+                self._headers = { <FONT COLOR=#FF0000>'Location'</FONT>: os.path.split(self._environ[<FONT COLOR=#FF0000>'SCRIPT_NAME'</FONT>])[0] + self._environ[<FONT COLOR=#FF0000>'PATH_INFO'</FONT>] }
+
+            <FONT COLOR=#1111CC># Note the end time of the script</FONT>
+            self._scriptEndTime = time()
+            self._scriptDuration = self._scriptEndTime - self._scriptStartTime
+        <FONT COLOR=black><B>except</B></FONT>:
+            <FONT COLOR=#1111CC># Note the end time of the script</FONT>
+            self._scriptEndTime = time()
+            self._scriptDuration = self._scriptEndTime - self._scriptStartTime
+
+            self._errorOccurred = 1
+
+            <FONT COLOR=#1111CC># Not really an error, if it was sys.exit(0)</FONT>
+            excInfo = sys.exc_info()
+            <FONT COLOR=black><B>if</B></FONT> excInfo[0]==SystemExit:
+                code = excInfo[1].code
+                <FONT COLOR=black><B>if</B></FONT> code==0 <FONT COLOR=black><B>or</B></FONT> code==None:
+                    self._errorOccurred = 0
+
+            <FONT COLOR=#1111CC># Clean up</FONT>
+            <FONT COLOR=black><B>if</B></FONT> self._errorOccurred:
+                <FONT COLOR=black><B>if</B></FONT> origDir:
+                    os.chdir(origDir)
+                    origDir = None
+
+                <FONT COLOR=#1111CC># Handle exception</FONT>
+                self.handleException(sys.exc_info())
+
+        self.deliver()
+
+        <FONT COLOR=#1111CC># Restore original directory</FONT>
+        <FONT COLOR=black><B>if</B></FONT> origDir:
+            os.chdir(origDir)
+
+        <FONT COLOR=#1111CC># Note the duration of server processing (as late as we possibly can)</FONT>
+        self._serverDuration = time() - self._serverStartTime
+
+        <FONT COLOR=#1111CC># Log it</FONT>
+        <FONT COLOR=black><B>if</B></FONT> self.setting(<FONT COLOR=#FF0000>'LogScripts'</FONT>):
+            self.writeScriptLog()
+
+
+    <FONT COLOR=black><B>def</B></FONT> deliver(self):
+        <FONT COLOR=#FF0000>"""Deliver the HTML, whether it came from the script being served, or from our own error reporting."""</FONT>
+
+        <FONT COLOR=#1111CC># Compile the headers & cookies</FONT>
+        headers = StringIO()
+        <FONT COLOR=black><B>for</B></FONT> header, value <FONT COLOR=black><B>in</B></FONT> self._headers.items():
+            headers.write(<FONT COLOR=#FF0000>"%s: %s\n"</FONT> % (header, value))
+        <FONT COLOR=black><B>if</B></FONT> self._namespace.has_key(<FONT COLOR=#FF0000>'cookies'</FONT>):
+            headers.write(str(self._namespace[<FONT COLOR=#FF0000>'cookies'</FONT>]))
+        headers.write(<FONT COLOR=#FF0000>'\n'</FONT>)
+
+        <FONT COLOR=#1111CC># Get the string buffer values</FONT>
+        headersOut = headers.getvalue()
+        stdoutOut  = sys.stdout.getvalue()
+
+        <FONT COLOR=#1111CC># Compute size</FONT>
+        self._responseSize = len(headersOut) + len(stdoutOut)
+
+        <FONT COLOR=#1111CC># Send to the real stdout</FONT>
+        self._realStdout.write(headersOut)
+        self._realStdout.write(stdoutOut)
+
+
+<FONT COLOR=#1111CC># Some misc functions</FONT>
+<FONT COLOR=black><B>def</B></FONT> htTitle(name):
+    <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=#FF0000>'''
+&lt;p&gt; &lt;br&gt; &lt;table border=0 cellpadding=4 cellspacing=0 bgcolor=#A00000&gt; &lt;tr&gt; &lt;td&gt;
+    &lt;font face="Tahoma, Arial, Helvetica" color=white&gt; &lt;b&gt; %s &lt;/b&gt; &lt;/font&gt;
+&lt;/td&gt; &lt;/tr&gt; &lt;/table&gt;'''</FONT> % name
+
+<FONT COLOR=black><B>def</B></FONT> htDictionary(dict, addSpace=None):
+    <FONT COLOR=#FF0000>"""Returns an HTML string with a &lt;table&gt; where each row is a key-value pair."""</FONT>
+    keys = dict.keys()
+    keys.sort()
+    html = [<FONT COLOR=#FF0000>'&lt;table width=100% border=0 cellpadding=2 cellspacing=2 bgcolor=#F0F0F0&gt;'</FONT>]
+    <FONT COLOR=black><B>for</B></FONT> key <FONT COLOR=black><B>in</B></FONT> keys:
+        value = dict[key]
+        <FONT COLOR=black><B>if</B></FONT> addSpace!=None  <FONT COLOR=black><B>and</B></FONT>  addSpace.has_key(key):
+            target = addSpace[key]
+            value = string.join(string.split(value, target), <FONT COLOR=#FF0000>'%s '</FONT>%target)
+        html.append(<FONT COLOR=#FF0000>'&lt;tr&gt; &lt;td&gt; %s &lt;/td&gt; &lt;td&gt; %s &nbsp;&lt;/td&gt; &lt;/tr&gt;\n'</FONT> % (key, value))
+    html.append(<FONT COLOR=#FF0000>'&lt;/table&gt;'</FONT>)
+    <FONT COLOR=black><B>return</B></FONT> string.join(html, <FONT COLOR=#FF0000>''</FONT>)
+
+<FONT COLOR=black><B>def</B></FONT> osIdTable():
+    <FONT COLOR=#FF0000>"""
+    Returns a list of dictionaries contained id information such
+    as uid, gid, etc., all obtained from the os module. Dictionary
+    keys are 'name' and 'value'.
+    """</FONT>
+    funcs = [<FONT COLOR=#FF0000>'getegid'</FONT>, <FONT COLOR=#FF0000>'geteuid'</FONT>, <FONT COLOR=#FF0000>'getgid'</FONT>, <FONT COLOR=#FF0000>'getpgrp'</FONT>, <FONT COLOR=#FF0000>'getpid'</FONT>, <FONT COLOR=#FF0000>'getppid'</FONT>, <FONT COLOR=#FF0000>'getuid'</FONT>]
+    table = []
+    <FONT COLOR=black><B>for</B></FONT> funcName <FONT COLOR=black><B>in</B></FONT> funcs:
+        <FONT COLOR=black><B>if</B></FONT> hasattr(os, funcName):
+            value = getattr(os, funcName)()
+            table.append({<FONT COLOR=#FF0000>'name'</FONT>: funcName, <FONT COLOR=#FF0000>'value'</FONT>: value})
+    <FONT COLOR=black><B>return</B></FONT> table
+
+<FONT COLOR=black><B>def</B></FONT> htTable(listOfDicts, keys=None):
+    <FONT COLOR=#FF0000>"""
+    The listOfDicts parameter is expected to be a list of
+    dictionaries whose keys are always the same.  This function
+    returns an HTML string with the contents of the table.  If
+    keys is None, the headings are taken from the first row in
+    alphabetical order.  Returns an empty string if listOfDicts is
+    none or empty.
+
+    Deficiencies: There's no way to influence the formatting or to
+    use column titles that are different than the keys.
+    """</FONT>
+
+    <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> listOfDicts:
+        <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=#FF0000>''</FONT>
+
+    <FONT COLOR=black><B>if</B></FONT> keys <FONT COLOR=black><B>is</B></FONT> None:
+        keys = listOfDicts[0].keys()
+        keys.sort()
+
+    s = <FONT COLOR=#FF0000>'&lt;table border=0 cellpadding=2 cellspacing=2 bgcolor=#F0F0F0&gt;\n&lt;tr&gt;'</FONT>
+    <FONT COLOR=black><B>for</B></FONT> key <FONT COLOR=black><B>in</B></FONT> keys:
+        s = <FONT COLOR=#FF0000>'%s&lt;td&gt;&lt;b&gt;%s&lt;/b&gt;&lt;/td&gt;'</FONT> % (s, key)
+    s = s + <FONT COLOR=#FF0000>'&lt;/tr&gt;\n'</FONT>
+
+    <FONT COLOR=black><B>for</B></FONT> row <FONT COLOR=black><B>in</B></FONT> listOfDicts:
+        s = s + <FONT COLOR=#FF0000>'&lt;tr&gt;'</FONT>
+        <FONT COLOR=black><B>for</B></FONT> key <FONT COLOR=black><B>in</B></FONT> keys:
+            s = <FONT COLOR=#FF0000>'%s&lt;td&gt;%s&lt;/td&gt;'</FONT> % (s, row[key])
+        s = s + <FONT COLOR=#FF0000>'&lt;/tr&gt;\n'</FONT>
+
+    s = s + <FONT COLOR=#FF0000>'&lt;/table&gt;'</FONT>
+    <FONT COLOR=black><B>return</B></FONT> s
+
+
+<FONT COLOR=black><B>def</B></FONT> main():
+    stdout = sys.stdout
+    <FONT COLOR=black><B>try</B></FONT>:
+        wrapper = CGIWrapper()
+        wrapper.serve()
+    <FONT COLOR=black><B>except</B></FONT>:
+        <FONT COLOR=#1111CC># There is already a fancy exception handler in the CGIWrapper for</FONT>
+        <FONT COLOR=#1111CC># uncaught exceptions from target scripts. However, we should also</FONT>
+        <FONT COLOR=#1111CC># catch exceptions here that might come from the wrapper, including</FONT>
+        <FONT COLOR=#1111CC># ones generated while it's handling exceptions.</FONT>
+        <FONT COLOR=black><B>import</B></FONT> traceback
+
+        sys.stderr.write(<FONT COLOR=#FF0000>'[%s] [error] CGI Wrapper: Error while executing script (unknown)\n'</FONT> % (
+            asctime(localtime(time()))))
+        sys.stderr.write(<FONT COLOR=#FF0000>'Error while executing script\n'</FONT>)
+        traceback.print_exc(file=sys.stderr)
+
+        output = apply(traceback.format_exception, sys.exc_info())
+        output = string.join(output, <FONT COLOR=#FF0000>''</FONT>)
+        output = string.replace(output, <FONT COLOR=#FF0000>'&'</FONT>, <FONT COLOR=#FF0000>'&amp;'</FONT>)
+        output = string.replace(output, <FONT COLOR=#FF0000>'&lt;'</FONT>, <FONT COLOR=#FF0000>'&lt;'</FONT>)
+        output = string.replace(output, <FONT COLOR=#FF0000>'&gt;'</FONT>, <FONT COLOR=#FF0000>'&gt;'</FONT>)
+        stdout.write(<FONT COLOR=#FF0000>'''Content-type: text/html
+
+&lt;html&gt;&lt;body&gt;
+&lt;p&gt;ERROR
+&lt;p&gt;&lt;pre&gt;%s&lt;/pre&gt;
+&lt;/body&gt;&lt;/html&gt;\n'''</FONT> % output)
+
+
+<FONT COLOR=black><B>if</B></FONT> __name__==<FONT COLOR=#FF0000>'__main__'</FONT>:
+    isMain = 1
+    main()
+</PRE>
+                  <!--footer-->
+                  </BODY>

@@ -1,0 +1,134 @@
+
+<html>
+    <head>
+        <title>WebUtils/HTMLTag.py</title>
+        <style type="text/css">
+            .Line_class {
+            }
+
+            .Line_category {
+                color: 11B;
+            }
+
+            .Line_def {
+            }
+
+            .Name_class {
+                color: 909;
+                font-weight: bold;
+            }
+
+            .Name_def {
+                color: 909;
+                font-weight: bold;
+            }
+        </style>
+    </head>
+<body>
+<pre>
+
+<span class=Line_class>class <span class=Name_class>docs for more info</span>.</span>
+
+
+<span class=Line_class>class <span class=Name_class>HTMLTagError(Exception)</span>:</span>
+<span class=Line_def>    def <span class=Name_class>__init__</span>(self, msg, **values):</span>
+
+
+<span class=Line_class>class <span class=Name_class>HTMLTagAttrLookupError(HTMLTagError, LookupError)</span>: pass</span>
+
+
+<span class=Line_class>class <span class=Name_class>HTMLTagUnbalancedError(HTMLTagError)</span>: pass</span>
+
+
+<span class=Line_class>class <span class=Name_class>HTMLNotAllowedError(HTMLTagError)</span>: pass</span>
+
+
+<span class=Line_class>class <span class=Name_class>HTMLTagProcessingInstructionError(HTMLTagError)</span>: pass</span>
+
+
+<span class=Line_class>class <span class=Name_class>HTMLTagIncompleteError(HTMLTagError)</span>: pass</span>
+
+
+<span class=Line_class>class <span class=Name_class>HTMLTag</span>:</span>
+
+<span class=Line_category>    ## Init and reading ##</span>
+<span class=Line_def>    def <span class=Name_class>__init__</span>(self, name):</span>
+<span class=Line_def>    def <span class=Name_class>readAttr</span>(self, name, value):</span>
+<span class=Line_def>    def <span class=Name_class>addChild</span>(self, child):</span>
+
+<span class=Line_category>    ## Access ##</span>
+<span class=Line_def>    def <span class=Name_class>name</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>attr</span>(self, name, default=NoDefault):</span>
+<span class=Line_def>    def <span class=Name_class>hasAttr</span>(self, name):</span>
+<span class=Line_def>    def <span class=Name_class>attrs</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>numAttrs</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>childAt</span>(self, index):</span>
+<span class=Line_def>    def <span class=Name_class>numChildren</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>children</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>subtagAt</span>(self, index):</span>
+<span class=Line_def>    def <span class=Name_class>numSubtags</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>subtags</span>(self):</span>
+
+<span class=Line_category>    ## Printing ##</span>
+<span class=Line_def>    def <span class=Name_class>pprint</span>(self, out=None, indent=0):</span>
+<span class=Line_def>    def <span class=Name_class>__repr__</span>(self):</span>
+
+<span class=Line_category>    ## Searching ##</span>
+<span class=Line_def>    def <span class=Name_class>tagWithMatchingAttr</span>(self, name, value, default=NoDefault):</span>
+<span class=Line_def>    def <span class=Name_class>tagWithId</span>(self, id, default=NoDefault):</span>
+
+<span class=Line_category>    ## Self utility ##</span>
+
+
+<span class=Line_class>class <span class=Name_class>HTMLReader(SGMLParser)</span>:</span>
+
+<span class=Line_category>    ## Init ##</span>
+<span class=Line_def>    def <span class=Name_class>__init__</span>(self, emptyTags=None, extraEmptyTags=None, fakeRootTagIfNeeded=1):</span>
+
+<span class=Line_category>    ## Reading ##</span>
+<span class=Line_def>    def <span class=Name_class>readFileNamed</span>(self, filename, retainRootTag=1):</span>
+<span class=Line_def>    def <span class=Name_class>readString</span>(self, string, retainRootTag=1):</span>
+
+<span class=Line_category>    ## Printing ##</span>
+<span class=Line_def>    def <span class=Name_class>pprint</span>(self, out=None):</span>
+
+<span class=Line_category>    ## Access ##</span>
+<span class=Line_def>    def <span class=Name_class>rootTag</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>filename</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>emptyTags</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>setEmptyTags</span>(self, tagList):</span>
+<span class=Line_def>    def <span class=Name_class>extendEmptyTags</span>(self, tagList):</span>
+
+<span class=Line_category>    ## Debugging ##</span>
+<span class=Line_def>    def <span class=Name_class>printsStack</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>setPrintsStack</span>(self, flag):</span>
+
+<span class=Line_category>    ## Command line ##</span>
+<span class=Line_def>    def <span class=Name_class>main</span>(self, args=None):</span>
+<span class=Line_def>    def <span class=Name_class>usage</span>(self):</span>
+
+<span class=Line_category>    ## SGMLParser handlers ##</span>
+<span class=Line_def>    def <span class=Name_class>handle_data</span>(self, data):</span>
+<span class=Line_def>    def <span class=Name_class>handle_pi</span>(self, data):</span>
+<span class=Line_def>    def <span class=Name_class>unknown_starttag</span>(self, name, attrs):</span>
+<span class=Line_def>    def <span class=Name_class>unknown_endtag</span>(self, name):</span>
+<span class=Line_def>    def <span class=Name_class>close</span>(self):</span>
+
+<span class=Line_category>    ## Self utility ##</span>
+<span class=Line_def>    def <span class=Name_class>computeTagContainmentConfig</span>(self):</span>
+
+<span class=Line_category>    ## Optimizations ##</span>
+
+
+<span class=Line_class>class <span class=Name_class>TagConfig</span>:</span>
+<span class=Line_def>    def <span class=Name_class>__init__</span>(self, name, tags):</span>
+<span class=Line_def>    def <span class=Name_class>encounteredTag</span>(self, tag, lineNum):</span>
+
+
+<span class=Line_class>class <span class=Name_class>TagCanOnlyHaveConfig(TagConfig)</span>:</span>
+<span class=Line_def>    def <span class=Name_class>encounteredTag</span>(self, tag, lineNum):</span>
+
+
+<span class=Line_class>class <span class=Name_class>TagCannotHaveConfig(TagConfig)</span>:</span>
+<span class=Line_def>    def <span class=Name_class>encounteredTag</span>(self, tag, lineNum):</span>
+</pre> </body> </html>

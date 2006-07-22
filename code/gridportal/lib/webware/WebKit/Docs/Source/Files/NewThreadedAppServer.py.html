@@ -1,0 +1,625 @@
+<HTML><HEAD><TITLE>WebKit/NewThreadedAppServer.py</TITLE></HEAD>
+                  <BODY BGCOLOR=#EEEEEE>
+                  <!--header-->
+                  <!--script--><PRE><FONT COLOR=#1111CC>#!/usr/bin/env python</FONT>
+<FONT COLOR=#FF0000>"""
+AppServer
+
+The WebKit app server is a TCP/IP server that accepts requests, hands them
+off to the Application and sends the request back over the connection.
+
+The fact that the app server stays resident is what makes it so much quicker
+than traditional CGI programming. Everything gets cached.
+
+
+FUTURE
+
+    * Implement the additional settings that are commented out below.
+"""</FONT>
+
+
+<FONT COLOR=black><B>from</B></FONT> Common <FONT COLOR=black><B>import</B></FONT> *
+<FONT COLOR=black><B>from</B></FONT> AutoReloadingAppServer <FONT COLOR=black><B>import</B></FONT> AutoReloadingAppServer as AppServer
+<FONT COLOR=black><B>from</B></FONT> MiscUtils.Funcs <FONT COLOR=black><B>import</B></FONT> timestamp
+<FONT COLOR=black><B>from</B></FONT> marshal <FONT COLOR=black><B>import</B></FONT> dumps, loads
+<FONT COLOR=black><B>import</B></FONT> os, sys
+<FONT COLOR=black><B>from</B></FONT> threading <FONT COLOR=black><B>import</B></FONT> Lock, Thread, Event
+<FONT COLOR=black><B>import</B></FONT> threading
+<FONT COLOR=black><B>import</B></FONT> Queue
+<FONT COLOR=black><B>import</B></FONT> select
+<FONT COLOR=black><B>import</B></FONT> socket
+<FONT COLOR=black><B>import</B></FONT> threading
+<FONT COLOR=black><B>import</B></FONT> time
+<FONT COLOR=black><B>import</B></FONT> errno
+<FONT COLOR=black><B>import</B></FONT> traceback
+<FONT COLOR=black><B>from</B></FONT> WebUtils <FONT COLOR=black><B>import</B></FONT> Funcs
+
+debug = 0
+
+DefaultConfig = {
+    <FONT COLOR=#FF0000>'Port'</FONT>:                 8086,
+    <FONT COLOR=#FF0000>'MaxServerThreads'</FONT>:        20,
+    <FONT COLOR=#FF0000>'MinServerThreads'</FONT>:        5,
+    <FONT COLOR=#FF0000>'StartServerThreads'</FONT>:      10,
+
+    <FONT COLOR=#1111CC># @@ 2000-04-27 ce: None of the following settings are implemented</FONT>
+<FONT COLOR=#1111CC>#   'RequestQueueSize':     16,#    'RequestBufferSize':    64*1024,</FONT>
+<FONT COLOR=#1111CC>#   'SocketType':           'inet',      # inet, unix</FONT>
+}
+
+
+<FONT COLOR=#1111CC>#Need to know this value for communications</FONT>
+<FONT COLOR=#1111CC>#Note that this limits the size of the dictionary we receive from the AppServer to 2,147,483,647 bytes</FONT>
+intLength = len(dumps(int(1)))
+
+server = None
+
+<FONT COLOR=black><B>class</B></FONT> ThreadedAppServer(AppServer):
+    <FONT COLOR=#FF0000>"""
+    """</FONT>
+
+    <FONT COLOR=#1111CC>## Init ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> __init__(self, path=None):
+        AppServer.__init__(self, path)
+        threadCount = self.setting(<FONT COLOR=#FF0000>'StartServerThreads'</FONT>)
+        self._maxServerThreads = self.setting(<FONT COLOR=#FF0000>'MaxServerThreads'</FONT>)
+        self._minServerThreads = self.setting(<FONT COLOR=#FF0000>'MinServerThreads'</FONT>)
+        self._threadPool = []
+        self._threadCount = 0
+        self._threadUseCounter = []
+        <FONT COLOR=#1111CC># twice the number of threads we have:</FONT>
+        self._requestQueue = Queue.Queue(self._maxServerThreads * 2)
+        self._addr = None
+        self._requestID = 1
+
+        out = sys.stdout
+
+        out.write(<FONT COLOR=#FF0000>'Creating %d threads'</FONT> % threadCount)
+        <FONT COLOR=black><B>for</B></FONT> i <FONT COLOR=black><B>in</B></FONT> range(threadCount):
+            self.spawnThread()
+            out.write(<FONT COLOR=#FF0000>"."</FONT>)
+            out.flush()
+        out.write(<FONT COLOR=#FF0000>"\n"</FONT>)
+
+        self.recordPID()
+
+        self._socketHandlers = {}
+        self._handlerCache = {}
+        self._sockets = {}
+
+        self.addSocketHandler(self.address(), AdapterHandler)
+
+        self.readyForRequests()
+
+    <FONT COLOR=black><B>def</B></FONT> addSocketHandler(self, serverAddress, handlerClass):
+        self._socketHandlers[serverAddress] = handlerClass
+        self._handlerCache[serverAddress] = []
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        <FONT COLOR=black><B>try</B></FONT>:
+            sock.bind(serverAddress)
+            sock.listen(1024)
+        <FONT COLOR=black><B>except</B></FONT>:
+            <FONT COLOR=black><B>if</B></FONT> self.running:
+                self.initiateShutdown()
+            self._closeThread.join()
+            <FONT COLOR=black><B>raise</B></FONT>
+        <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>"Listening on"</FONT>, serverAddress
+        f = open(self.serverSidePath(
+            <FONT COLOR=#FF0000>'%s.text'</FONT> % handlerClass.protocolName), <FONT COLOR=#FF0000>'w'</FONT>)
+        f.write(<FONT COLOR=#FF0000>'%s:%d'</FONT> % (serverAddress[0], serverAddress[1]))
+        f.close()
+        self._sockets[serverAddress] = sock
+
+    <FONT COLOR=black><B>def</B></FONT> isPersistent(self):
+        <FONT COLOR=black><B>return</B></FONT> 1
+
+    <FONT COLOR=black><B>def</B></FONT> mainloop(self, timeout=1):
+        <FONT COLOR=black><B>from</B></FONT> errno <FONT COLOR=black><B>import</B></FONT> EINTR
+
+        threadCheckInterval = self._maxServerThreads*2
+        threadUpdateDivisor = 5 <FONT COLOR=#1111CC>#grabstat interval</FONT>
+        threadCheck=0
+
+        <FONT COLOR=black><B>while</B></FONT> 1:
+            <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> self.running:
+                <FONT COLOR=black><B>return</B></FONT>
+
+            <FONT COLOR=#1111CC>#block for timeout seconds waiting for connections</FONT>
+            <FONT COLOR=black><B>try</B></FONT>:
+                input, output, exc = select.select(
+                    self._sockets.values(), [], [], timeout)
+            <FONT COLOR=black><B>except</B></FONT> select.error, v:
+                <FONT COLOR=black><B>if</B></FONT> v[0] == EINTR <FONT COLOR=black><B>or</B></FONT> v[0]==0: <FONT COLOR=black><B>break</B></FONT>
+                <FONT COLOR=black><B>else</B></FONT>: <FONT COLOR=black><B>raise</B></FONT>
+
+            <FONT COLOR=black><B>for</B></FONT> sock <FONT COLOR=black><B>in</B></FONT> input:
+                <FONT COLOR=black><B>print</B></FONT> sock.getsockname()
+                self._requestID += 1
+                client, addr = sock.accept()
+                serverAddress = sock.getsockname()
+                <FONT COLOR=black><B>try</B></FONT>:
+                    handler = self._handlerCache[serverAddress].pop()
+                <FONT COLOR=black><B>except</B></FONT> IndexError:
+                    handler = self._socketHandlers[serverAddress](self, serverAddress)
+                handler.activate(client, self._requestID)
+                self._requestQueue.put(handler)
+
+            <FONT COLOR=black><B>if</B></FONT> threadCheck % threadUpdateDivisor == 0:
+                self.updateThreadUsage()
+
+            <FONT COLOR=black><B>if</B></FONT> threadCheck &gt; threadCheckInterval:
+                threadCheck=0
+                self.manageThreadCount()
+            <FONT COLOR=black><B>else</B></FONT>:
+                threadCheck = threadCheck + 1
+
+            self.restartIfNecessary()
+
+    <FONT COLOR=black><B>def</B></FONT> activeThreadCount(self):
+        <FONT COLOR=#FF0000>"""
+        Get a snapshot of the number of threads currently in use.
+        """</FONT>
+        count = 0
+        <FONT COLOR=black><B>for</B></FONT> i <FONT COLOR=black><B>in</B></FONT> self._threadPool:
+            <FONT COLOR=black><B>if</B></FONT> i._processing:
+                count = count + 1
+        <FONT COLOR=black><B>return</B></FONT> count
+
+    <FONT COLOR=black><B>def</B></FONT> updateThreadUsage(self):
+        <FONT COLOR=#FF0000>"""
+        Update the threadUseCounter list.
+        """</FONT>
+        count = self.activeThreadCount()
+        <FONT COLOR=black><B>if</B></FONT> len(self._threadUseCounter) &gt; self._maxServerThreads:
+            self._threadUseCounter.pop(0)
+        self._threadUseCounter.append(count)
+
+
+    <FONT COLOR=black><B>def</B></FONT> manageThreadCount(self):
+        <FONT COLOR=#FF0000>"""
+        Adjust the number of threads in use.  This algorithm
+        needs work.  The edges (ie at the minserverthreads)
+        are tricky.  When working with this, remember thread
+        creation is CHEAP
+        """</FONT>
+
+        average = 0
+        max = 0
+        debug = 0
+
+        <FONT COLOR=black><B>if</B></FONT> debug: <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>"ThreadUse Samples=%s"</FONT> % str(self._threadUseCounter)
+        <FONT COLOR=black><B>for</B></FONT> i <FONT COLOR=black><B>in</B></FONT> self._threadUseCounter:
+            average += i
+            <FONT COLOR=black><B>if</B></FONT> i &gt; max:
+                max = i
+        average = average / len(self._threadUseCounter)
+        <FONT COLOR=black><B>if</B></FONT> debug: <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>"Average Thread Use: "</FONT>, avg
+        <FONT COLOR=black><B>if</B></FONT> debug: <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>"Max Thread Use: "</FONT>, max
+        <FONT COLOR=black><B>if</B></FONT> debug: <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>"ThreadCount: "</FONT>, self.threadCount
+
+        <FONT COLOR=black><B>if</B></FONT> len(self._threadUseCounter) &lt; self._maxServerThreads:
+            <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=#1111CC>#not </FONT>enough samples
+
+        margin = self._threadCount / 2 <FONT COLOR=#1111CC>#smoothing factor</FONT>
+        <FONT COLOR=black><B>if</B></FONT> debug: <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>"margin="</FONT>, margin
+
+        <FONT COLOR=black><B>if</B></FONT> average &gt; self._threadCount - margin <FONT COLOR=black><B>and</B></FONT> \
+           self._threadCount &lt; self._maxServerThreads:
+            <FONT COLOR=#1111CC># Running low: double thread count</FONT>
+            n = min(self._threadCount,
+                self._maxServerThreads - self._threadCount)
+            <FONT COLOR=black><B>if</B></FONT> debug: <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>"Adding %s threads"</FONT> % n
+            <FONT COLOR=black><B>for</B></FONT> i <FONT COLOR=black><B>in</B></FONT> range(n):
+                self.spawnThread()
+        <FONT COLOR=black><B>elif</B></FONT> average &lt; self._threadCount - margin <FONT COLOR=black><B>and</B></FONT> \
+             self._threadCount &gt; self._minServerThreads:
+            n=min(self._threadCount - self._minServerThreads,
+                  self._threadCount - max) 
+            self.absorbThread(n)
+        <FONT COLOR=black><B>else</B></FONT>:
+            <FONT COLOR=#1111CC>#cleanup any stale threads that we killed but haven't joined</FONT>
+            self.absorbThread(0)
+
+    <FONT COLOR=black><B>def</B></FONT> spawnThread(self):
+        debug=0
+        <FONT COLOR=black><B>if</B></FONT> debug: <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>"Spawning new thread"</FONT>
+        t = Thread(target=self.threadloop)
+        t._processing = 0
+        t.start()
+        self._threadPool.append(t)
+        self._threadCount += 1
+        <FONT COLOR=black><B>if</B></FONT> debug: <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>"New Thread Spawned, threadCount="</FONT>, self._threadCount
+        <FONT COLOR=#1111CC>#self.threadUseCounter=[] #reset</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> absorbThread(self, count=1):
+        <FONT COLOR=#FF0000>"""
+        Absorb a thread.  We do this by putting a None on the
+        Queue.  When a thread gets it, that tells it to exit.
+        BUT, even though we put it on, the thread may not have
+        retrieved it before we exit this function.  So we need
+        to decrement the thread count even if we didn't find a
+        thread that isn't alive. We'll get it the next time
+        through.
+        """</FONT>
+        debug = 0
+        <FONT COLOR=black><B>if</B></FONT> debug: <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>"Absorbing %s Threads"</FONT> % count
+        <FONT COLOR=black><B>for</B></FONT> i <FONT COLOR=black><B>in</B></FONT> range(count):
+            self._requestQueue.put(None)
+            self._threadCount -= 1
+        <FONT COLOR=black><B>for</B></FONT> i <FONT COLOR=black><B>in</B></FONT> self._threadPool:
+            <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> i.isAlive():
+                rv = i.join() <FONT COLOR=#1111CC>#Don't need a timeout, it isn't alive</FONT>
+                self._threadPool.remove(i)
+                <FONT COLOR=black><B>if</B></FONT> debug: <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>"Thread Absorbed, Real Thread Count="</FONT>, len(self.threadPool)
+        <FONT COLOR=#1111CC>#self.threadUseCounter=[] #reset</FONT>
+
+
+    <FONT COLOR=black><B>def</B></FONT> threadloop(self):
+        self.initThread()
+
+        t=threading.currentThread()
+        t.processing=0
+
+        <FONT COLOR=black><B>try</B></FONT>:
+            <FONT COLOR=black><B>while</B></FONT> 1:
+                <FONT COLOR=black><B>try</B></FONT>:
+                    handler = self._requestQueue.get()
+                    <FONT COLOR=black><B>if</B></FONT> handler <FONT COLOR=black><B>is</B></FONT> None: <FONT COLOR=#1111CC>#None means time to quit</FONT>
+                        <FONT COLOR=black><B>if</B></FONT> debug: <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>"Thread retrieved None, quitting"</FONT>
+                        <FONT COLOR=black><B>break</B></FONT>
+                    t.processing=1
+                    <FONT COLOR=black><B>try</B></FONT>:
+                        handler.handleRequest()
+                    <FONT COLOR=black><B>except</B></FONT>:
+                        traceback.print_exc(file=sys.stderr)
+                    t.processing=0
+                    handler.close()
+                <FONT COLOR=black><B>except</B></FONT> Queue.Empty:
+                    <FONT COLOR=black><B>pass</B></FONT>
+        <FONT COLOR=black><B>finally</B></FONT>:
+            self.delThread()
+        <FONT COLOR=black><B>if</B></FONT> debug: <FONT COLOR=black><B>print</B></FONT> threading.currentThread(), <FONT COLOR=#FF0000>"Quitting"</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> initThread(self):
+        <FONT COLOR=#FF0000>"""
+        Invoked immediately by threadloop() as a hook for
+        subclasses. This implementation does nothing and
+        subclasses need not invoke super.
+        """</FONT>
+        <FONT COLOR=black><B>pass</B></FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> delThread(self):
+        <FONT COLOR=#FF0000>"""
+        Invoked immediately by threadloop() as a hook for
+        subclasses. This implementation does nothing and
+        subclasses need not invoke super.
+        """</FONT>
+        <FONT COLOR=black><B>pass</B></FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> awakeSelect(self):
+        <FONT COLOR=#FF0000>""" Send a connect to ourself to pop the select() call
+        out of it's loop safely """</FONT>
+        <FONT COLOR=black><B>for</B></FONT> addr <FONT COLOR=black><B>in</B></FONT> self._sockets.keys():
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            <FONT COLOR=black><B>try</B></FONT>:
+                sock.connect(addr)
+                sock.close()
+            <FONT COLOR=black><B>except</B></FONT>:
+                <FONT COLOR=black><B>pass</B></FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> shutDown(self):
+        self.running=0
+        self.awakeSelect()
+        self._shuttingdown=1  <FONT COLOR=#1111CC>#jsl-is this used anywhere?</FONT>
+        <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>"ThreadedAppServer: Shutting Down"</FONT>
+        <FONT COLOR=black><B>for</B></FONT> sock <FONT COLOR=black><B>in</B></FONT> self._sockets.values():
+            sock.close()
+        <FONT COLOR=black><B>for</B></FONT> i <FONT COLOR=black><B>in</B></FONT> range(self._threadCount):
+            self._requestQueue.put(None)<FONT COLOR=#1111CC>#kill all threads</FONT>
+        <FONT COLOR=black><B>for</B></FONT> i <FONT COLOR=black><B>in</B></FONT> self._threadPool:
+            <FONT COLOR=black><B>try</B></FONT>:
+                i.join()
+            <FONT COLOR=black><B>except</B></FONT>:
+                <FONT COLOR=black><B>pass</B></FONT>
+        AppServer.shutDown(self)
+
+    <FONT COLOR=#1111CC>## Network Server ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> address(self):
+        <FONT COLOR=black><B>if</B></FONT> self._addr <FONT COLOR=black><B>is</B></FONT> None:
+            self._addr = (self.setting(<FONT COLOR=#FF0000>'Host'</FONT>), self.setting(<FONT COLOR=#FF0000>'Port'</FONT>))
+        <FONT COLOR=black><B>return</B></FONT> self._addr
+
+<FONT COLOR=black><B>class</B></FONT> Handler:
+
+    <FONT COLOR=black><B>def</B></FONT> __init__(self, server, serverAddress):
+        self._server = server
+        self._serverAddress = serverAddress
+
+    <FONT COLOR=black><B>def</B></FONT> activate(self, sock, requestID):
+        <FONT COLOR=#FF0000>"""
+        Activates the handler for processing the request.
+        Number is the number of the request, mostly used to identify
+        verbose output. Each request should be given a unique,
+        incremental number.
+        """</FONT>
+        self._requestID = requestID
+        self._sock = sock
+
+    <FONT COLOR=black><B>def</B></FONT> close(self):
+        self._sock = None
+        self._server._handlerCache[self._serverAddress].append(self)
+
+    <FONT COLOR=black><B>def</B></FONT> handleRequest(self):
+        <FONT COLOR=black><B>pass</B></FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> receiveDict(self):
+        <FONT COLOR=#FF0000>"""
+        Utility function to receive a marshalled dictionary.
+        """</FONT>
+        chunk = <FONT COLOR=#FF0000>''</FONT>
+        missing = intLength
+        <FONT COLOR=black><B>while</B></FONT> missing &gt; 0:
+            block = self._sock.recv(missing)
+            <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> block:
+                self._sock.close()
+                <FONT COLOR=black><B>raise</B></FONT> NotEnoughDataError, <FONT COLOR=#FF0000>'received only %d of %d bytes when receiving dictLength'</FONT> % (len(chunk), intLength)
+            chunk += block
+            missing = intLength - len(chunk)
+        dictLength = loads(chunk)
+        <FONT COLOR=black><B>if</B></FONT> type(dictLength) != type(1):
+            self._sock.close()
+            <FONT COLOR=black><B>raise</B></FONT> ProtocolError, <FONT COLOR=#FF0000>"Invalid AppServer protocol"</FONT>
+        chunk = <FONT COLOR=#FF0000>''</FONT>
+        missing = dictLength
+        <FONT COLOR=black><B>while</B></FONT> missing &gt; 0:
+            block = self._sock.recv(missing)
+            <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> block:
+                self._sock.close()
+                <FONT COLOR=black><B>raise</B></FONT> NotEnoughDataError, <FONT COLOR=#FF0000>'received only %d of %d bytes when receiving dict'</FONT> % (len(chunk), dictLength)
+            chunk += block
+            missing = dictLength - len(chunk)
+        <FONT COLOR=black><B>return</B></FONT> loads(chunk)
+    
+
+<FONT COLOR=black><B>class</B></FONT> MonitorHandler(Handler):
+
+    protcolName = <FONT COLOR=#FF0000>'monitor'</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> handleRequest(self):
+
+        verbose = self.server._verbose
+        startTime = time.time()
+        <FONT COLOR=black><B>if</B></FONT> verbose:
+            <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>'BEGIN REQUEST'</FONT>
+            <FONT COLOR=black><B>print</B></FONT> time.asctime(time.localtime(startTime))
+        conn = self._sock
+        <FONT COLOR=black><B>if</B></FONT> verbose:
+            <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>'receiving request from'</FONT>, conn
+
+        BUFSIZE = 8*1024
+
+        dict = self.receiveDict()
+
+        <FONT COLOR=black><B>if</B></FONT> dict[<FONT COLOR=#FF0000>'format'</FONT>] == <FONT COLOR=#FF0000>"STATUS"</FONT>:
+            conn.send(str(self.server._reqCount))
+
+        <FONT COLOR=black><B>if</B></FONT> dict[<FONT COLOR=#FF0000>'format'</FONT>] == <FONT COLOR=#FF0000>'QUIT'</FONT>:
+            conn.send(<FONT COLOR=#FF0000>"OK"</FONT>)
+            conn.close()
+            self.server.shutDown()
+
+
+<FONT COLOR=black><B>from</B></FONT> WebKit.ASStreamOut <FONT COLOR=black><B>import</B></FONT> ASStreamOut
+<FONT COLOR=black><B>class</B></FONT> TASASStreamOut(ASStreamOut):
+
+    <FONT COLOR=black><B>def</B></FONT> __init__(self, sock):
+        ASStreamOut.__init__(self)
+        self._socket = sock
+
+    <FONT COLOR=black><B>def</B></FONT> flush(self):
+        debug=0
+        result = ASStreamOut.flush(self)
+        <FONT COLOR=black><B>if</B></FONT> result: <FONT COLOR=#1111CC>##a true return value means we can send</FONT>
+            reslen = len(self._buffer)
+            sent = 0
+            <FONT COLOR=black><B>while</B></FONT> sent &lt; reslen:
+                <FONT COLOR=black><B>try</B></FONT>:
+                    sent = sent + self._socket.send(self._buffer[sent:sent+8192])
+                <FONT COLOR=black><B>except</B></FONT> socket.error, e:
+                    <FONT COLOR=black><B>if</B></FONT> e[0]==errno.EPIPE: <FONT COLOR=#1111CC>#broken pipe</FONT>
+                        <FONT COLOR=black><B>pass</B></FONT>
+                    <FONT COLOR=black><B>else</B></FONT>:
+                        <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>"StreamOut Error: "</FONT>, e
+                    <FONT COLOR=black><B>break</B></FONT>
+            self.pop(sent)
+
+
+<FONT COLOR=black><B>class</B></FONT> AdapterHandler(Handler):
+
+    protocolName = <FONT COLOR=#FF0000>'address'</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> handleRequest(self):
+        verbose = self._server._verbose
+        self._startTime = time.time()
+        <FONT COLOR=black><B>if</B></FONT> verbose:
+            <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>'%5i  %s '</FONT> % (self._requestID, timestamp()[<FONT COLOR=#FF0000>'pretty'</FONT>]),
+
+        data = []
+        dict = self.receiveDict()
+        <FONT COLOR=black><B>if</B></FONT> dict <FONT COLOR=black><B>and</B></FONT> verbose <FONT COLOR=black><B>and</B></FONT> dict.has_key(<FONT COLOR=#FF0000>'environ'</FONT>):
+            requestURI = Funcs.requestURI(dict[<FONT COLOR=#FF0000>'environ'</FONT>])
+            <FONT COLOR=black><B>print</B></FONT> requestURI
+        <FONT COLOR=black><B>else</B></FONT>:
+            requestURI = None
+
+        dict[<FONT COLOR=#FF0000>'input'</FONT>] = self.makeInput()
+        streamOut = TASASStreamOut(self._sock)
+        transaction = self._server._app.dispatchRawRequest(dict, streamOut)
+        streamOut.close()
+
+        <FONT COLOR=black><B>try</B></FONT>:
+            self._sock.shutdown(1)
+            self._sock.close()
+        <FONT COLOR=black><B>except</B></FONT>:
+            <FONT COLOR=black><B>pass</B></FONT>
+
+        <FONT COLOR=black><B>if</B></FONT> self._server._verbose:
+            duration = <FONT COLOR=#FF0000>'%0.2f secs'</FONT> % (time.time() - self._startTime)
+            duration = string.ljust(duration, 19)
+            <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>'%5i  %s  %s'</FONT> % (self._requestID, duration, requestURI)
+            <FONT COLOR=black><B>print</B></FONT>
+
+        transaction._application=None
+        transaction.die()
+        <FONT COLOR=black><B>del</B></FONT> transaction
+
+    <FONT COLOR=black><B>def</B></FONT> makeInput(self):
+        <FONT COLOR=black><B>return</B></FONT> self._sock.makefile(<FONT COLOR=#FF0000>"rb"</FONT>,8012)
+
+<FONT COLOR=black><B>def</B></FONT> run(useMonitor = 0, http=0, workDir=None):
+    <FONT COLOR=black><B>global</B></FONT> server
+    <FONT COLOR=black><B>global</B></FONT> monitor
+    monitor = useMonitor
+    <FONT COLOR=black><B>try</B></FONT>:
+        server = None
+        server = ThreadedAppServer(workDir)
+        <FONT COLOR=black><B>if</B></FONT> useMonitor:
+            addr = server.address()
+            server.addSocketHandler((addr[0], addr[1]-1),
+                        MonitorHandler)
+        <FONT COLOR=black><B>if</B></FONT> http:
+            <FONT COLOR=black><B>from</B></FONT> WebKit.HTTPServer <FONT COLOR=black><B>import</B></FONT> HTTPAppServerHandler
+            addr = (<FONT COLOR=#FF0000>'127.0.0.1'</FONT>, 8080)
+            server.addSocketHandler(addr, HTTPAppServerHandler)
+
+        <FONT COLOR=#1111CC># On NT, run mainloop in a different thread because</FONT>
+        <FONT COLOR=#1111CC># it's not safe for Ctrl-C to be caught while</FONT>
+        <FONT COLOR=#1111CC># manipulating the queues.  It's not safe on Linux</FONT>
+        <FONT COLOR=#1111CC># either, but there, it appears that Ctrl-C will</FONT>
+        <FONT COLOR=#1111CC># trigger an exception in ANY thread, so this fix</FONT>
+        <FONT COLOR=#1111CC># doesn't help.</FONT>
+
+        <FONT COLOR=black><B>if</B></FONT> os.name == <FONT COLOR=#FF0000>'nt'</FONT>:
+            <FONT COLOR=#1111CC># catch the exception raised by sys.exit so</FONT>
+            <FONT COLOR=#1111CC># that we can re-call it in the main thread.</FONT>
+            <FONT COLOR=black><B>global</B></FONT> exitStatus
+            exitStatus = None
+            <FONT COLOR=black><B>def</B></FONT> windowsmainloop(server):
+                <FONT COLOR=black><B>global</B></FONT> exitStatus
+                <FONT COLOR=black><B>try</B></FONT>:
+                    server.mainloop()
+                <FONT COLOR=black><B>except</B></FONT> SystemExit, e:
+                    exitStatus = e.code
+
+            <FONT COLOR=#1111CC># Run the server thread</FONT>
+            t = threading.Thread(target=windowsmainloop, args=(server,))
+            t.start()
+            <FONT COLOR=black><B>try</B></FONT>:
+                <FONT COLOR=black><B>while</B></FONT> server.running:
+                    time.sleep(1.0)
+            <FONT COLOR=black><B>except</B></FONT> KeyboardInterrupt:
+                <FONT COLOR=black><B>pass</B></FONT>
+            server.running = 0
+            t.join()
+
+            <FONT COLOR=#1111CC># re-call sys.exit if necessary</FONT>
+            <FONT COLOR=black><B>if</B></FONT> exitStatus:
+                sys.exit(exitStatus)
+        <FONT COLOR=black><B>else</B></FONT>:
+            <FONT COLOR=black><B>try</B></FONT>:
+                server.mainloop()
+            <FONT COLOR=black><B>except</B></FONT> KeyboardInterrupt, e:
+                server.shutDown()
+    <FONT COLOR=black><B>except</B></FONT> Exception, e:
+        <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> isinstance(e, SystemExit):
+            <FONT COLOR=black><B>import</B></FONT> traceback
+            traceback.print_exc(file=sys.stderr)
+        <FONT COLOR=black><B>print</B></FONT>
+        <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>"Exiting AppServer"</FONT>
+        <FONT COLOR=black><B>if</B></FONT> server:
+            <FONT COLOR=black><B>if</B></FONT> server.running:
+                server.initiateShutdown()
+            server._closeThread.join()
+        <FONT COLOR=#1111CC># if we're here as a result of exit() being called,</FONT>
+        <FONT COLOR=#1111CC># exit with that return code.</FONT>
+        <FONT COLOR=black><B>if</B></FONT> isinstance(e,SystemExit):
+            sys.exit(e)
+
+    sys.exit()
+
+
+<FONT COLOR=black><B>def</B></FONT> shutDown(arg1,arg2):
+    <FONT COLOR=black><B>global</B></FONT> server
+    <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>"Shutdown Called"</FONT>, time.asctime(time.localtime(time.time()))
+    <FONT COLOR=black><B>if</B></FONT> server:
+        server.initiateShutdown()
+    <FONT COLOR=black><B>else</B></FONT>:
+        <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>'WARNING: No server reference to shutdown.'</FONT>
+
+<FONT COLOR=black><B>import</B></FONT> signal
+signal.signal(signal.SIGINT, shutDown)
+signal.signal(signal.SIGTERM, shutDown)
+
+
+
+
+usage = <FONT COLOR=#FF0000>"""
+The AppServer is the main process of WebKit.  It handles requests for
+servlets from webservers.  ThreadedAppServer takes the following
+command line arguments: stop: Stop the currently running Apperver.
+daemon: run as a daemon If AppServer is called with no arguments, it
+will start the AppServer and record the pid of the process in
+appserverpid.txt
+"""</FONT>
+
+
+<FONT COLOR=black><B>import</B></FONT> re
+settingRE = re.compile(r<FONT COLOR=#FF0000>'^--([a-zA-Z][a-zA-Z0-9]*\.[a-zA-Z][a-zA-Z0-9]*)='</FONT>)
+<FONT COLOR=black><B>from</B></FONT> MiscUtils <FONT COLOR=black><B>import</B></FONT> Configurable
+
+<FONT COLOR=black><B>def</B></FONT> main(args):
+    monitor = 0
+    http = 0
+    function = run
+    daemon = 0
+    workDir = None
+
+    <FONT COLOR=black><B>for</B></FONT> i <FONT COLOR=black><B>in</B></FONT> args[:]:
+        <FONT COLOR=black><B>if</B></FONT> settingRE.match(i):
+            match = settingRE.match(i)
+            name = match.group(1)
+            value = i[match.end():]
+            Configurable.addCommandLineSetting(name, value)
+        <FONT COLOR=black><B>elif</B></FONT> i == <FONT COLOR=#FF0000>"monitor"</FONT>:
+            <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>"Enabling Monitoring"</FONT>
+            monitor=1
+        <FONT COLOR=black><B>elif</B></FONT> i == <FONT COLOR=#FF0000>"stop"</FONT>:
+            <FONT COLOR=black><B>import</B></FONT> AppServer
+            function=AppServer.stop
+        <FONT COLOR=black><B>elif</B></FONT> i == <FONT COLOR=#FF0000>"daemon"</FONT>:
+            daemon=1
+        <FONT COLOR=black><B>elif</B></FONT> i == <FONT COLOR=#FF0000>"start"</FONT>:
+            <FONT COLOR=black><B>pass</B></FONT>
+        <FONT COLOR=black><B>elif</B></FONT> i[:8] == <FONT COLOR=#FF0000>"workdir="</FONT>:
+            workDir = i[8:]
+        <FONT COLOR=black><B>elif</B></FONT> i == <FONT COLOR=#FF0000>"http"</FONT>:
+            http = 1
+        <FONT COLOR=black><B>else</B></FONT>:
+            <FONT COLOR=black><B>print</B></FONT> usage
+
+    <FONT COLOR=black><B>if</B></FONT> daemon:
+        <FONT COLOR=black><B>if</B></FONT> os.name == <FONT COLOR=#FF0000>"posix"</FONT>:
+            pid=os.fork()
+            <FONT COLOR=black><B>if</B></FONT> pid:
+                sys.exit()
+        <FONT COLOR=black><B>else</B></FONT>:
+            <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>"daemon mode not available on your OS"</FONT>
+    function(useMonitor=monitor, http=http, workDir=workDir)
+
+
+</PRE>
+                  <!--footer-->
+                  </BODY>

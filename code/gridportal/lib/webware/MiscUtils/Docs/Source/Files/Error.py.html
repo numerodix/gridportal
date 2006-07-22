@@ -1,0 +1,56 @@
+<HTML><HEAD><TITLE>MiscUtils/Error.py</TITLE></HEAD>
+                  <BODY BGCOLOR=#EEEEEE>
+                  <!--header-->
+                  <!--script--><PRE><FONT COLOR=black><B>from</B></FONT> UserDict <FONT COLOR=black><B>import</B></FONT> UserDict
+
+
+<FONT COLOR=black><B>class</B></FONT> Error(UserDict):
+    <FONT COLOR=#FF0000>"""
+    An error is a dictionary-like object, containing a specific user-readable error message and an object associated with it. Since Error inherits UserDict, other informative values can be arbitrarily attached to errors. For this reason, subclassing Error is rare.
+
+    Example:
+        err = Error(user, 'Invalid password.')
+        err['time'] = time.time()
+        err['attempts'] = attempts
+
+    The object and message can be accessed via methods:
+        print err.object()
+        print err.message()
+
+    When creating errors, you can pass None for both the object and the message. You can also pass additional values, which are then included in the error:
+        &gt;&gt;&gt; err = Error(None, 'Too bad.', timestamp=time.time())
+        &gt;&gt;&gt; err.keys()
+        ['timestamp']
+
+    Or include the values as a dictionary, instead of keyword arguments:
+        &gt;&gt;&gt; info = {'timestamp': time.time()}
+        &gt;&gt;&gt; err = Error(None, 'Too bad.', info)
+
+    Or you could even do both if you needed to.
+    """</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> __init__(self, object, message, valueDict={}, **valueArgs):
+        <FONT COLOR=#FF0000>""" Initializes an error with the object the error occurred for, and the user-readable error message. The message should be self sufficient such that if printed by itself, the user would understand it. """</FONT>
+        UserDict.__init__(self)
+        self._object    = object
+        self._message   = message
+        self.update(valueDict)
+        self.update(valueArgs)
+
+    <FONT COLOR=black><B>def</B></FONT> object(self):
+        <FONT COLOR=black><B>return</B></FONT> self._object
+
+    <FONT COLOR=black><B>def</B></FONT> message(self):
+        <FONT COLOR=black><B>return</B></FONT> self._message
+
+    <FONT COLOR=black><B>def</B></FONT> __repr__(self):
+        <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=#FF0000>'ERROR(object=%s; message=%s; data=%s)'</FONT> % (repr(self._object), repr(self._message), repr(self.data))
+
+    <FONT COLOR=black><B>def</B></FONT> __str__(self):
+        <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=#FF0000>'ERROR: %s'</FONT> % self._message
+
+    <FONT COLOR=black><B>def</B></FONT> __nonzero__(self):
+        <FONT COLOR=black><B>return</B></FONT> 1
+</PRE>
+                  <!--footer-->
+                  </BODY>

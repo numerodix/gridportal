@@ -1,0 +1,258 @@
+<HTML><HEAD><TITLE>WebKit/SessionDynamicStore.py</TITLE></HEAD>
+                  <BODY BGCOLOR=#EEEEEE>
+                  <!--header-->
+                  <!--script--><PRE><FONT COLOR=black><B>from</B></FONT> SessionStore <FONT COLOR=black><B>import</B></FONT> SessionStore
+<FONT COLOR=black><B>import</B></FONT> SessionMemoryStore, SessionFileStore
+<FONT COLOR=black><B>import</B></FONT> os, time, threading
+
+debug = 0
+
+<FONT COLOR=black><B>class</B></FONT> SessionDynamicStore(SessionStore):
+    <FONT COLOR=#FF0000>"""
+    Stores the session in Memory and Files.
+
+    This can be used either in a persistent app server or a cgi framework.
+
+    To use this Session Store, set SessionStore in Application.config to 'Dynamic'.
+    Other variables which can be set in Application.config are:
+
+    'MaxDynamicMemorySessions', which sets the maximum number of sessions that can be
+    in the Memory SessionStore at one time. Default is 10,000.
+
+    'DynamicSessionTimeout', which sets the default time for a session to stay in memory
+    with no activity.  Default is 15 minutes. When specifying this in Application.config, use minutes.
+    """</FONT>
+
+
+    <FONT COLOR=#1111CC>## Init ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> __init__(self, app):
+        <FONT COLOR=#1111CC># Create both a file store and a memory store</FONT>
+        SessionStore.__init__(self, app)
+        self._fileStore = SessionFileStore.SessionFileStore(app)
+        self._memoryStore = SessionMemoryStore.SessionMemoryStore(app, restoreFiles=0)
+        self._memoryStore.clear()  <FONT COLOR=#1111CC>#fileStore will have the files on disk</FONT>
+
+        <FONT COLOR=#1111CC># moveToFileInterval specifies after what period of time a session is automatically moved to file</FONT>
+        self._moveToFileInterval = self.application().setting(<FONT COLOR=#FF0000>'DynamicSessionTimeout'</FONT>, 15) * 60
+
+        <FONT COLOR=#1111CC># maxDynamicMemorySessions is what the user actually sets in Application.config</FONT>
+        self._maxDynamicMemorySessions = self.application().setting(<FONT COLOR=#FF0000>'MaxDynamicMemorySessions'</FONT>, 10000)
+
+        <FONT COLOR=#1111CC># Used to keep track of sweeping the file store</FONT>
+        self._fileSweepCount = 0
+
+        <FONT COLOR=#1111CC># Create a re-entrant lock for thread synchronization.  The lock is used to protect</FONT>
+        <FONT COLOR=#1111CC># all code that modifies the contents of the file store and all code that moves sessions</FONT>
+        <FONT COLOR=#1111CC># between the file and memory stores, and is also used to protect code that searches in</FONT>
+        <FONT COLOR=#1111CC># the file store for a session.  Using the lock in this way avoids a bug that used to</FONT>
+        <FONT COLOR=#1111CC># be in this code, where a session was temporarily neither in the file store nor in</FONT>
+        <FONT COLOR=#1111CC># the memory store while it was being moved from file to memory.</FONT>
+        self._lock = threading.RLock()
+
+        <FONT COLOR=black><B>if</B></FONT> debug:
+            <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>"SessionDynamicStore Initialized"</FONT>
+
+    <FONT COLOR=#1111CC>## Access ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> __len__(self):
+        self._lock.acquire()
+        <FONT COLOR=black><B>try</B></FONT>:
+            <FONT COLOR=black><B>return</B></FONT> len(self._memoryStore) + len(self._fileStore)
+        <FONT COLOR=black><B>finally</B></FONT>:
+            self._lock.release()
+
+    <FONT COLOR=black><B>def</B></FONT> __getitem__(self, key):
+        <FONT COLOR=#1111CC># First try to grab the session from the memory store without locking,</FONT>
+        <FONT COLOR=#1111CC># for efficiency.  Only if that fails do we acquire the lock and</FONT>
+        <FONT COLOR=#1111CC># look in the file store.</FONT>
+        <FONT COLOR=black><B>try</B></FONT>:
+            <FONT COLOR=black><B>return</B></FONT> self._memoryStore[key]
+        <FONT COLOR=black><B>except</B></FONT> KeyError:
+            self._lock.acquire()
+            <FONT COLOR=black><B>try</B></FONT>:
+                <FONT COLOR=black><B>if</B></FONT> self._fileStore.has_key(key):
+                    self.MovetoMemory(key)
+                <FONT COLOR=#1111CC>#let it raise a KeyError otherwise</FONT>
+                <FONT COLOR=black><B>return</B></FONT> self._memoryStore[key]
+            <FONT COLOR=black><B>finally</B></FONT>:
+                self._lock.release()
+
+
+    <FONT COLOR=black><B>def</B></FONT> __setitem__(self, key, item):
+        self._memoryStore[key] = item
+        <FONT COLOR=#1111CC># @@ 2001-12-11 gat: Seems like a waste of time to attempt to delete the</FONT>
+        <FONT COLOR=#1111CC># session from the file store on every single write operation.  I see no</FONT>
+        <FONT COLOR=#1111CC># harm in commenting out the rest of this method.</FONT>
+<FONT COLOR=#1111CC>##      try:</FONT>
+<FONT COLOR=#1111CC>##          del self._fileStore[key]</FONT>
+<FONT COLOR=#1111CC>##      except KeyError:</FONT>
+<FONT COLOR=#1111CC>##          pass</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> __delitem__(self, key):
+        self._lock.acquire()
+        <FONT COLOR=black><B>try</B></FONT>:
+            <FONT COLOR=black><B>try</B></FONT>:
+                <FONT COLOR=black><B>del</B></FONT> self._memoryStore[key]
+            <FONT COLOR=black><B>except</B></FONT> KeyError:
+                <FONT COLOR=black><B>pass</B></FONT>
+            <FONT COLOR=black><B>try</B></FONT>:
+                <FONT COLOR=black><B>del</B></FONT> self._fileStore[key]
+            <FONT COLOR=black><B>except</B></FONT> KeyError:
+                <FONT COLOR=black><B>pass</B></FONT>
+        <FONT COLOR=black><B>finally</B></FONT>:
+            self._lock.release()
+
+    <FONT COLOR=black><B>def</B></FONT> has_key(self, key):
+        <FONT COLOR=#1111CC># First try to find the session in the memory store without locking,</FONT>
+        <FONT COLOR=#1111CC># for efficiency.  Only if that fails do we acquire the lock and</FONT>
+        <FONT COLOR=#1111CC># look in the file store.</FONT>
+        <FONT COLOR=black><B>if</B></FONT> self._memoryStore.has_key(key):
+            <FONT COLOR=black><B>return</B></FONT> 1
+        self._lock.acquire()
+        <FONT COLOR=black><B>try</B></FONT>:
+            <FONT COLOR=black><B>return</B></FONT> self._memoryStore.has_key(key) <FONT COLOR=black><B>or</B></FONT> self._fileStore.has_key(key)
+        <FONT COLOR=black><B>finally</B></FONT>:
+            self._lock.release()
+
+    <FONT COLOR=black><B>def</B></FONT> keys(self):
+        self._lock.acquire()
+        <FONT COLOR=black><B>try</B></FONT>:
+            <FONT COLOR=black><B>return</B></FONT> self._memoryStore.keys() + self._fileStore.keys()
+        <FONT COLOR=black><B>finally</B></FONT>:
+            self._lock.release()
+
+    <FONT COLOR=black><B>def</B></FONT> clear(self):
+        self._lock.acquire()
+        <FONT COLOR=black><B>try</B></FONT>:
+            self._memoryStore.clear()
+            self._fileStore.clear()
+        <FONT COLOR=black><B>finally</B></FONT>:
+            self._lock.release()
+
+    <FONT COLOR=black><B>def</B></FONT> MovetoMemory(self, key):
+        self._lock.acquire()
+        <FONT COLOR=black><B>try</B></FONT>:
+            <FONT COLOR=black><B>global</B></FONT> debug
+            <FONT COLOR=black><B>if</B></FONT> debug: <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>"&gt;&gt; Moving %s to Memory"</FONT> % key
+            self._memoryStore[key] = self._fileStore[key]
+            <FONT COLOR=black><B>del</B></FONT> self._fileStore[key]
+        <FONT COLOR=black><B>finally</B></FONT>:
+            self._lock.release()
+
+    <FONT COLOR=black><B>def</B></FONT> MovetoFile(self, key):
+        self._lock.acquire()
+        <FONT COLOR=black><B>try</B></FONT>:
+            <FONT COLOR=black><B>global</B></FONT> debug
+            <FONT COLOR=black><B>if</B></FONT> debug: <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>"&gt;&gt; Moving %s to File"</FONT> % key
+            self._fileStore[key] = self._memoryStore[key]
+            <FONT COLOR=black><B>del</B></FONT> self._memoryStore[key]
+        <FONT COLOR=black><B>finally</B></FONT>:
+            self._lock.release()
+
+    <FONT COLOR=black><B>def</B></FONT> setEncoderDecoder(self, encoder, decoder):
+        <FONT COLOR=#1111CC># @@ 2002-11-26 jdh: # propogate the encoder/decoder to the </FONT>
+        <FONT COLOR=#1111CC># underlying SessionFileStore</FONT>
+        self._fileStore.setEncoderDecoder(encoder, decoder)
+        SessionStore.setEncoderDecoder(self,encoder,decoder)
+
+    <FONT COLOR=#1111CC>## Application support ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> storeSession(self, session):
+        <FONT COLOR=black><B>pass</B></FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> storeAllSessions(self):
+        self._lock.acquire()
+        <FONT COLOR=black><B>try</B></FONT>:
+            <FONT COLOR=black><B>for</B></FONT> i <FONT COLOR=black><B>in</B></FONT> self._memoryStore.keys():
+                self.MovetoFile(i)
+        <FONT COLOR=black><B>finally</B></FONT>:
+            self._lock.release()
+
+    <FONT COLOR=black><B>def</B></FONT> cleanStaleSessions(self, task=None):
+        <FONT COLOR=#FF0000>"""
+        Called by the Application to tell this store to clean out all sessions that have
+        exceeded their lifetime.
+        We want to have their native class functions handle it, though.
+
+        Ideally, intervalSweep would be run more often than the cleanStaleSessions functions
+        for the actual stores.  This may need to wait until we get the TaskKit in place, though.
+
+        The problem is the FileStore.cleanStaleSessions can take a while to run.
+        So here, we only run the file sweep every fourth time.
+        """</FONT>
+        <FONT COLOR=black><B>if</B></FONT> debug: <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>"Session Sweep started"</FONT>
+        <FONT COLOR=black><B>try</B></FONT>:
+            <FONT COLOR=black><B>if</B></FONT> self._fileSweepCount == 0:
+                self._fileStore.cleanStaleSessions(task)
+            self._memoryStore.cleanStaleSessions(task)
+        <FONT COLOR=black><B>except</B></FONT> KeyError:
+            <FONT COLOR=black><B>pass</B></FONT>
+        <FONT COLOR=black><B>if</B></FONT> self._fileSweepCount &lt; 4:
+            self._fileSweepCount = self._fileSweepCount + 1
+        <FONT COLOR=black><B>else</B></FONT>:
+            self._fileSweepCount = 0
+        <FONT COLOR=#1111CC>#now move sessions from memory to file as necessary</FONT>
+        self.intervalSweep()
+
+
+<FONT COLOR=#1111CC>#It's OK for a session to moved from memory to file or vice versa in between the time we get the keys and the time we actually ask for the session's access time.  It may take a while for the fileStore sweep to get completed.</FONT>
+
+
+    <FONT COLOR=black><B>def</B></FONT> intervalSweep(self):
+        <FONT COLOR=#FF0000>"""
+        The interval function moves sessions from memory to file. and can be run more often than the full
+        cleanStaleSessions function.
+
+        """</FONT>
+        <FONT COLOR=black><B>global</B></FONT> debug
+        <FONT COLOR=black><B>if</B></FONT> debug:
+            <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>"Starting interval Sweep at %s"</FONT> % time.ctime(time.time())
+            <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>"Memory Sessions: %s   FileSessions: %s"</FONT> % (len(self._memoryStore), len(self._fileStore))
+            <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>"maxDynamicMemorySessions = %s"</FONT> % self._maxDynamicMemorySessions
+            <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>"moveToFileInterval = %s"</FONT> % self._moveToFileInterval
+
+        now = time.time()
+
+        delta = now - self._moveToFileInterval
+        <FONT COLOR=black><B>for</B></FONT> i <FONT COLOR=black><B>in</B></FONT> self._memoryStore.keys():
+            <FONT COLOR=black><B>try</B></FONT>:
+                <FONT COLOR=black><B>if</B></FONT> self._memoryStore[i].lastAccessTime() &lt; delta:
+                    self.MovetoFile(i)
+            <FONT COLOR=black><B>except</B></FONT> KeyError:
+                <FONT COLOR=black><B>pass</B></FONT>
+
+        <FONT COLOR=black><B>if</B></FONT> len(self._memoryStore) &gt; self._maxDynamicMemorySessions:
+            keys = self.memoryKeysInAccessTimeOrder()
+            excess = len(self._memoryStore) - self._maxDynamicMemorySessions
+            <FONT COLOR=black><B>if</B></FONT> debug:
+                <FONT COLOR=black><B>print</B></FONT> excess, <FONT COLOR=#FF0000>"sessions beyond the limit"</FONT>
+            <FONT COLOR=black><B>for</B></FONT> i <FONT COLOR=black><B>in</B></FONT> keys[:excess]:
+                <FONT COLOR=black><B>try</B></FONT>:
+                    self.MovetoFile(i)
+                <FONT COLOR=black><B>except</B></FONT> KeyError:
+                    <FONT COLOR=black><B>pass</B></FONT>
+
+        <FONT COLOR=black><B>if</B></FONT> debug: <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>"Finished interval Sweep at %s"</FONT> % time.ctime(time.time())
+        <FONT COLOR=black><B>if</B></FONT> debug: <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>"Memory Sessions: %s   FileSessions: %s"</FONT> % (len(self._memoryStore), len(self._fileStore))
+
+
+    <FONT COLOR=black><B>def</B></FONT> memoryKeysInAccessTimeOrder(self):
+        <FONT COLOR=#FF0000>"""
+        Returns memory store's keys in ascending order of last access time.
+        """</FONT>
+        <FONT COLOR=#1111CC># This sorting technique is faster than using a comparison function.</FONT>
+        accessTimeAndKeys = []
+        <FONT COLOR=black><B>for</B></FONT> key <FONT COLOR=black><B>in</B></FONT> self._memoryStore.keys():
+            <FONT COLOR=black><B>try</B></FONT>:
+                accessTimeAndKeys.append((self._memoryStore[key].lastAccessTime(), key))
+            <FONT COLOR=black><B>except</B></FONT> KeyError:
+                <FONT COLOR=black><B>pass</B></FONT>
+        accessTimeAndKeys.sort()
+        keys = []
+        <FONT COLOR=black><B>for</B></FONT> accessTime, key <FONT COLOR=black><B>in</B></FONT> accessTimeAndKeys:
+            keys.append(key)
+        <FONT COLOR=black><B>return</B></FONT> keys
+</PRE>
+                  <!--footer-->
+                  </BODY>

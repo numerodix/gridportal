@@ -1,0 +1,30 @@
+<project name="mdu.publish" default="publish" basedir=".">
+	
+	<property name="version" value="1.1.0"/>
+	
+	<property name="release" value="src/${version}"/>
+	<property name="head" value="src/mdu"/>
+	
+	<property name="srcroot" location="${release}"/>
+	<property name="wwwroot" location="www"/>
+	
+	<property name="pubdir" location="${wwwroot}/files"/>
+	
+	
+	<target name="init"/>
+	
+	
+	<target name="publish">
+		<mkdir dir="${pubdir}/tmp/mdu"/>
+		
+		<copy todir="${pubdir}/tmp/mdu">
+			<fileset dir="${release}"/>
+		</copy>
+		
+		<zip destfile="${pubdir}/mdu-${version}.zip"
+				 basedir="${pubdir}/tmp"/>
+		
+		<delete dir="${pubdir}/tmp"/>
+	</target>
+ 
+</project>

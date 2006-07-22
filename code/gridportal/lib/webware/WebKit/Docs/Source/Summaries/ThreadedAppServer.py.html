@@ -1,0 +1,79 @@
+
+<html>
+    <head>
+        <title>WebKit/ThreadedAppServer.py</title>
+        <style type="text/css">
+            .Line_class {
+            }
+
+            .Line_category {
+                color: 11B;
+            }
+
+            .Line_def {
+            }
+
+            .Name_class {
+                color: 909;
+                font-weight: bold;
+            }
+
+            .Name_def {
+                color: 909;
+                font-weight: bold;
+            }
+        </style>
+    </head>
+<body>
+<pre>
+
+<span class=Line_class>class <span class=Name_class>ThreadedAppServer(AppServer)</span>:</span>
+
+<span class=Line_category>    ## Init ##</span>
+<span class=Line_def>    def <span class=Name_class>__init__</span>(self, path=None):</span>
+<span class=Line_def>    def <span class=Name_class>isPersistent</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>mainloop</span>(self, monitor=None, timeout=1):</span>
+<span class=Line_def>    def <span class=Name_class>activeThreadCount</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>updateThreadUsage</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>manageThreadCount</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>spawnThread</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>absorbThread</span>(self,count=1):</span>
+<span class=Line_def>    def <span class=Name_class>threadloop</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>initThread</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>delThread</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>awakeSelect</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>shutDown</span>(self):</span>
+
+<span class=Line_category>    ## Network Server ##</span>
+<span class=Line_def>    def <span class=Name_class>address</span>(self):</span>
+
+<span class=Line_category>    ## Misc ##</span>
+<span class=Line_def>    def <span class=Name_class>setRequestQueueSize</span>(self, value):</span>
+
+
+<span class=Line_class>class <span class=Name_class>Monitor</span>:</span>
+<span class=Line_def>    def <span class=Name_class>__init__</span>(self, server):</span>
+<span class=Line_def>    def <span class=Name_class>activate</span>(self, socket):</span>
+<span class=Line_def>    def <span class=Name_class>close</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>handleRequest</span>(self):</span>
+
+
+<span class=Line_class>class <span class=Name_class>TASASStreamOut(ASStreamOut)</span>:</span>
+<span class=Line_def>    def <span class=Name_class>__init__</span>(self, sock):</span>
+<span class=Line_def>    def <span class=Name_class>flush</span>(self):</span>
+
+
+<span class=Line_class>class <span class=Name_class>RequestHandler</span>:</span>
+<span class=Line_def>    def <span class=Name_class>__init__</span>(self, server):</span>
+<span class=Line_def>    def <span class=Name_class>activate</span>(self, sock, number):</span>
+<span class=Line_def>    def <span class=Name_class>close</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>handleRequest</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>restartApp</span>(self):</span>
+
+
+<span class=Line_class>class <span class=Name_class>NotEnoughDataError(Exception)</span>:</span>
+<span class=Line_def>def <span class=Name_class>run</span>(useMonitor = 0, workDir=None):</span>
+<span class=Line_def>            def <span class=Name_class>windowsmainloop</span>(server, monitor):</span>
+<span class=Line_def>def <span class=Name_class>shutDown</span>(arg1,arg2):</span>
+<span class=Line_def>def <span class=Name_class>main</span>(args):</span>
+</pre> </body> </html>

@@ -1,0 +1,24 @@
+<HTML><HEAD><TITLE>WebKit/ConfigurableForServerSidePath.py</TITLE></HEAD>
+                  <BODY BGCOLOR=#EEEEEE>
+                  <!--header-->
+                  <!--script--><PRE><FONT COLOR=black><B>from</B></FONT> MiscUtils.Configurable <FONT COLOR=black><B>import</B></FONT> Configurable, NoDefault
+
+
+<FONT COLOR=black><B>class</B></FONT> ConfigurableForServerSidePath(Configurable):
+    <FONT COLOR=#FF0000>"""
+    This is a version of Configurable that provides a customized setting() method for classes which have a serverSidePath() method. If a setting's name ends with "Filename" or "Dir", its value is passed through serverSidePath() before being returned.
+
+    In other words, relative filenames and directory names are expanded with the location of the object, NOT the current directory.
+
+    Application and AppServer are two well known users of this mix-in. Any class that has a serverSidePath() method and a Configurable base class, should inherit this class instead.
+    """</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> setting(self, name, default=NoDefault):
+        <FONT COLOR=#FF0000>""" Returns the setting, filtered by self.serverSidePath(), if the name ends with 'Filename' or 'Dir'. """</FONT>
+        value = Configurable.setting(self, name, default)
+        <FONT COLOR=black><B>if</B></FONT> name[-8:]==<FONT COLOR=#FF0000>'Filename'</FONT> <FONT COLOR=black><B>or</B></FONT> name[-3:]==<FONT COLOR=#FF0000>'Dir'</FONT>:
+            value = self.serverSidePath(value)
+        <FONT COLOR=black><B>return</B></FONT> value
+</PRE>
+                  <!--footer-->
+                  </BODY>

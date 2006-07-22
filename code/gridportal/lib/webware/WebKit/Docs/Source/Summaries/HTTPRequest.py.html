@@ -1,0 +1,120 @@
+
+<html>
+    <head>
+        <title>WebKit/HTTPRequest.py</title>
+        <style type="text/css">
+            .Line_class {
+            }
+
+            .Line_category {
+                color: 11B;
+            }
+
+            .Line_def {
+            }
+
+            .Name_class {
+                color: 909;
+                font-weight: bold;
+            }
+
+            .Name_def {
+                color: 909;
+                font-weight: bold;
+            }
+        </style>
+    </head>
+<body>
+<pre>
+
+<span class=Line_class>class <span class=Name_class>HTTPRequest(Request)</span>:</span>
+
+<span class=Line_category>    ## Initialization ##</span>
+<span class=Line_def>    def <span class=Name_class>__init__</span>(self, dict={}):</span>
+
+<span class=Line_category>    ## Transactions ##</span>
+<span class=Line_def>    def <span class=Name_class>transaction</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>setTransaction</span>(self, trans):</span>
+
+<span class=Line_category>    ## Values ##</span>
+<span class=Line_def>    def <span class=Name_class>value</span>(self, name, default=NoDefault):</span>
+<span class=Line_def>    def <span class=Name_class>hasValue</span>(self, name):</span>
+<span class=Line_def>    def <span class=Name_class>extraURLPath</span>(self):</span>
+
+<span class=Line_category>    ## Fields ##</span>
+<span class=Line_def>    def <span class=Name_class>fieldStorage</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>field</span>(self, name, default=NoDefault):</span>
+<span class=Line_def>    def <span class=Name_class>hasField</span>(self, name):</span>
+<span class=Line_def>    def <span class=Name_class>fields</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>setField</span>(self, name, value):</span>
+<span class=Line_def>    def <span class=Name_class>delField</span>(self, name):</span>
+
+<span class=Line_category>    ## Cookies ##</span>
+<span class=Line_def>    def <span class=Name_class>cookie</span>(self, name, default=NoDefault):</span>
+<span class=Line_def>    def <span class=Name_class>hasCookie</span>(self, name):</span>
+<span class=Line_def>    def <span class=Name_class>cookies</span>(self):</span>
+
+<span class=Line_category>    ## Variables passed by server ##</span>
+<span class=Line_def>    def <span class=Name_class>serverDictionary</span>(self):</span>
+
+<span class=Line_category>    ## Sessions ##</span>
+<span class=Line_def>    def <span class=Name_class>session</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>isSessionExpired</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>setSessionExpired</span>(self, sessionExpired):</span>
+
+<span class=Line_category>    ## Authentication ##</span>
+<span class=Line_def>    def <span class=Name_class>remoteUser</span>(self):</span>
+
+<span class=Line_category>    ## Remote info ##</span>
+<span class=Line_def>    def <span class=Name_class>remoteAddress</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>remoteName</span>(self):</span>
+
+<span class=Line_category>    ## Path ##</span>
+<span class=Line_def>    def <span class=Name_class>urlPath</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>originalURLPath</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>urlPathDir</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>getstate</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>setURLPath</span>(self, path):</span>
+<span class=Line_def>    def <span class=Name_class>serverSidePath</span>(self, path=None):</span>
+<span class=Line_def>    def <span class=Name_class>serverSideContextPath</span>(self, path=None):</span>
+<span class=Line_def>    def <span class=Name_class>contextName</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>servletURI</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>uriWebKitRoot</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>fsPath</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>serverURL</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>serverURLDir</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>siteRoot</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>siteRootFromCurrentServlet</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>servletPathFromSiteRoot</span>(self):</span>
+
+<span class=Line_category>    ## Special ##</span>
+<span class=Line_def>    def <span class=Name_class>adapterName</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>rawRequest</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>environ</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>addParent</span>(self, servlet):</span>
+<span class=Line_def>    def <span class=Name_class>popParent</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>parent</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>parents</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>rawInput</span>(self, rewind=0):</span>
+<span class=Line_def>    def <span class=Name_class>time</span>(self):</span>
+
+<span class=Line_category>    ## Information ##</span>
+<span class=Line_def>    def <span class=Name_class>servletPath</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>contextPath</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>pathInfo</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>pathTranslated</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>queryString</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>uri</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>method</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>sessionId</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>hasPathSession</span>(self):</span>
+
+<span class=Line_category>    ## Inspection ##</span>
+<span class=Line_def>    def <span class=Name_class>info</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>htmlInfo</span>(self):</span>
+
+<span class=Line_category>    ## Deprecated ##</span>
+<span class=Line_def>    def <span class=Name_class>serverSideDir</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>relativePath</span>(self, joinPath):</span>
+<span class=Line_def>def <span class=Name_class>htmlInfo</span>(info):</span>
+</pre> </body> </html>

@@ -1,0 +1,168 @@
+<HTML><HEAD><TITLE>UserKit/UserManagerToMiddleKit.py</TITLE></HEAD>
+                  <BODY BGCOLOR=#EEEEEE>
+                  <!--header-->
+                  <!--script--><PRE><FONT COLOR=#FF0000>"""
+UserManagerToMiddleKit.py
+"""</FONT>
+
+<FONT COLOR=black><B>from</B></FONT> UserManager <FONT COLOR=black><B>import</B></FONT> UserManager
+<FONT COLOR=black><B>from</B></FONT> MiscUtils <FONT COLOR=black><B>import</B></FONT> NoDefault
+<FONT COLOR=black><B>import</B></FONT> os
+<FONT COLOR=black><B>from</B></FONT> glob <FONT COLOR=black><B>import</B></FONT> glob
+<FONT COLOR=black><B>from</B></FONT> MiddleKit.Run.ObjectStore <FONT COLOR=black><B>import</B></FONT> UnknownObjectError
+
+
+<FONT COLOR=black><B>class</B></FONT> UserManagerToMiddleKit(UserManager):
+    <FONT COLOR=#FF0000>"""
+    UserManagerToMiddleKit stores the users in a given MiddleKit object store.
+
+    However, the manager itself does not keep any information there. This might change in the future.
+
+    In your MiddleKit model, your User class should have the attributes: name, password and externalId; all of type string. The max len for external id should be at least 14. You can decide what you like for the others. Only name and password have to be required.
+
+    Then you must edit User.py so that:
+        * In addition to inheriting GenUser, it also inherits UserKit.User
+        * It invokes both base class' __init__()s
+        * The __init__ takes manager, name and password, and passes them on.
+
+        from UserKit.User import User
+
+        class User(GenUser, User):
+
+            def __init__(self, manager=None, name=None, password=None):
+                GenUser.__init__(self)
+                User.__init__(self, manager, name, password)
+
+    If your user class is called something other than 'User', then you must pass it to the store:
+
+        from MyUser import MyUser
+        userMgr = UserManagerToMiddleKit(userClass=MyUser, store=store)
+    """</FONT>
+
+
+    <FONT COLOR=#1111CC>## Init ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> __init__(self, userClass=None, store=None, useSQL=None):
+        <FONT COLOR=#FF0000>"""
+        @@ 2001-02-18 ce: docs
+        """</FONT>
+        <FONT COLOR=#1111CC># If no userClass was specified, try to pull 'User'</FONT>
+        <FONT COLOR=#1111CC># out of the object model.</FONT>
+        <FONT COLOR=black><B>if</B></FONT> userClass <FONT COLOR=black><B>is</B></FONT> None:
+            userClass = store.model().klasses(<FONT COLOR=#FF0000>'User'</FONT>, None)
+
+        UserManager.__init__(self, userClass)
+
+        <FONT COLOR=black><B>if</B></FONT> store <FONT COLOR=black><B>is</B></FONT> None:
+            <FONT COLOR=black><B>from</B></FONT> MiddleKit.ObjectStore.Store <FONT COLOR=black><B>import</B></FONT> Store
+            store = Store
+        <FONT COLOR=black><B>assert</B></FONT> store, <FONT COLOR=#FF0000>'MiddleKit store is None.'</FONT>
+        self._store = store
+
+        <FONT COLOR=#1111CC># If the user didn't say whether or not to useSQL, then</FONT>
+        <FONT COLOR=#1111CC># we'll check if this looks like a SQLObjectStore. If so,</FONT>
+        <FONT COLOR=#1111CC># then using SQL server side queries will speed up our</FONT>
+        <FONT COLOR=#1111CC># operation:</FONT>
+        <FONT COLOR=black><B>if</B></FONT> useSQL <FONT COLOR=black><B>is</B></FONT> None:
+            useSQL = getattr(self._store, <FONT COLOR=#FF0000>'executeSQL'</FONT>) <FONT COLOR=black><B>is</B></FONT> <FONT COLOR=black><B>not</B></FONT> None
+        self._useSQL = useSQL
+
+        <FONT COLOR=#1111CC># _saveNewUsers: if true, then we do a store.saveChanges()</FONT>
+        <FONT COLOR=#1111CC># whenever a new user is added. This helps with the</FONT>
+        <FONT COLOR=#1111CC># integrity of accessors like users().</FONT>
+        <FONT COLOR=#1111CC># @@ 2001-02-18 ce: But perhaps that's a problem because</FONT>
+        <FONT COLOR=#1111CC># manager is not a MiddleKit object...</FONT>
+        self._saveNewUsers = 1
+
+
+    <FONT COLOR=#1111CC>## MiddleKit specifics ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> loadUser(self, serialNum, default=NoDefault):
+        <FONT COLOR=black><B>try</B></FONT>:
+            user = self._store.fetchObject(self._userClass, serialNum, default)
+        <FONT COLOR=black><B>except</B></FONT> UnknownObjectError:
+            <FONT COLOR=black><B>raise</B></FONT> KeyError, serialNum
+        <FONT COLOR=black><B>if</B></FONT> user <FONT COLOR=black><B>is</B></FONT> default:
+            <FONT COLOR=black><B>return</B></FONT> default
+        <FONT COLOR=black><B>else</B></FONT>:
+            self._cachedUsers.append(user)
+            self._cachedUsersBySerialNum[serialNum] = user
+            <FONT COLOR=black><B>return</B></FONT> user
+
+
+    <FONT COLOR=#1111CC>## UserManager customizations ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> setUserClass(self, userClass):
+        <FONT COLOR=#FF0000>""" Overridden to verify that our userClass is really a MiddleObject. """</FONT>
+        <FONT COLOR=black><B>from</B></FONT> MiddleKit.Run.MiddleObject <FONT COLOR=black><B>import</B></FONT> MiddleObject
+        <FONT COLOR=black><B>assert</B></FONT> issubclass(userClass, MiddleObject)
+        UserManager.setUserClass(self, userClass)
+
+
+    <FONT COLOR=#1111CC>## UserManager concrete methods ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> addUser(self, user):
+        UserManager.addUser(self, user)
+        self._store.addObject(user)
+        <FONT COLOR=black><B>if</B></FONT> self._saveNewUsers:
+            self._store.saveChanges()
+
+    <FONT COLOR=black><B>def</B></FONT> userForSerialNum(self, id, default=NoDefault):
+        <FONT COLOR=#1111CC># @@ 2001-02-18 ce: actually we shouldn't have to do this</FONT>
+        <FONT COLOR=#1111CC># caching; MiddleKit does it for us.</FONT>
+        user = self._cachedUsersBySerialNum.get(id, None)
+        <FONT COLOR=black><B>if</B></FONT> user <FONT COLOR=black><B>is</B></FONT> <FONT COLOR=black><B>not</B></FONT> None:
+            <FONT COLOR=black><B>return</B></FONT> user
+        <FONT COLOR=black><B>return</B></FONT> self.loadUser(id, default)
+
+    <FONT COLOR=black><B>def</B></FONT> userForExternalId(self, externalId, default=NoDefault):
+        <FONT COLOR=black><B>for</B></FONT> user <FONT COLOR=black><B>in</B></FONT> self._cachedUsers:
+            <FONT COLOR=black><B>if</B></FONT> user.externalId()==externalId:
+                <FONT COLOR=black><B>return</B></FONT> user
+        <FONT COLOR=black><B>if</B></FONT> self._useSQL:
+            users = self._store.fetchObjectsOfClass(self._userClass, clauses=<FONT COLOR=#FF0000>'where externalId=%r'</FONT> % externalId)
+            <FONT COLOR=black><B>if</B></FONT> users:
+                <FONT COLOR=black><B>assert</B></FONT> len(users)==1
+                <FONT COLOR=black><B>return</B></FONT> users[0]
+        <FONT COLOR=black><B>else</B></FONT>:
+            <FONT COLOR=black><B>for</B></FONT> user <FONT COLOR=black><B>in</B></FONT> self.users():
+                <FONT COLOR=black><B>if</B></FONT> user.externalId()==externalId:
+                    <FONT COLOR=black><B>return</B></FONT> user
+        <FONT COLOR=black><B>if</B></FONT> default <FONT COLOR=black><B>is</B></FONT> NoDefault:
+            <FONT COLOR=black><B>raise</B></FONT> KeyError, externalId
+        <FONT COLOR=black><B>else</B></FONT>:
+            <FONT COLOR=black><B>return</B></FONT> default
+
+    <FONT COLOR=black><B>def</B></FONT> userForName(self, name, default=NoDefault):
+        <FONT COLOR=black><B>for</B></FONT> user <FONT COLOR=black><B>in</B></FONT> self._cachedUsers:
+            <FONT COLOR=black><B>if</B></FONT> user.name()==name:
+                <FONT COLOR=black><B>return</B></FONT> user
+        <FONT COLOR=black><B>if</B></FONT> self._useSQL:
+            users = self._store.fetchObjectsOfClass(self._userClass, clauses=<FONT COLOR=#FF0000>'where name=%r'</FONT> % name)
+            <FONT COLOR=black><B>if</B></FONT> users:
+                <FONT COLOR=black><B>assert</B></FONT> len(users)==1
+                <FONT COLOR=black><B>return</B></FONT> users[0]
+        <FONT COLOR=black><B>else</B></FONT>:
+            <FONT COLOR=black><B>for</B></FONT> user <FONT COLOR=black><B>in</B></FONT> self.users():
+                <FONT COLOR=black><B>if</B></FONT> user.name()==name:
+                    <FONT COLOR=black><B>return</B></FONT> user
+        <FONT COLOR=black><B>if</B></FONT> default <FONT COLOR=black><B>is</B></FONT> NoDefault:
+            <FONT COLOR=black><B>raise</B></FONT> KeyError, name
+        <FONT COLOR=black><B>else</B></FONT>:
+            <FONT COLOR=black><B>return</B></FONT> default
+
+    <FONT COLOR=black><B>def</B></FONT> users(self):
+        <FONT COLOR=black><B>return</B></FONT> self._store.fetchObjectsOfClass(self._userClass)
+
+    <FONT COLOR=black><B>def</B></FONT> activeUsers(self):
+        <FONT COLOR=#1111CC># @@ 2001-02-17 ce: this ultimately does a fetch every time,</FONT>
+        <FONT COLOR=#1111CC># which sucks if we already have the user in memory.</FONT>
+        <FONT COLOR=#1111CC># this is really an MK issue regarding caching of objects</FONT>
+        <FONT COLOR=#1111CC># and perhaps a SQL database issue as well.</FONT>
+        <FONT COLOR=black><B>return</B></FONT> [user <FONT COLOR=black><B>for</B></FONT> user <FONT COLOR=black><B>in</B></FONT> self.users() <FONT COLOR=black><B>if</B></FONT> user.isActive()]
+
+    <FONT COLOR=black><B>def</B></FONT> inactiveUsers(self):
+        <FONT COLOR=black><B>return</B></FONT> [user <FONT COLOR=black><B>for</B></FONT> user <FONT COLOR=black><B>in</B></FONT> self.users() <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> user.isActive()]
+</PRE>
+                  <!--footer-->
+                  </BODY>

@@ -1,0 +1,172 @@
+<HTML><HEAD><TITLE>MiscUtils/Configurable.py</TITLE></HEAD>
+                  <BODY BGCOLOR=#EEEEEE>
+                  <!--header-->
+                  <!--script--><PRE><FONT COLOR=black><B>import</B></FONT> string, sys, os
+<FONT COLOR=black><B>from</B></FONT> types <FONT COLOR=black><B>import</B></FONT> DictType
+<FONT COLOR=black><B>from</B></FONT> MiscUtils <FONT COLOR=black><B>import</B></FONT> AbstractError, NoDefault
+<FONT COLOR=black><B>from</B></FONT> WebKit.ImportSpy <FONT COLOR=black><B>import</B></FONT> modloader
+<FONT COLOR=black><B>from</B></FONT> Funcs <FONT COLOR=black><B>import</B></FONT> valueForString
+
+
+
+<FONT COLOR=black><B>class</B></FONT> ConfigurationError(Exception):
+    <FONT COLOR=black><B>pass</B></FONT>
+
+
+<FONT COLOR=black><B>class</B></FONT> Configurable:
+    <FONT COLOR=#FF0000>"""
+    Configurable is an abstract superclass that provides configuration
+    file functionality for subclasses.
+
+    Subclasses should override:
+
+        * defaultConfig()  to return a dictionary of default settings
+                           such as { 'Frequency': 5 }
+
+        * configFilename() to return the filename by which users can
+                           override the configuration such as
+                           'Pinger.config'
+
+
+    Subclasses typically use the setting() method, for example:
+
+        time.sleep(self.setting('Frequency'))
+
+
+    They might also use the printConfig() method, for example:
+
+        self.printConfig()      # or
+        self.printConfig(file)
+
+
+    Users of your software can create a file with the same name as
+    configFilename() and selectively override settings. The format of
+    the file is a Python dictionary.
+
+    Subclasses can also override userConfig() in order to obtain the
+    user configuration settings from another source.
+    """</FONT>
+
+    <FONT COLOR=#1111CC>## Init ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> __init__(self):
+        self._config = None
+
+
+    <FONT COLOR=#1111CC>## Configuration</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> config(self):
+        <FONT COLOR=#FF0000>""" Returns the configuration of the object as a dictionary. This is a combination of defaultConfig() and userConfig(). This method caches the config. """</FONT>
+        <FONT COLOR=black><B>if</B></FONT> self._config <FONT COLOR=black><B>is</B></FONT> None:
+            self._config = self.defaultConfig()
+            self._config.update(self.userConfig())
+            self._config.update(self.commandLineConfig())
+        <FONT COLOR=black><B>return</B></FONT> self._config
+
+    <FONT COLOR=black><B>def</B></FONT> setting(self, name, default=NoDefault):
+        <FONT COLOR=#FF0000>""" Returns the value of a particular setting in the configuration. """</FONT>
+        <FONT COLOR=black><B>if</B></FONT> default <FONT COLOR=black><B>is</B></FONT> NoDefault:
+            <FONT COLOR=black><B>return</B></FONT> self.config()[name]
+        <FONT COLOR=black><B>else</B></FONT>:
+            <FONT COLOR=black><B>return</B></FONT> self.config().get(name, default)
+
+    <FONT COLOR=black><B>def</B></FONT> hasSetting(self, name):
+        <FONT COLOR=black><B>return</B></FONT> self.config().has_key(name)
+
+    <FONT COLOR=black><B>def</B></FONT> defaultConfig(self):
+        <FONT COLOR=#FF0000>""" Returns a dictionary containing all the default values for the settings. This implementation returns {}. Subclasses should override. """</FONT>
+        <FONT COLOR=black><B>return</B></FONT> {}
+
+    <FONT COLOR=black><B>def</B></FONT> configFilename(self):
+        <FONT COLOR=#FF0000>""" Returns the filename by which users can override the configuration. Subclasses must override to specify a name. Returning None is valid, in which case no user config file will be loaded. """</FONT>
+        <FONT COLOR=black><B>raise</B></FONT> AbstractError, self.__class__
+
+    <FONT COLOR=black><B>def</B></FONT> configName(self):
+        <FONT COLOR=#FF0000>"""
+        Returns the name of the configuration file (the portion
+        before the '.config').  This is used on the command-line.
+        """</FONT>
+        <FONT COLOR=black><B>return</B></FONT> os.path.splitext(os.path.basename(self.configFilename()))[0]
+
+    <FONT COLOR=black><B>def</B></FONT> configReplacementValues(self):
+        <FONT COLOR=#FF0000>"""
+        Returns a dictionary suitable for use with "string % dict"
+        that should be used on the text in the config file.  If an
+        empty dictionary (or None) is returned then no substitution
+        will be attempted.
+        """</FONT>
+        <FONT COLOR=black><B>return</B></FONT> {}
+
+    <FONT COLOR=black><B>def</B></FONT> userConfig(self):
+        <FONT COLOR=#FF0000>""" Returns the user config overrides found in the optional config file, or {} if there is no such file. The config filename is taken from configFilename(). """</FONT>
+        <FONT COLOR=black><B>try</B></FONT>:
+            filename = self.configFilename()
+            <FONT COLOR=black><B>if</B></FONT> filename <FONT COLOR=black><B>is</B></FONT> None:
+                <FONT COLOR=black><B>return</B></FONT> {}
+            file = open(filename)
+        <FONT COLOR=black><B>except</B></FONT> IOError:
+            <FONT COLOR=black><B>return</B></FONT> {}
+        <FONT COLOR=black><B>else</B></FONT>:
+            contents = file.read()
+            file.close()
+            modloader.watchFile(filename)
+            replacements = self.configReplacementValues()
+            <FONT COLOR=black><B>if</B></FONT> replacements:
+                <FONT COLOR=black><B>try</B></FONT>:
+                    contents = contents % replacements
+                <FONT COLOR=black><B>except</B></FONT>:
+                    <FONT COLOR=black><B>raise</B></FONT> ConfigurationError, <FONT COLOR=#FF0000>'Unable to embed replacement text in %s.'</FONT> % self.configFilename()
+
+            <FONT COLOR=black><B>try</B></FONT>:
+                config = eval(contents, {})
+            <FONT COLOR=black><B>except</B></FONT>:
+                <FONT COLOR=black><B>raise</B></FONT> ConfigurationError, <FONT COLOR=#FF0000>'Invalid configuration file, %s.'</FONT> % self.configFilename()
+            <FONT COLOR=black><B>if</B></FONT> type(config) <FONT COLOR=black><B>is</B></FONT> <FONT COLOR=black><B>not</B></FONT> DictType:
+                <FONT COLOR=black><B>raise</B></FONT> ConfigurationError, <FONT COLOR=#FF0000>'Invalid type of configuration. Expecting dictionary, but got %s.'</FONT>  % type(config)
+            <FONT COLOR=black><B>return</B></FONT> config
+
+    <FONT COLOR=black><B>def</B></FONT> printConfig(self, dest=None):
+        <FONT COLOR=#FF0000>""" Prints the configuration to the given destination, which defaults to stdout. A fixed with font is assumed for aligning the values to start at the same column. """</FONT>
+        <FONT COLOR=black><B>if</B></FONT> dest <FONT COLOR=black><B>is</B></FONT> None:
+            dest = sys.stdout
+        keys = self.config().keys()
+        keys.sort()
+        width = max(map(<FONT COLOR=black><B>lambda</B></FONT> key: len(key), keys))
+        <FONT COLOR=black><B>for</B></FONT> key <FONT COLOR=black><B>in</B></FONT> keys:
+            dest.write(string.ljust(key, width)+<FONT COLOR=#FF0000>' = '</FONT>+str(self.setting(key))+<FONT COLOR=#FF0000>'\n'</FONT>)
+        dest.write(<FONT COLOR=#FF0000>'\n'</FONT>)
+
+    <FONT COLOR=black><B>def</B></FONT> commandLineConfig(self):
+        <FONT COLOR=#FF0000>"""
+        Settings that came from the command line (via
+        addCommandLineSetting).
+        """</FONT>
+        <FONT COLOR=black><B>return</B></FONT> _settings.get(self.configName(), {})
+
+_settings = {}
+<FONT COLOR=black><B>def</B></FONT> addCommandLineSetting(name, value):
+    <FONT COLOR=#FF0000>"""
+    Take a setting, like --AppServer.Verbose=0, and call
+    addCommandLineSetting('AppServer.Verbose', '0'), and
+    it will override any settings in AppServer.config
+    """</FONT>
+    configName, settingName = string.split(name, <FONT COLOR=#FF0000>'.'</FONT>, 1)
+    value = valueForString(value)
+    <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> _settings.has_key(configName):
+        _settings[configName] = {}
+    _settings[configName][settingName] = value
+
+<FONT COLOR=black><B>def</B></FONT> commandLineSetting(configName, settingName, default=NoDefault):
+    <FONT COLOR=#FF0000>"""
+    Retrieve a command-line setting.  You can use this with
+    non-existent classes, like --Context.Root=/WK, and then
+    fetch it back with commandLineSetting('Context', 'Root').
+    """</FONT>
+    <FONT COLOR=black><B>if</B></FONT> default <FONT COLOR=black><B>is</B></FONT> NoDefault:
+        <FONT COLOR=black><B>return</B></FONT> _settings[configName][settingName]
+    <FONT COLOR=black><B>else</B></FONT>:
+        <FONT COLOR=black><B>return</B></FONT> _settings.get(configName, {}).get(settingName, default)
+
+</PRE>
+                  <!--footer-->
+                  </BODY>

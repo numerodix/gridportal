@@ -1,0 +1,77 @@
+
+<html>
+    <head>
+        <title>WebKit/HTTPResponse.py</title>
+        <style type="text/css">
+            .Line_class {
+            }
+
+            .Line_category {
+                color: 11B;
+            }
+
+            .Line_def {
+            }
+
+            .Name_class {
+                color: 909;
+                font-weight: bold;
+            }
+
+            .Name_def {
+                color: 909;
+                font-weight: bold;
+            }
+        </style>
+    </head>
+<body>
+<pre>
+<span class=Line_category>## - @@ sgd 2/5/2003 - removed optional DateTime temporarily for </span>
+
+<span class=Line_category>## 0.8 release. Need to fix bug and verify after 0.8.</span>
+
+
+<span class=Line_class>class <span class=Name_class>HTTPResponse(Response)</span>:</span>
+
+<span class=Line_category>    ## Init ##</span>
+<span class=Line_def>    def <span class=Name_class>__init__</span>(self, transaction, strmOut, headers=None):</span>
+
+<span class=Line_category>    ## Headers ##</span>
+<span class=Line_def>    def <span class=Name_class>header</span>(self, name, default=NoDefault):</span>
+<span class=Line_def>    def <span class=Name_class>hasHeader</span>(self, name):</span>
+<span class=Line_def>    def <span class=Name_class>setHeader</span>(self, name, value):</span>
+<span class=Line_def>    def <span class=Name_class>addHeader</span>(self, name, value):</span>
+<span class=Line_def>    def <span class=Name_class>headers</span>(self, name=None):</span>
+<span class=Line_def>    def <span class=Name_class>clearHeaders</span>(self):</span>
+
+<span class=Line_category>    ## Cookies ##</span>
+<span class=Line_def>    def <span class=Name_class>cookie</span>(self, name):</span>
+<span class=Line_def>    def <span class=Name_class>hasCookie</span>(self, name):</span>
+<span class=Line_def>    def <span class=Name_class>setCookie</span>(self, name, value, path='/', expires='ONCLOSE',</span>
+<span class=Line_def>    def <span class=Name_class>addCookie</span>(self, cookie):</span>
+<span class=Line_def>    def <span class=Name_class>delCookie</span>(self, name):</span>
+<span class=Line_def>    def <span class=Name_class>cookies</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>clearCookies</span>(self):</span>
+
+<span class=Line_category>    ## Status ##</span>
+<span class=Line_def>    def <span class=Name_class>setStatus</span>(self, code, msg=''):</span>
+
+<span class=Line_category>    ## Special responses ##</span>
+<span class=Line_def>    def <span class=Name_class>sendError</span>(self, code, msg=''):</span>
+<span class=Line_def>    def <span class=Name_class>sendRedirect</span>(self, url):</span>
+
+<span class=Line_category>    ## Output ##</span>
+<span class=Line_def>    def <span class=Name_class>write</span>(self, charstr=None):</span>
+<span class=Line_def>    def <span class=Name_class>flush</span>(self, autoFlush=1):</span>
+<span class=Line_def>    def <span class=Name_class>isCommitted</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>deliver</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>commit</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>writeHeaders</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>recordSession</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>reset</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>rawResponse</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>size</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>mergeTextHeaders</span>(self, headerstr):</span>
+
+<span class=Line_category>    ## Exception reporting ##</span>
+</pre> </body> </html>

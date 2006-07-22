@@ -1,0 +1,451 @@
+<HTML><HEAD><TITLE>WebKit/Page.py</TITLE></HEAD>
+                  <BODY BGCOLOR=#EEEEEE>
+                  <!--header-->
+                  <!--script--><PRE><FONT COLOR=black><B>from</B></FONT> Common <FONT COLOR=black><B>import</B></FONT> *
+<FONT COLOR=black><B>from</B></FONT> HTTPServlet <FONT COLOR=black><B>import</B></FONT> HTTPServlet
+<FONT COLOR=black><B>from</B></FONT> WebUtils <FONT COLOR=black><B>import</B></FONT> Funcs
+<FONT COLOR=black><B>from</B></FONT> Application <FONT COLOR=black><B>import</B></FONT> EndResponse
+
+
+<FONT COLOR=black><B>class</B></FONT> PageError(Exception):
+    <FONT COLOR=black><B>pass</B></FONT>
+
+
+<FONT COLOR=black><B>class</B></FONT> Page(HTTPServlet):
+    <FONT COLOR=#FF0000>"""
+    Page is a type of HTTPServlet that is more convenient for Servlets which represent HTML pages generated in response to GET and POST requests. In fact, this is the most common type of Servlet.
+    Subclasses typically override writeHeader(), writeBody() and writeFooter().
+    They might also choose to override writeHTML() entirely.
+    In awake(), the page sets self attributes, _transaction, _response and _request which subclasses should use as appropriate.
+    For the purposes of output, the write() and writeln() convenience methods are provided.
+    When developing a full-blown website, it's common to create a subclass of Page called SitePage which defines the common look and feel of the website and provides site-specific convenience methods. Then all other page classes inherit from SitePage.
+    """</FONT>
+
+    <FONT COLOR=#1111CC>## Transactions ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> awake(self, transaction):
+        HTTPServlet.awake(self, transaction)
+        self._response    = transaction.response()
+        self._request     = transaction.request()
+        self._session     = None  <FONT COLOR=#1111CC># don't create unless needed</FONT>
+        <FONT COLOR=black><B>assert</B></FONT> self._transaction <FONT COLOR=black><B>is</B></FONT> <FONT COLOR=black><B>not</B></FONT> None
+        <FONT COLOR=black><B>assert</B></FONT> self._response    <FONT COLOR=black><B>is</B></FONT> <FONT COLOR=black><B>not</B></FONT> None
+        <FONT COLOR=black><B>assert</B></FONT> self._request     <FONT COLOR=black><B>is</B></FONT> <FONT COLOR=black><B>not</B></FONT> None
+
+    <FONT COLOR=black><B>def</B></FONT> respondToGet(self, transaction):
+        <FONT COLOR=#FF0000>""" Invokes _respond() to handle the transaction. """</FONT>
+        self._respond(transaction)
+
+    <FONT COLOR=black><B>def</B></FONT> respondToPost(self, transaction):
+        <FONT COLOR=#FF0000>""" Invokes _respond() to handle the transaction. """</FONT>
+        self._respond(transaction)
+
+    <FONT COLOR=black><B>def</B></FONT> _respond(self, transaction):
+        <FONT COLOR=#FF0000>"""
+        Handles actions if an _action_ field is defined, otherwise
+        invokes writeHTML().
+        Invoked by both respondToGet() and respondToPost().
+        """</FONT>
+        req = transaction.request()
+
+        <FONT COLOR=#1111CC># Support old style actions from 0.5.x and below.</FONT>
+        <FONT COLOR=#1111CC># Use setting OldStyleActions in Application.config</FONT>
+        <FONT COLOR=#1111CC># to use this.</FONT>
+        <FONT COLOR=black><B>if</B></FONT> self.transaction().application().setting(<FONT COLOR=#FF0000>'OldStyleActions'</FONT>, ) \
+           <FONT COLOR=black><B>and</B></FONT> req.hasField(<FONT COLOR=#FF0000>'_action_'</FONT>):
+            action = self.methodNameForAction(req.field(<FONT COLOR=#FF0000>'_action_'</FONT>))
+            actions = self._actionSet()
+            <FONT COLOR=black><B>if</B></FONT> actions.has_key(action):
+                self.preAction(action)
+                apply(getattr(self, action), (transaction,))
+                self.postAction(action)
+                <FONT COLOR=black><B>return</B></FONT>
+            <FONT COLOR=black><B>else</B></FONT>:
+                <FONT COLOR=black><B>raise</B></FONT> PageError, <FONT COLOR=#FF0000>"Action '%s' is not in the public list of actions, %s, for %s."</FONT> % (action, actions.keys(), self)
+
+        <FONT COLOR=#1111CC># Check for actions</FONT>
+        <FONT COLOR=black><B>for</B></FONT> action <FONT COLOR=black><B>in</B></FONT> self.actions():
+            <FONT COLOR=black><B>if</B></FONT> req.hasField(<FONT COLOR=#FF0000>'_action_%s'</FONT> % action) <FONT COLOR=black><B>or</B></FONT> \
+               req.field(<FONT COLOR=#FF0000>'_action_'</FONT>, None) == action <FONT COLOR=black><B>or</B></FONT> \
+               (req.hasField(<FONT COLOR=#FF0000>'_action_%s.x'</FONT> % action) <FONT COLOR=black><B>and</B></FONT> \
+                req.hasField(<FONT COLOR=#FF0000>'_action_%s.y'</FONT> % action)):
+                <FONT COLOR=black><B>if</B></FONT> self._actionSet().has_key(action):
+                    self.handleAction(action)
+                    <FONT COLOR=black><B>return</B></FONT>
+
+        self.writeHTML()
+
+    <FONT COLOR=black><B>def</B></FONT> sleep(self, transaction):
+        self._session = None
+        self._request  = None
+        self._response = None
+        self._transaction = None
+        HTTPServlet.sleep(self, transaction)
+
+
+    <FONT COLOR=#1111CC>## Access ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> application(self):
+        <FONT COLOR=black><B>return</B></FONT> self._transaction.application()
+
+    <FONT COLOR=black><B>def</B></FONT> transaction(self):
+        <FONT COLOR=black><B>return</B></FONT> self._transaction
+
+    <FONT COLOR=black><B>def</B></FONT> request(self):
+        <FONT COLOR=black><B>return</B></FONT> self._request
+
+    <FONT COLOR=black><B>def</B></FONT> response(self):
+        <FONT COLOR=black><B>return</B></FONT> self._response
+
+    <FONT COLOR=black><B>def</B></FONT> session(self):
+        <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> self._session:
+            self._session = self._transaction.session()
+        <FONT COLOR=black><B>return</B></FONT> self._session
+
+
+    <FONT COLOR=#1111CC>## Generating results ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> title(self):
+        <FONT COLOR=#FF0000>""" Subclasses often override this method to provide a custom title. This title should be absent of HTML tags. This implementation returns the name of the class, which is sometimes appropriate and at least informative. """</FONT>
+        <FONT COLOR=black><B>return</B></FONT> self.__class__.__name__
+
+    <FONT COLOR=black><B>def</B></FONT> htTitle(self):
+        <FONT COLOR=#FF0000>""" Return self.title(). Subclasses sometimes override this to provide an HTML enhanced version of the title. This is the method that should be used when including the page title in the actual page contents. """</FONT>
+        <FONT COLOR=black><B>return</B></FONT> self.title()
+
+    <FONT COLOR=black><B>def</B></FONT> htBodyArgs(self):
+        <FONT COLOR=#FF0000>"""
+        Returns the arguments used for the HTML &lt;body&gt; tag. Invoked by
+        writeBody().
+
+        With the prevalence of stylesheets (CSS), you can probably skip
+        this particular HTML feature.
+        """</FONT>
+        <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=#FF0000>'color=black bgcolor=white'</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> writeHTML(self):
+        <FONT COLOR=#FF0000>"""
+        Writes all the HTML for the page.
+
+        Subclasses may override this method (which is invoked by
+        respondToGet() and respondToPost()) or more commonly its
+        constituent methods, writeDocType(), writeHead() and
+        writeBody().
+        """</FONT>
+        self.writeDocType()
+        self.writeln(<FONT COLOR=#FF0000>'&lt;html&gt;'</FONT>)
+        self.writeHead()
+        self.writeBody()
+        self.writeln(<FONT COLOR=#FF0000>'&lt;/html&gt;'</FONT>)
+
+    <FONT COLOR=black><B>def</B></FONT> writeDocType(self):
+        <FONT COLOR=#FF0000>"""
+        Invoked by writeHTML() to write the &lt;!DOCTYPE ...&gt; tag.
+
+        @@ sgd-2003-01-29 - restored the 4.01 transitional as per discussions
+        on the mailing list for the 0.8 release.
+
+        # This implementation USED TO specify HTML 4.01 Transitional, but
+        # some versions of Mozilla acted strangely with that. The current
+        # implementation does nothing.
+
+        Subclasses may override to specify something else.
+
+        You can find out more about doc types by searching for DOCTYPE
+        on the web, or visiting:
+            http://www.htmlhelp.com/tools/validator/doctype.html
+        """</FONT>
+        self.writeln(<FONT COLOR=#FF0000>'&lt;!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd"&gt;'</FONT>)
+        <FONT COLOR=black><B>pass</B></FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> writeHead(self):
+        <FONT COLOR=#FF0000>"""
+        Writes the &lt;head&gt; portion of the page by writing the
+        &lt;head&gt;...&lt;/head&gt; tags and invoking writeHeadParts() in between.
+        """</FONT>
+        wr = self.writeln
+        wr(<FONT COLOR=#FF0000>'&lt;head&gt;'</FONT>)
+        self.writeHeadParts()
+        wr(<FONT COLOR=#FF0000>'&lt;/head&gt;'</FONT>)
+
+    <FONT COLOR=black><B>def</B></FONT> writeHeadParts(self):
+        <FONT COLOR=#FF0000>"""
+        Writes the parts inside the &lt;head&gt;...&lt;/head&gt; tags. Invokes
+        writeTitle() and writeStyleSheet(). Subclasses can override this
+        to add additional items and should invoke super.
+        """</FONT>
+        self.writeTitle()
+        self.writeStyleSheet()
+
+    <FONT COLOR=black><B>def</B></FONT> writeTitle(self):
+        <FONT COLOR=#FF0000>"""
+        Writes the &lt;title&gt; portion of the page. Uses title().
+        """</FONT>
+        self.writeln(<FONT COLOR=#FF0000>'\t&lt;title&gt;%s&lt;/title&gt;'</FONT> % self.title())
+
+    <FONT COLOR=black><B>def</B></FONT> writeStyleSheet(self):
+        <FONT COLOR=#FF0000>"""
+        Writes the style sheet for the page, however, this default
+        implementation does nothing. Subclasses should override if
+        necessary. A typical implementation is:
+            self.writeln('\t&lt;link rel=stylesheet href=StyleSheet.css type=text/css&gt;')
+        """</FONT>
+        <FONT COLOR=black><B>pass</B></FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> writeBody(self):
+        <FONT COLOR=#FF0000>"""
+        Writes the &lt;body&gt; portion of the page by writing the
+        &lt;body&gt;...&lt;/body&gt; (making use of self.htBodyArgs()) and invoking
+        self.writeBodyParts() in between.
+        """</FONT>
+        wr = self.writeln
+        bodyArgs = self.htBodyArgs()
+        <FONT COLOR=black><B>if</B></FONT> bodyArgs:
+            wr(<FONT COLOR=#FF0000>'&lt;body %s&gt;'</FONT> % bodyArgs)
+        <FONT COLOR=black><B>else</B></FONT>:
+            wr(<FONT COLOR=#FF0000>'&lt;body&gt;'</FONT>)
+        self.writeBodyParts()
+        wr(<FONT COLOR=#FF0000>'&lt;/body&gt;'</FONT>)
+
+    <FONT COLOR=black><B>def</B></FONT> writeBodyParts(self):
+        <FONT COLOR=#FF0000>"""
+        Invokes writeContent(). Subclasses should only override this
+        method to provide additional page parts such as a header,
+        sidebar and footer, that a subclass doesn't normally have to
+        worry about writing.
+
+        For writing page-specific content, subclasses should override
+        writeContent() instead.
+
+        See SidebarPage for an example override of this method.
+
+        Invoked by writeBody().
+        """</FONT>
+        self.writeContent()
+
+    <FONT COLOR=black><B>def</B></FONT> writeContent(self):
+        <FONT COLOR=#FF0000>"""
+        Writes the unique, central content for the page.
+
+        Subclasses should override this method (not invoking super) to
+        write their unique page content.
+
+        Invoked by writeBodyParts().
+        """</FONT>
+        self.writeln(<FONT COLOR=#FF0000>'&lt;p&gt; This page has not yet customized its content. &lt;/p&gt;'</FONT>)
+
+
+    <FONT COLOR=#1111CC>## Writing ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> write(self, *args):
+        <FONT COLOR=black><B>for</B></FONT> arg <FONT COLOR=black><B>in</B></FONT> args:
+            self._response.write(str(arg))
+
+    <FONT COLOR=black><B>def</B></FONT> writeln(self, *args):
+        <FONT COLOR=black><B>for</B></FONT> arg <FONT COLOR=black><B>in</B></FONT> args:
+            self._response.write(str(arg))
+        self._response.write(<FONT COLOR=#FF0000>'\n'</FONT>)
+
+
+    <FONT COLOR=#1111CC>## Threading ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> canBeThreaded(self):
+        <FONT COLOR=#FF0000>""" Returns 0 because of the ivars we set up in awake(). """</FONT>
+        <FONT COLOR=black><B>return</B></FONT> 0
+
+
+    <FONT COLOR=#1111CC>## Actions ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> handleAction(self, action):
+        <FONT COLOR=#FF0000>"""
+        Invoked by _respond() when a legitimate action has been found
+        in a form. Invokes preAction(), the actual action method and
+        postAction().
+
+        Subclasses rarely override this method.
+        """</FONT>
+        self.preAction(action)
+        getattr(self, action)()
+        self.postAction(action)
+
+    <FONT COLOR=black><B>def</B></FONT> actions(self):
+        <FONT COLOR=#FF0000>"""
+        Returns a list of method names that are allowable actions from
+        HTML forms. The default implementation returns [].
+        """</FONT>
+        <FONT COLOR=black><B>return</B></FONT> []
+
+    <FONT COLOR=black><B>def</B></FONT> preAction(self, actionName):
+        <FONT COLOR=#FF0000>"""
+        Invoked by self prior to invoking a action method. The
+        implementation basically writes everything up to but not
+        including the body tag.  Subclasses may override to customize
+        and may or may not invoke super as they see fit. The actionName
+        is passed to this method, although it seems a generally bad
+        idea to rely on this. However, it's still provided just in case
+        you need that hook.
+        """</FONT>
+        self.writeDocType()
+        self.writeln(<FONT COLOR=#FF0000>'&lt;html&gt;'</FONT>)
+        self.writeHead()
+
+    <FONT COLOR=black><B>def</B></FONT> postAction(self, actionName):
+        <FONT COLOR=#FF0000>"""
+        Invoked by self after invoking a action method. The
+        implementation basically writes everything after the close of
+        the body tag (in other words, just the &lt;/html&gt; tag).  Subclasses
+        may override to customize and may or may not invoke super as
+        they see fit. The actionName is passed to this method, although
+        it seems a generally bad idea to rely on this. However, it's
+        still provided just in case you need that hook.
+        """</FONT>
+        self.writeln(<FONT COLOR=#FF0000>'&lt;/html&gt;'</FONT>)
+
+    <FONT COLOR=black><B>def</B></FONT> methodNameForAction(self, name):
+        <FONT COLOR=#FF0000>"""
+        This method exists only to support "old style" actions from
+        WebKit 0.5.x and below.
+
+        Invoked by _respond() to determine the method name for a given
+        action name (which usually comes from an HTML submit button in a
+        form). This implementation simple returns the name. Subclasses
+        could "filter" the name by altering it or looking it up in a
+        dictionary. Subclasses should override this method when action
+        names don't match their method names.
+        """</FONT>
+        <FONT COLOR=black><B>return</B></FONT> name
+
+
+    <FONT COLOR=#1111CC>## Convenience ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> htmlEncode(self, s):
+        <FONT COLOR=black><B>return</B></FONT> Funcs.htmlEncode(s)
+
+    <FONT COLOR=black><B>def</B></FONT> htmlDecode(self, s):
+        <FONT COLOR=black><B>return</B></FONT> Funcs.htmlDecode(s)
+
+    <FONT COLOR=black><B>def</B></FONT> urlEncode(self, s):
+        <FONT COLOR=black><B>return</B></FONT> Funcs.urlEncode(s)
+
+    <FONT COLOR=black><B>def</B></FONT> urlDecode(self, s):
+        <FONT COLOR=black><B>return</B></FONT> Funcs.urlDecode(s)
+
+    <FONT COLOR=black><B>def</B></FONT> forward(self, URL):
+        <FONT COLOR=#FF0000>"""
+        Forwards this request to another servlet.  See Application.forward() for details.
+        The main difference is that here you don't have to pass in the transaction as the first argument.
+        """</FONT>
+        self.application().forward(self.transaction(), URL)
+
+    <FONT COLOR=black><B>def</B></FONT> includeURL(self, URL):
+        <FONT COLOR=#FF0000>"""
+        Includes the response of another servlet in the current servlet's response.  See Application.includeURL() for details.
+        The main difference is that here you don't have to pass in the transaction as the first argument.
+        """</FONT>
+        self.application().includeURL(self.transaction(), URL)
+
+    <FONT COLOR=black><B>def</B></FONT> callMethodOfServlet(self, URL, method, *args, **kwargs):
+        <FONT COLOR=#FF0000>"""
+        Call a method of another servlet.  See Application.callMethodOfServlet() for details.
+        The main difference is that here you don't have to pass in the transaction as the first argument.
+        """</FONT>
+        <FONT COLOR=black><B>return</B></FONT> apply(self.application().callMethodOfServlet, (self.transaction(), URL, method) + args, kwargs)
+
+    <FONT COLOR=black><B>def</B></FONT> endResponse(self):
+        <FONT COLOR=#FF0000>"""
+        If this is called during sleep() or awake() then the rest of awake(), response(), and
+        sleep() are skipped and the accumulated response is sent immediately with no further
+        processing.  If this is called during respond() then the rest of respond() is
+        skipped but sleep() is called, then the accumulated response is sent.
+        """</FONT>
+        <FONT COLOR=black><B>raise</B></FONT> EndResponse
+
+    <FONT COLOR=black><B>def</B></FONT> sendRedirectAndEnd(self, url):
+        <FONT COLOR=#FF0000>"""
+        Sends a redirect back to the client and ends the response. This
+        is a very popular pattern.
+        """</FONT>
+        self.response().sendRedirect(url)
+        self.endResponse()
+
+
+    <FONT COLOR=#1111CC>## Self utility ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> sessionEncode(self, url=None):
+        <FONT COLOR=#FF0000>"""
+        Utility function to access session.sessionEncode.
+        Takes a url and adds the session ID as a parameter.  This is for cases where
+        you don't know if the client will accepts cookies.
+        """</FONT>
+        <FONT COLOR=black><B>if</B></FONT> url == None:
+            url = self.request().uri()
+        <FONT COLOR=black><B>return</B></FONT> self.session().sessionEncode(url)
+
+
+    <FONT COLOR=#1111CC>## Private utility ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> _actionSet(self):
+        <FONT COLOR=#FF0000>""" Returns a dictionary whose keys are the names returned by actions(). The dictionary is used for a quick set-membership-test in self._respond. Subclasses don't generally override this method or invoke it. """</FONT>
+        <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> hasattr(self, <FONT COLOR=#FF0000>'_actionDict'</FONT>):
+            self._actionDict = {}
+            <FONT COLOR=black><B>for</B></FONT> action <FONT COLOR=black><B>in</B></FONT> self.actions():
+                self._actionDict[action] = 1
+        <FONT COLOR=black><B>return</B></FONT> self._actionDict
+
+
+    <FONT COLOR=#1111CC>## Validate HTML output (developer debugging) ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> validateHTML(self, closingTags=<FONT COLOR=#FF0000>'&lt;/body&gt;&lt;/html&gt;'</FONT>):
+        <FONT COLOR=#FF0000>"""
+        Validate the current response data using Web Design
+        Group's HTML validator available at
+        http://www.htmlhelp.com/tools/validator/
+
+        Make sure you install the offline validator (called
+        "validate") which can be called from the command-line.
+        The "validate" script must be in your path.
+        
+        Add this method to your SitePage (the servlet from
+        which all your servlets inherit), override
+        Page.writeBodyParts() in your SitePage like so:
+            def writeBodyParts(self):
+                Page.writeBodyParts()
+                self.validateHTML()
+
+        The "closingtags" param is a string which is appended
+        to the page before validation.  Typically, it would be
+        the string "&lt;/body&gt;&lt;/html&gt;".  At the point this method
+        is called (e.g. from writeBodyParts() the page is not
+        yet 100% complete, so we have to fake it.
+        """</FONT>
+
+        <FONT COLOR=#1111CC># don't bother validating if the servlet has redirected</FONT>
+        status = self.response().header(<FONT COLOR=#FF0000>'status'</FONT>, None)
+        <FONT COLOR=black><B>if</B></FONT> status <FONT COLOR=black><B>and</B></FONT> status.find(<FONT COLOR=#FF0000>'Redirect'</FONT>) != -1:
+            <FONT COLOR=black><B>return</B></FONT>
+
+        response = self.response().rawResponse()
+        contents = response[<FONT COLOR=#FF0000>'contents'</FONT>] + closingTags
+        <FONT COLOR=black><B>from</B></FONT> WebUtils <FONT COLOR=black><B>import</B></FONT> WDGValidator
+        errorText = WDGValidator.validateHTML(contents)
+        <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> errorText:
+            <FONT COLOR=black><B>return</B></FONT>
+        self.write(errorText)
+
+    <FONT COLOR=#1111CC>## Exception reports ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> writeExceptionReport(self, handler):
+        handler.writeTitle(self.__class__.__name__)
+        handler.writeln(<FONT COLOR=#FF0000>'''Servlets can provide debugging information here by overriding writeExceptionReport().&lt;br&gt;For example:
+&lt;pre&gt;    exceptionReportAttrs = 'foo bar baz'.split()
+    def writeExceptionReport(self, handler):
+        handler.writeTitle(self.__class__.__name__)
+        handler.writeAttrs(self, self.exceptionReportAttrs)
+        handler.write('any string')
+&lt;/pre&gt;
+
+See WebKit/ExceptionHandler.py for more information.
+'''</FONT>)
+</PRE>
+                  <!--footer-->
+                  </BODY>

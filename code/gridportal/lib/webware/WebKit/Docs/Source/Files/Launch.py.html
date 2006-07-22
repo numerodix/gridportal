@@ -1,0 +1,97 @@
+<HTML><HEAD><TITLE>WebKit/Launch.py</TITLE></HEAD>
+                  <BODY BGCOLOR=#EEEEEE>
+                  <!--header-->
+                  <!--script--><PRE><FONT COLOR=#1111CC>#!/usr/bin/env python</FONT>
+
+<FONT COLOR=black><B>import</B></FONT> sys
+<FONT COLOR=black><B>if</B></FONT> sys.version[0] == <FONT COLOR=#FF0000>'1'</FONT>:
+    <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>"""Webware requires Python version 2.0+.  Webware is currently being
+run with the Python version:
+  %s
+This Python interpreter is located at:
+  %s
+You may need to change the AppServer script, giving the full path of
+the appropriate Python interpreter."""</FONT> % (sys.version, sys.executable)
+    sys.exit(1)
+
+<FONT COLOR=black><B>import</B></FONT> time; startTime = time.time()
+
+runProfile = 0   <FONT COLOR=#1111CC># as in Python's profile module. See doc string of Profiler.py</FONT>
+
+<FONT COLOR=black><B>import</B></FONT> os, sys, string
+
+profiler = None  <FONT COLOR=#1111CC># Forget this and read the doc string of Profiler.py</FONT>
+
+
+<FONT COLOR=black><B>def</B></FONT> usage():
+    <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>'error: Launch.py (of WebKit)'</FONT>
+    <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>'usage: Launch.py SERVER ARGS'</FONT>
+    sys.exit(1)
+
+
+<FONT COLOR=black><B>def</B></FONT> launchWebKit(server, appWorkPath, args):
+    <FONT COLOR=#FF0000>"""
+    Import and launch the specified WebKit server.
+    """</FONT>
+    <FONT COLOR=#1111CC># allow for a .py on the server name</FONT>
+    <FONT COLOR=black><B>if</B></FONT> server[-3:]==<FONT COLOR=#FF0000>'.py'</FONT>:
+        server = server[:-3]
+
+    <FONT COLOR=#1111CC># clean up sys.path</FONT>
+    <FONT COLOR=black><B>def</B></FONT> ok(directory):
+        <FONT COLOR=black><B>return</B></FONT> directory <FONT COLOR=black><B>not</B></FONT> <FONT COLOR=black><B>in</B></FONT> [<FONT COLOR=#FF0000>''</FONT>, <FONT COLOR=#FF0000>'.'</FONT>] <FONT COLOR=black><B>and</B></FONT> string.lower(directory[-6:])!=<FONT COLOR=#FF0000>'webkit'</FONT>
+    sys.path = filter(ok, sys.path)
+    sys.path.insert(0, <FONT COLOR=#FF0000>''</FONT>)
+
+    <FONT COLOR=#1111CC># Import the server's main()</FONT>
+    <FONT COLOR=black><B>import</B></FONT> WebKit
+    code = <FONT COLOR=#FF0000>'from WebKit.%s import main'</FONT> % server
+    dict = {}
+    <FONT COLOR=black><B>exec</B></FONT> code <FONT COLOR=black><B>in</B></FONT> dict
+    main = dict[<FONT COLOR=#FF0000>'main'</FONT>]
+
+    <FONT COLOR=#1111CC># Set up a reference to our profiler so applications can import and use it</FONT>
+    <FONT COLOR=black><B>from</B></FONT> WebKit <FONT COLOR=black><B>import</B></FONT> Profiler
+    Profiler.startTime = startTime
+    <FONT COLOR=black><B>if</B></FONT> runProfile:
+        Profiler.profiler = profiler
+
+    <FONT COLOR=#1111CC># Run!</FONT>
+    args = args + [<FONT COLOR=#FF0000>'workdir='</FONT> + appWorkPath]
+    main(args)
+
+
+<FONT COLOR=black><B>def</B></FONT> main(args=None):
+    <FONT COLOR=black><B>if</B></FONT> args <FONT COLOR=black><B>is</B></FONT> None:
+        args = sys.argv
+    <FONT COLOR=black><B>if</B></FONT> len(args)&lt;2:
+        usage()
+
+    server = args[1] <FONT COLOR=#1111CC># the server</FONT>
+
+    <FONT COLOR=#1111CC># figure out directory locations</FONT>
+    webKitPath = os.path.dirname(os.path.join(os.getcwd(), sys.argv[0]))
+    webwarePath = os.path.dirname(webKitPath)
+
+    <FONT COLOR=#1111CC># go to Webware dir so that:</FONT>
+    <FONT COLOR=#1111CC>#   - importing packages like 'WebUtils' hits this Webware</FONT>
+    <FONT COLOR=#1111CC>#   - we cannot import WebKit modules without qualifying them</FONT>
+    os.chdir(webwarePath)
+
+    <FONT COLOR=#1111CC># Go!</FONT>
+    launchWebKit(server, webKitPath, args[2:])
+
+
+<FONT COLOR=black><B>if</B></FONT> __name__==<FONT COLOR=#FF0000>'__main__'</FONT>:
+    <FONT COLOR=black><B>if</B></FONT> runProfile:
+        <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>'Profiling is on. See doc string in Profiler.py for more info.'</FONT>
+        <FONT COLOR=black><B>from</B></FONT> profile <FONT COLOR=black><B>import</B></FONT> Profile
+        profiler = Profile()
+        profiler.runcall(main)
+        <FONT COLOR=black><B>from</B></FONT> WebKit <FONT COLOR=black><B>import</B></FONT> Profiler
+        Profiler.dumpStats()
+    <FONT COLOR=black><B>else</B></FONT>:
+        main()
+</PRE>
+                  <!--footer-->
+                  </BODY>

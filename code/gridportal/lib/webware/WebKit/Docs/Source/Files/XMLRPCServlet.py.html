@@ -1,0 +1,85 @@
+<HTML><HEAD><TITLE>WebKit/XMLRPCServlet.py</TITLE></HEAD>
+                  <BODY BGCOLOR=#EEEEEE>
+                  <!--header-->
+                  <!--script--><PRE><FONT COLOR=#1111CC># This requires the free xml-rpc library available from</FONT>
+<FONT COLOR=#1111CC># http://www.pythonware.com/products/xmlrpc/</FONT>
+<FONT COLOR=#1111CC>#</FONT>
+<FONT COLOR=#1111CC># See Examples/XMLRPCExample.py for sample usage.</FONT>
+<FONT COLOR=#1111CC>#</FONT>
+
+<FONT COLOR=#1111CC># Sometimes xmlrpclib is installed as a package, sometimes not.  So we'll</FONT>
+<FONT COLOR=#1111CC># make sure it works either way.</FONT>
+<FONT COLOR=black><B>try</B></FONT>:
+    <FONT COLOR=black><B>from</B></FONT> xmlrpclib <FONT COLOR=black><B>import</B></FONT> xmlrpclib
+<FONT COLOR=black><B>except</B></FONT> ImportError:
+    <FONT COLOR=black><B>import</B></FONT> xmlrpclib
+<FONT COLOR=black><B>import</B></FONT> sys, string, traceback
+<FONT COLOR=black><B>from</B></FONT> RPCServlet <FONT COLOR=black><B>import</B></FONT> RPCServlet
+
+<FONT COLOR=black><B>class</B></FONT> XMLRPCServlet(RPCServlet):
+    <FONT COLOR=#FF0000>"""
+    XMLRPCServlet is a base class for XML-RPC servlets.
+    See Examples/XMLRPCExample.py for sample usage.
+
+    For more Pythonic convenience at the cost of language independence,
+    see PickleRPCServlet.
+    """</FONT>
+    <FONT COLOR=black><B>def</B></FONT> respondToPost(self, transaction):
+        <FONT COLOR=#FF0000>"""
+        This is similar to the xmlrpcserver.py example from the xmlrpc
+        library distribution, only it's been adapted to work within a
+        WebKit servlet.
+        """</FONT>
+        <FONT COLOR=black><B>try</B></FONT>:
+            <FONT COLOR=#1111CC># get arguments</FONT>
+            data = transaction.request().rawInput(rewind=1).read()
+            encoding = _getXmlDeclAttr(data, <FONT COLOR=#FF0000>"encoding"</FONT>)
+            params, method = xmlrpclib.loads(data)
+
+            <FONT COLOR=#1111CC># generate response</FONT>
+            <FONT COLOR=black><B>try</B></FONT>:
+                <FONT COLOR=#1111CC># This first test helps us to support PythonWin, which uses</FONT>
+                <FONT COLOR=#1111CC># repeated calls to __methods__.__getitem__ to determine the</FONT>
+                <FONT COLOR=#1111CC># allowed methods of an object.</FONT>
+                <FONT COLOR=black><B>if</B></FONT> method == <FONT COLOR=#FF0000>'__methods__.__getitem__'</FONT>:
+                    response = self.exposedMethods()[params[0]]
+                <FONT COLOR=black><B>else</B></FONT>:
+                    response = self.call(method, *params)
+                <FONT COLOR=black><B>if</B></FONT> type(response) != type(()):
+                    response = (response,)
+            <FONT COLOR=black><B>except</B></FONT> Exception, e:
+                fault = self.resultForException(e, transaction)
+                response = xmlrpclib.dumps(xmlrpclib.Fault(1, fault), encoding=encoding)
+                self.sendOK(<FONT COLOR=#FF0000>'text/xml'</FONT>, response, transaction)
+                self.handleException(transaction)
+            <FONT COLOR=black><B>except</B></FONT>:  <FONT COLOR=#1111CC># if it's a string exception, this gets triggered</FONT>
+                fault = self.resultForException(sys.exc_info()[0], transaction)
+                response = xmlrpclib.dumps(xmlrpclib.Fault(1, fault), encoding=encoding)
+                self.sendOK(<FONT COLOR=#FF0000>'text/xml'</FONT>, response, transaction)
+                self.handleException(transaction)
+            <FONT COLOR=black><B>else</B></FONT>:
+                response = xmlrpclib.dumps(response, methodresponse=1, encoding=encoding)
+                self.sendOK(<FONT COLOR=#FF0000>'text/xml'</FONT>, response, transaction)
+        <FONT COLOR=black><B>except</B></FONT>:
+            <FONT COLOR=#1111CC># internal error, report as HTTP server error</FONT>
+            <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>'XMLRPCServlet internal error'</FONT>
+            <FONT COLOR=black><B>print</B></FONT> string.join(traceback.format_exception(sys.exc_info()[0],sys.exc_info()[1],sys.exc_info()[2]))
+            transaction.response().setStatus(500, <FONT COLOR=#FF0000>'Server Error'</FONT>)
+            self.handleException(transaction)
+
+
+
+<FONT COLOR=#1111CC># Helper functions</FONT>
+
+<FONT COLOR=black><B>def</B></FONT> _getXmlDeclAttr(xml, attName):
+    <FONT COLOR=#FF0000>""" gets attribute value from xml declaration (&lt;?xml ... ?&gt;) """</FONT>
+    s = xml[6 : xml.find(<FONT COLOR=#FF0000>"?&gt;"</FONT>)] <FONT COLOR=#1111CC># 'version = "1.0" encoding = "Cp1251"'</FONT>
+    p = s.find(attName)
+    <FONT COLOR=black><B>if</B></FONT> p==-1:
+        <FONT COLOR=black><B>return</B></FONT> None
+    s=s[p+len(attName):]        <FONT COLOR=#1111CC># '= "Cp1251"'</FONT>
+    s=s[s.find(<FONT COLOR=#FF0000>'='</FONT>)+1:].strip() <FONT COLOR=#1111CC># '"Cp1251"'</FONT>
+    <FONT COLOR=black><B>return</B></FONT> s[1:s.find(s[0],1)]  <FONT COLOR=#1111CC># 'Cp1251'</FONT>
+</PRE>
+                  <!--footer-->
+                  </BODY>

@@ -1,0 +1,351 @@
+<HTML><HEAD><TITLE>WebKit/AppServer.py</TITLE></HEAD>
+                  <BODY BGCOLOR=#EEEEEE>
+                  <!--header-->
+                  <!--script--><PRE><FONT COLOR=#1111CC>#!/usr/bin/env python</FONT>
+<FONT COLOR=#FF0000>"""
+AppServer
+
+
+FUTURE
+
+    * Implement the additional settings that are commented out below.
+"""</FONT>
+
+<FONT COLOR=black><B>from</B></FONT> Common <FONT COLOR=black><B>import</B></FONT> *
+<FONT COLOR=black><B>from</B></FONT> Object <FONT COLOR=black><B>import</B></FONT> Object
+<FONT COLOR=black><B>from</B></FONT> ConfigurableForServerSidePath <FONT COLOR=black><B>import</B></FONT> ConfigurableForServerSidePath
+<FONT COLOR=black><B>from</B></FONT> Application <FONT COLOR=black><B>import</B></FONT> Application
+<FONT COLOR=black><B>from</B></FONT> PlugIn <FONT COLOR=black><B>import</B></FONT> PlugIn
+<FONT COLOR=black><B>import</B></FONT> Profiler
+
+<FONT COLOR=black><B>from</B></FONT> threading <FONT COLOR=black><B>import</B></FONT> Thread, Event
+
+globalAppServer = None
+    <FONT COLOR=#1111CC># Concrete app servers have to set this variable which then allows</FONT>
+    <FONT COLOR=#1111CC># any Python code to access the app server singleton like so:</FONT>
+    <FONT COLOR=#1111CC>#     from WebKit.AppServer import globalAppServer</FONT>
+
+DefaultConfig = {
+    <FONT COLOR=#FF0000>'PrintConfigAtStartUp'</FONT>: 1,
+    <FONT COLOR=#FF0000>'Verbose'</FONT>:              1,
+    <FONT COLOR=#FF0000>'PlugIns'</FONT>:              [<FONT COLOR=#FF0000>'../PSP'</FONT>],
+    <FONT COLOR=#FF0000>'CheckInterval'</FONT>:        100,
+
+    <FONT COLOR=#1111CC># @@ 2000-04-27 ce: None of the following settings are implemented</FONT>
+<FONT COLOR=#1111CC>#   'ApplicationClassName': 'Application',</FONT>
+}
+
+
+<FONT COLOR=black><B>class</B></FONT> AppServerError(Exception):
+    <FONT COLOR=black><B>pass</B></FONT>
+
+
+<FONT COLOR=black><B>class</B></FONT> AppServer(ConfigurableForServerSidePath, Object):
+
+    <FONT COLOR=#1111CC>## Init ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> __init__(self, path=None):
+        self._startTime = time.time()
+        
+        <FONT COLOR=black><B>global</B></FONT> globalAppServer
+        <FONT COLOR=black><B>assert</B></FONT> globalAppServer <FONT COLOR=black><B>is</B></FONT> None, <FONT COLOR=#FF0000>'more than one app server; or __init__() invoked more than once'</FONT>
+        globalAppServer = self
+        
+        ConfigurableForServerSidePath.__init__(self)
+        Object.__init__(self)
+        <FONT COLOR=black><B>if</B></FONT> path <FONT COLOR=black><B>is</B></FONT> None:
+            path = os.path.dirname(__file__)  <FONT COLOR=#1111CC>#os.getcwd()</FONT>
+        self._serverSidePath = os.path.abspath(path)
+        self._webKitPath = os.path.abspath(os.path.dirname(__file__))
+        self._webwarePath = os.path.dirname(self._webKitPath)
+
+        self._verbose = self.setting(<FONT COLOR=#FF0000>'Verbose'</FONT>)
+        self._plugIns = []
+        self._reqCount = 0
+
+        self.checkForInstall()
+        self.config() <FONT COLOR=#1111CC># cache the config</FONT>
+        self.printStartUpMessage()
+        sys.setcheckinterval(self.setting(<FONT COLOR=#FF0000>'CheckInterval'</FONT>))
+        self._app = self.createApplication()
+        self.loadPlugIns()
+
+        self.running = 1
+
+        <FONT COLOR=black><B>if</B></FONT> self.isPersistent():
+            self._closeEvent = Event()
+            self._closeThread = Thread(target=self.closeThread)
+<FONT COLOR=#1111CC>##          self._closeThread.setDaemon(1)</FONT>
+            self._closeThread.start()
+
+    <FONT COLOR=black><B>def</B></FONT> checkForInstall(self):
+        <FONT COLOR=#FF0000>"""
+        Exits with an error message if Webware was not installed.
+        """</FONT>
+        <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> os.path.exists(os.path.join(self._webwarePath, <FONT COLOR=#FF0000>'_installed'</FONT>)):
+            sys.stdout = sys.stderr
+            <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>'ERROR: You have not installed Webware.'</FONT>
+            <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>'Please run install.py from inside the Webware directory.'</FONT>
+            <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>'For example:'</FONT>
+            <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>'&gt; cd ..'</FONT>
+            <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>'&gt; python install.py'</FONT>
+            <FONT COLOR=black><B>print</B></FONT>
+            sys.exit(0)
+
+    <FONT COLOR=black><B>def</B></FONT> readyForRequests(self):
+        <FONT COLOR=#FF0000>"""
+        Should be invoked by subclasses when they are finally ready to
+        accept requests. Records some stats and prints a message.
+        """</FONT>
+        Profiler.readyTime = time.time()
+        Profiler.readyDuration = Profiler.readyTime - Profiler.startTime
+        <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>"Ready  (%.2f seconds after launch)\n"</FONT> % Profiler.readyDuration
+        sys.stdout.flush()
+        sys.stderr.flush()
+
+    <FONT COLOR=black><B>def</B></FONT> closeThread(self):
+        self._closeEvent.wait()
+        self.shutDown()
+
+    <FONT COLOR=black><B>def</B></FONT> initiateShutdown(self):
+        self._closeEvent.set()
+
+
+
+    <FONT COLOR=black><B>def</B></FONT> recordPID(self):
+        <FONT COLOR=#FF0000>"""
+        Save the pid of the AppServer to a file name appserverpid.txt.
+        """</FONT>
+        pidfile = open(os.path.join(self._serverSidePath, <FONT COLOR=#FF0000>"appserverpid.txt"</FONT>),<FONT COLOR=#FF0000>"w"</FONT>)
+
+        <FONT COLOR=black><B>if</B></FONT> os.name == <FONT COLOR=#FF0000>'posix'</FONT>:
+            pidfile.write(str(os.getpid()))
+        <FONT COLOR=black><B>else</B></FONT>:
+            <FONT COLOR=black><B>try</B></FONT>:
+                <FONT COLOR=black><B>import</B></FONT> win32api
+            <FONT COLOR=black><B>except</B></FONT>:
+                <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>"win32 extensions not present.  Webkit Will not be able to detatch from the controlling terminal."</FONT>
+            <FONT COLOR=black><B>if</B></FONT> sys.modules.has_key(<FONT COLOR=#FF0000>'win32api'</FONT>):
+                pidfile.write(str(win32api.GetCurrentProcess()))
+
+    <FONT COLOR=black><B>def</B></FONT> shutDown(self):
+        <FONT COLOR=#FF0000>"""
+        Subclasses may override and normally follow this sequence:
+            1. set self._shuttingDown to 1
+            2. class specific statements for shutting down
+            3. Invoke super's shutDown() e.g., AppServer.shutDown(self)
+        """</FONT>
+        <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>"Shutting down the AppServer"</FONT>
+        self._shuttingDown = 1
+        self.running = 0
+        self._app.shutDown()
+        <FONT COLOR=black><B>del</B></FONT> self._plugIns
+        <FONT COLOR=black><B>del</B></FONT> self._app
+        <FONT COLOR=black><B>if</B></FONT> Profiler.profiler:
+            <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>'Writing profile stats to %s...'</FONT> % Profiler.statsFilename
+            Profiler.dumpStats()  <FONT COLOR=#1111CC># you might also considering having a page/servlet that lets you dump the stats on demand</FONT>
+            <FONT COLOR=black><B>print</B></FONT>
+            <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>'WARNING: Applications run much slower when profiled, so turn off profiling in Launch.py when you are finished.'</FONT>
+            <FONT COLOR=black><B>print</B></FONT>
+            <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>'AppServer ran for %0.2f seconds.'</FONT> % (time.time()-Profiler.startTime)
+        <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>"AppServer has been shutdown"</FONT>
+
+
+    <FONT COLOR=#1111CC>## Configuration ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> defaultConfig(self):
+        <FONT COLOR=black><B>return</B></FONT> DefaultConfig
+
+    <FONT COLOR=black><B>def</B></FONT> configFilename(self):
+        <FONT COLOR=black><B>return</B></FONT> self.serverSidePath(<FONT COLOR=#FF0000>'Configs/AppServer.config'</FONT>)
+
+    <FONT COLOR=black><B>def</B></FONT> configReplacementValues(self):
+        <FONT COLOR=black><B>return</B></FONT> {      <FONT COLOR=#1111CC># Since these strings will be eval'ed we need to double escape any backslashes</FONT>
+            <FONT COLOR=#FF0000>'WebwarePath'</FONT> : string.replace(self._webwarePath, <FONT COLOR=#FF0000>'\\'</FONT>, <FONT COLOR=#FF0000>'\\\\'</FONT>),
+            <FONT COLOR=#FF0000>'WebKitPath'</FONT>  : string.replace(self._webKitPath, <FONT COLOR=#FF0000>'\\'</FONT>, <FONT COLOR=#FF0000>'\\\\'</FONT>),
+            <FONT COLOR=#FF0000>'serverSidePath'</FONT> : string.replace(self._serverSidePath, <FONT COLOR=#FF0000>'\\'</FONT>, <FONT COLOR=#FF0000>'\\\\'</FONT>),
+            }
+
+
+    <FONT COLOR=#1111CC>## Network Server ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> createApplication(self):
+        <FONT COLOR=#FF0000>""" Creates and returns an application object. Invoked by __init__. """</FONT>
+        <FONT COLOR=black><B>return</B></FONT> Application(server=self)
+
+    <FONT COLOR=black><B>def</B></FONT> printStartUpMessage(self):
+        <FONT COLOR=#FF0000>""" Invoked by __init__. """</FONT>
+        <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>'WebKit AppServer'</FONT>, self.version()
+        <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>'part of Webware for Python'</FONT>
+        <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>'Copyright 1999-2001 by Chuck Esterbrook. All Rights Reserved.'</FONT>
+        <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>'WebKit and Webware are open source.'</FONT>
+        <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>'Please visit:  http://webware.sourceforge.net'</FONT>
+        <FONT COLOR=black><B>print</B></FONT>
+        <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>'Process id is'</FONT>, os.getpid()
+        <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>'Date/time is'</FONT>, time.asctime(time.localtime(time.time()))
+        <FONT COLOR=black><B>print</B></FONT>
+        <FONT COLOR=black><B>if</B></FONT> self.setting(<FONT COLOR=#FF0000>'PrintConfigAtStartUp'</FONT>):
+            self.printConfig()
+
+
+    <FONT COLOR=#1111CC>## Plug-ins ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> plugIns(self):
+        <FONT COLOR=#FF0000>""" Returns a list of the plug-ins loaded by the app server. Each plug-in is a python package. """</FONT>
+        <FONT COLOR=black><B>return</B></FONT> self._plugIns
+
+    <FONT COLOR=black><B>def</B></FONT> plugIn(self, name, default=NoDefault):
+        <FONT COLOR=#FF0000>""" Returns the plug-in with the given name. """</FONT>
+        <FONT COLOR=#1111CC># @@ 2001-04-25 ce: linear search. yuck. Plus we should guarantee plug-in name uniqueness anyway</FONT>
+        <FONT COLOR=black><B>for</B></FONT> pi <FONT COLOR=black><B>in</B></FONT> self._plugIns:
+            <FONT COLOR=black><B>if</B></FONT> pi.name()==name:
+                <FONT COLOR=black><B>return</B></FONT> pi
+        <FONT COLOR=black><B>if</B></FONT> default <FONT COLOR=black><B>is</B></FONT> NoDefault:
+            <FONT COLOR=black><B>raise</B></FONT> KeyError, name
+        <FONT COLOR=black><B>else</B></FONT>:
+            <FONT COLOR=black><B>return</B></FONT> default
+
+    <FONT COLOR=black><B>def</B></FONT> loadPlugIn(self, path):
+        <FONT COLOR=#FF0000>""" Loads and returns the given plug-in. May return None if loading was unsuccessful (in which case this method prints a message saying so). Used by loadPlugIns(). """</FONT>
+        plugIn = None
+        path = self.serverSidePath(path)
+        <FONT COLOR=black><B>try</B></FONT>:
+            plugIn = PlugIn(self, path)
+            willNotLoadReason = plugIn.load()
+            <FONT COLOR=black><B>if</B></FONT> willNotLoadReason:
+                <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>'    Plug-in %s cannot be loaded because:\n    %s'</FONT> % (path, willNotLoadReason)
+                <FONT COLOR=black><B>return</B></FONT> None
+            plugIn.install()
+        <FONT COLOR=black><B>except</B></FONT>:
+            <FONT COLOR=black><B>import</B></FONT> traceback
+            traceback.print_exc(file=sys.stderr)
+            self.error(<FONT COLOR=#FF0000>'Plug-in %s raised exception.'</FONT> % path)
+        <FONT COLOR=black><B>return</B></FONT> plugIn
+
+    <FONT COLOR=black><B>def</B></FONT> loadPlugIns(self):
+        <FONT COLOR=#FF0000>"""
+        A plug-in allows you to extend the functionality of WebKit without necessarily having to modify it's source. Plug-ins are loaded by AppServer at startup time, just before listening for requests. See the docs for PlugIn.py for more info.
+        """</FONT>
+        plugIns = self.setting(<FONT COLOR=#FF0000>'PlugIns'</FONT>)
+        plugIns = map(<FONT COLOR=black><B>lambda</B></FONT> path, ssp=self.serverSidePath: ssp(path), plugIns)
+
+
+        <FONT COLOR=#1111CC># Scan each directory named in the PlugInDirs list.</FONT>
+        <FONT COLOR=#1111CC># If those directories contain Python packages (that</FONT>
+        <FONT COLOR=#1111CC># don't have a "dontload" file) then add them to the</FONT>
+        <FONT COLOR=#1111CC># plugs in list.</FONT>
+        <FONT COLOR=black><B>for</B></FONT> plugInDir <FONT COLOR=black><B>in</B></FONT> self.setting(<FONT COLOR=#FF0000>'PlugInDirs'</FONT>):
+            plugInDir = self.serverSidePath(plugInDir)
+            <FONT COLOR=black><B>for</B></FONT> filename <FONT COLOR=black><B>in</B></FONT> os.listdir(plugInDir):
+                filename = os.path.normpath(os.path.join(plugInDir, filename))
+                <FONT COLOR=black><B>if</B></FONT> os.path.isdir(filename) <FONT COLOR=black><B>and</B></FONT> \
+                   os.path.exists(os.path.join(filename, <FONT COLOR=#FF0000>'__init__.py'</FONT>)) <FONT COLOR=black><B>and</B></FONT> \
+                   os.path.exists(os.path.join(filename, <FONT COLOR=#FF0000>'Properties.py'</FONT>)) <FONT COLOR=black><B>and</B></FONT> \
+                   <FONT COLOR=black><B>not</B></FONT> os.path.exists(os.path.join(filename, <FONT COLOR=#FF0000>'dontload'</FONT>)) <FONT COLOR=black><B>and</B></FONT> \
+                   os.path.basename(filename)!=<FONT COLOR=#FF0000>'WebKit'</FONT> <FONT COLOR=black><B>and</B></FONT> \
+                   filename <FONT COLOR=black><B>not</B></FONT> <FONT COLOR=black><B>in</B></FONT> plugIns:
+                    plugIns.append(filename)
+
+        <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>'Plug-ins list:'</FONT>, string.join(plugIns, <FONT COLOR=#FF0000>', '</FONT>)
+
+        <FONT COLOR=#1111CC># Now that we have our plug-in list, load them...</FONT>
+        <FONT COLOR=black><B>for</B></FONT> plugInPath <FONT COLOR=black><B>in</B></FONT> plugIns:
+            plugIn = self.loadPlugIn(plugInPath)
+            <FONT COLOR=black><B>if</B></FONT> plugIn:
+                self._plugIns.append(plugIn)
+        <FONT COLOR=black><B>print</B></FONT>
+
+
+    <FONT COLOR=#1111CC>## Access ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> version(self):
+        <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> hasattr(self,<FONT COLOR=#FF0000>'_webKitVersionString'</FONT>):
+            <FONT COLOR=black><B>from</B></FONT> MiscUtils.PropertiesObject <FONT COLOR=black><B>import</B></FONT> PropertiesObject
+            props = PropertiesObject(os.path.join(self.webKitPath(), <FONT COLOR=#FF0000>'Properties.py'</FONT>))
+            self._webKitVersionString = props[<FONT COLOR=#FF0000>'versionString'</FONT>]
+        <FONT COLOR=black><B>return</B></FONT> self._webKitVersionString
+
+    <FONT COLOR=black><B>def</B></FONT> application(self):
+        <FONT COLOR=black><B>return</B></FONT> self._app
+
+    <FONT COLOR=black><B>def</B></FONT> startTime(self):
+        <FONT COLOR=#FF0000>""" Returns the time the app server was started (as seconds, like time()). """</FONT>
+        <FONT COLOR=black><B>return</B></FONT> self._startTime
+
+    <FONT COLOR=black><B>def</B></FONT> numRequests(self):
+        <FONT COLOR=#FF0000>""" Return the number of requests received by this server since it was launched. """</FONT>
+        <FONT COLOR=black><B>return</B></FONT> self._reqCount
+
+    <FONT COLOR=black><B>def</B></FONT> isPersistent(self):
+        <FONT COLOR=black><B>raise</B></FONT> AbstractError, self.__class__
+
+    <FONT COLOR=black><B>def</B></FONT> serverSidePath(self, path=None):
+        <FONT COLOR=#FF0000>""" Returns the absolute server-side path of the WebKit app server. If the optional path is passed in, then it is joined with the server side directory to form a path relative to the app server.
+        """</FONT>
+        <FONT COLOR=black><B>if</B></FONT> path:
+            <FONT COLOR=black><B>return</B></FONT> os.path.normpath(os.path.join(self._serverSidePath, path))
+        <FONT COLOR=black><B>else</B></FONT>:
+            <FONT COLOR=black><B>return</B></FONT> self._serverSidePath
+
+    <FONT COLOR=black><B>def</B></FONT> webwarePath(self):
+        <FONT COLOR=black><B>return</B></FONT> self._webwarePath
+
+    <FONT COLOR=black><B>def</B></FONT> webKitPath(self):
+        <FONT COLOR=black><B>return</B></FONT> self._webKitPath
+
+
+    <FONT COLOR=#1111CC>## Warnings and Errors ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> warning(self, msg):
+        <FONT COLOR=#1111CC># @@ 2000-04-25 ce: would this be useful?</FONT>
+        <FONT COLOR=black><B>raise</B></FONT> NotImplementedError
+
+    <FONT COLOR=black><B>def</B></FONT> error(self, msg):
+        <FONT COLOR=#FF0000>"""
+        Flushes stdout and stderr, prints the message to stderr and exits with code 1.
+        """</FONT>
+        sys.stdout.flush()
+        sys.stderr.flush()
+        sys.stderr.write(<FONT COLOR=#FF0000>'ERROR: %s\n'</FONT> % msg)
+        sys.stderr.flush()
+        sys.exit(1)  <FONT COLOR=#1111CC># @@ 2000-05-29 ce: Doesn't work. Perhaps because of threads</FONT>
+
+
+
+<FONT COLOR=black><B>def</B></FONT> main():
+    <FONT COLOR=black><B>try</B></FONT>:
+        server = AppServer()
+        <FONT COLOR=black><B>return</B></FONT>
+        <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>"Ready"</FONT>
+        <FONT COLOR=black><B>print</B></FONT>
+        <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>'WARNING: There is nothing to do here with the abstract AppServer. Use one of the adapters such as WebKit.cgi (with ThreadedAppServer) or OneShot.cgi'</FONT>
+        server.shutDown()
+    <FONT COLOR=black><B>except</B></FONT> Exception, exc:  <FONT COLOR=#1111CC># Need to kill the Sweeper thread somehow</FONT>
+        <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>'Caught exception:'</FONT>, exc
+        <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>"Exiting AppServer"</FONT>
+        server.shutDown()
+        <FONT COLOR=black><B>del</B></FONT> server
+        sys.exit()
+
+
+<FONT COLOR=black><B>def</B></FONT> stop(*args, **kw):
+    pidfile = os.path.join(os.path.dirname(__file__),<FONT COLOR=#FF0000>"appserverpid.txt"</FONT>)
+    pid = int(open(pidfile,<FONT COLOR=#FF0000>"r"</FONT>).read())
+    <FONT COLOR=#1111CC>#now what for windows?</FONT>
+    <FONT COLOR=black><B>if</B></FONT> os.name == <FONT COLOR=#FF0000>'posix'</FONT>:
+        <FONT COLOR=black><B>import</B></FONT> signal
+        os.kill(pid,signal.SIGINT)
+    <FONT COLOR=black><B>else</B></FONT>:
+        <FONT COLOR=black><B>try</B></FONT>:
+            <FONT COLOR=black><B>import</B></FONT> win32process
+        <FONT COLOR=black><B>except</B></FONT>:
+            <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>"Win32 extensions not present.  Webkit cannot terminate the running process."</FONT>
+        <FONT COLOR=black><B>if</B></FONT> sys.modules.has_key(<FONT COLOR=#FF0000>'win32process'</FONT>):
+            win32process.TerminateProcess(pid,0)
+
+
+<FONT COLOR=black><B>if</B></FONT> __name__==<FONT COLOR=#FF0000>'__main__'</FONT>:
+    main()
+</PRE>
+                  <!--footer-->
+                  </BODY>

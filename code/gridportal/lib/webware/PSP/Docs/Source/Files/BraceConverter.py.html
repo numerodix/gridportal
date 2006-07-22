@@ -1,0 +1,201 @@
+<HTML><HEAD><TITLE>PSP/BraceConverter.py</TITLE></HEAD>
+                  <BODY BGCOLOR=#EEEEEE>
+                  <!--header-->
+                  <!--script--><PRE><FONT COLOR=#FF0000>"""
+  BraceConverter (2000-09-04) by Dave Wallace (dwallace@delanet.com)
+  
+    Converts Brace-blocked Python into normal indented Python.
+    Brace-blocked Python is non-indentation aware and blocks are delimited by ':{' and '}' pairs.
+
+    Thus:
+    for x in range(10) :{
+      if x%2 :{ print x } else :{ print z }
+    }
+    
+    Becomes: (roughly, barring some spurious newlines)
+    for x in range(10) :
+       if x%2 :
+          print x
+       else :
+          print z
+
+    This implementation is fed a line at a time via parseLine(), outputs to
+    a PSPServletWriter, and tracks the current quotation and block levels internally.
+    
+
+"""</FONT>
+<FONT COLOR=black><B>import</B></FONT> re
+<FONT COLOR=black><B>import</B></FONT> string
+<FONT COLOR=black><B>import</B></FONT> sys
+
+
+<FONT COLOR=black><B>class</B></FONT> BraceConverter:
+
+    CSKIP = re.compile(<FONT COLOR=#FF0000>"(^[^\"</FONT>'{}:<FONT COLOR=#1111CC>#]+)")</FONT>
+    COLONBRACE=re.compile(<FONT COLOR=#FF0000>":\s*{\s*([^\s].*)?$"</FONT>)
+    
+    <FONT COLOR=black><B>def</B></FONT> __init__(self):
+        self.inquote = 0
+        self.dictlevel = 0
+
+
+    <FONT COLOR=#1111CC># The only public method of this class, call with subsequent lines and an</FONT>
+    <FONT COLOR=#1111CC># instance of PSPServletWriter</FONT>
+    <FONT COLOR=black><B>def</B></FONT> parseLine(self,line,writer):
+        self.line = line
+
+        <FONT COLOR=black><B>if</B></FONT> self.inquote <FONT COLOR=black><B>and</B></FONT> self.line:
+            self.skipquote(writer)
+
+        self.line = string.lstrip(self.line)
+        <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> self.line:
+            writer.printChars(<FONT COLOR=#FF0000>'\n'</FONT>)
+            <FONT COLOR=black><B>return</B></FONT>
+
+        writer.printIndent()       
+
+        <FONT COLOR=black><B>while</B></FONT> self.line:
+            <FONT COLOR=black><B>while</B></FONT> self.inquote <FONT COLOR=black><B>and</B></FONT> self.line:
+                self.skipquote(writer)
+
+            match = self.CSKIP.search(self.line)
+            <FONT COLOR=black><B>if</B></FONT> match:
+                writer.printChars(self.line[:match.end(1)])
+                self.line = self.line[match.end(1):]
+            <FONT COLOR=black><B>else</B></FONT>:
+                ch = self.line[0]
+                <FONT COLOR=black><B>if</B></FONT> ch == <FONT COLOR=#FF0000>"'"</FONT>:
+                    self.handleQuote(<FONT COLOR=#FF0000>"'"</FONT>,writer)
+                    self.skipquote(writer)
+                <FONT COLOR=black><B>elif</B></FONT> ch == <FONT COLOR=#FF0000>'"'</FONT>:
+                    self.handleQuote(<FONT COLOR=#FF0000>'"'</FONT>,writer)
+                    self.skipquote(writer)                
+                <FONT COLOR=black><B>elif</B></FONT> ch == <FONT COLOR=#FF0000>'{'</FONT>:
+                    self.openBrace(writer)
+                <FONT COLOR=black><B>elif</B></FONT> ch == <FONT COLOR=#FF0000>'}'</FONT>:
+                    self.closeBrace(writer)
+                <FONT COLOR=black><B>elif</B></FONT> ch == <FONT COLOR=#FF0000>':'</FONT>:
+                    self.openBlock(writer)
+                <FONT COLOR=black><B>elif</B></FONT> ch == <FONT COLOR=#FF0000>'#'</FONT>:
+                    writer.printChars(self.line)
+                    self.line=<FONT COLOR=#FF0000>""</FONT>
+                <FONT COLOR=black><B>else</B></FONT>:
+                    <FONT COLOR=#1111CC># should never get here</FONT>
+                    <FONT COLOR=black><B>raise</B></FONT> Exception()
+        <FONT COLOR=black><B>else</B></FONT>:
+            writer.printChars(<FONT COLOR=#FF0000>'\n'</FONT>)
+                    
+
+   
+
+    <FONT COLOR=#1111CC># open a new block </FONT>
+    <FONT COLOR=black><B>def</B></FONT> openBlock(self,writer):
+        match = self.COLONBRACE.match(self.line)
+        <FONT COLOR=black><B>if</B></FONT> match <FONT COLOR=black><B>and</B></FONT> <FONT COLOR=black><B>not</B></FONT> self.dictlevel:
+            writer.printChars(<FONT COLOR=#FF0000>":"</FONT>)
+            writer.pushIndent()
+            <FONT COLOR=black><B>if</B></FONT> match.group(1):
+                <FONT COLOR=#1111CC># text follows :{, if its a comment leave it on the same line</FONT>
+                <FONT COLOR=#1111CC>#  else start a new line and leave the text for processing</FONT>
+                <FONT COLOR=black><B>if</B></FONT> match.group(1)[0] == <FONT COLOR=#FF0000>'#'</FONT>:
+                    writer.printChars(<FONT COLOR=#FF0000>" "</FONT> + match.group(1))
+                    self.line = <FONT COLOR=#FF0000>""</FONT>
+                <FONT COLOR=black><B>else</B></FONT>:
+                    writer.printChars(<FONT COLOR=#FF0000>'\n'</FONT>)
+                    writer.printIndent()
+                    self.line = match.group(1)
+            <FONT COLOR=black><B>else</B></FONT>:
+                self.line = <FONT COLOR=#FF0000>""</FONT>
+        <FONT COLOR=black><B>else</B></FONT>:
+            writer.printChars(<FONT COLOR=#FF0000>":"</FONT>)
+            self.line = self.line[1:]
+
+    <FONT COLOR=#1111CC># open brace encountered</FONT>
+    <FONT COLOR=black><B>def</B></FONT> openBrace(self,writer):        
+        writer.printChars(<FONT COLOR=#FF0000>"{"</FONT>)
+        self.line=self.line[1:]
+        self.dictlevel = self.dictlevel + 1
+
+    <FONT COLOR=#1111CC># close brace encountered</FONT>
+    <FONT COLOR=black><B>def</B></FONT> closeBrace(self,writer):
+        <FONT COLOR=black><B>if</B></FONT> self.dictlevel:
+            writer.printChars(<FONT COLOR=#FF0000>"}"</FONT>)
+            self.line=self.line[1:]
+            self.dictlevel = self.dictlevel - 1
+        <FONT COLOR=black><B>else</B></FONT>:
+            writer.popIndent()
+            self.line = string.lstrip(self.line[1:])
+            <FONT COLOR=black><B>if</B></FONT> (self.line):
+                writer.printChars(<FONT COLOR=#FF0000>'\n'</FONT>)
+                writer.printIndent()
+
+    <FONT COLOR=#1111CC># skip over all chars until the line is exhausted</FONT>
+    <FONT COLOR=#1111CC># or the current non-escaped quote sequence is encountered</FONT>
+    <FONT COLOR=black><B>def</B></FONT> skipquote(self,writer):
+        pos = string.find(self.line,self.quotechars)
+        <FONT COLOR=black><B>if</B></FONT> -1 == pos:
+            writer.printChars(self.line)
+            self.line=<FONT COLOR=#FF0000>""</FONT>
+        <FONT COLOR=black><B>elif</B></FONT> (pos &gt; 0) <FONT COLOR=black><B>and</B></FONT> self.line[pos-1] == <FONT COLOR=#FF0000>'\\'</FONT>:
+            pos = pos +1
+            writer.printChars(self.line[:pos])
+            self.line = self.line[pos:]
+            self.skipquote(writer)
+        <FONT COLOR=black><B>else</B></FONT>:
+            pos = pos + len(self.quotechars)
+            writer.printChars(self.line[:pos])
+            self.line = self.line[pos:]
+            self.inquote = 0
+
+    <FONT COLOR=#1111CC># Check and handle if current pos is a single or triple quote</FONT>
+    <FONT COLOR=black><B>def</B></FONT> handleQuote(self,quote,writer):
+        self.inquote=1
+        triple = quote*3
+        <FONT COLOR=black><B>if</B></FONT> self.line[0:3]==triple:
+            self.quotechars=triple
+            writer.printChars(triple)
+            self.line = self.line[3:]
+        <FONT COLOR=black><B>else</B></FONT>:
+            self.quotechars=quote
+            writer.printChars(quote)
+            self.line = self.line[1:]
+
+
+<FONT COLOR=#1111CC>### testing</FONT>
+<FONT COLOR=black><B>if</B></FONT> __name__ == <FONT COLOR=#FF0000>"__main__"</FONT>:
+    <FONT COLOR=black><B>from</B></FONT> ServletWriter <FONT COLOR=black><B>import</B></FONT> ServletWriter
+    <FONT COLOR=#1111CC># for stand alone testing</FONT>
+    <FONT COLOR=black><B>class</B></FONT> DummyWriter(ServletWriter):
+        <FONT COLOR=black><B>def</B></FONT> __init__(self):
+            self._filehandle = sys.stdout
+            self._tabcnt = 0
+            self._blockcount = 0 <FONT COLOR=#1111CC># a hack to handle nested blocks of python code</FONT>
+            self._indentSpaces = ServletWriter.SPACES
+            self._useTabs=1
+            self._useBraces=0
+            self._indent=<FONT COLOR=#FF0000>'\t'</FONT>
+            self._userIndent = ServletWriter.EMPTY_STRING
+       
+    
+    test=r<FONT COLOR=#FF0000>"""
+     for x in range(10) :{ q={
+     'test':x
+     }
+     print x
+     }
+
+     for x in range(10) :{ q={'test':x}; print x} else :{ print "\"done\"" #""}{
+     x = { 'test1':{'sub2':{'subsub1':2}} # yee ha
+     }
+     } print "all done"
+     
+    """</FONT>
+
+    p = BraceConverter()
+    dw = DummyWriter()
+
+    <FONT COLOR=black><B>for</B></FONT> line <FONT COLOR=black><B>in</B></FONT> test.split(<FONT COLOR=#FF0000>'\n'</FONT>):
+        p.parseLine(line,dw)
+</PRE>
+                  <!--footer-->
+                  </BODY>

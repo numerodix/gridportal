@@ -1,0 +1,101 @@
+
+<html>
+    <head>
+        <title>WebKit/ExceptionHandler.py</title>
+        <style type="text/css">
+            .Line_class {
+            }
+
+            .Line_category {
+                color: 11B;
+            }
+
+            .Line_def {
+            }
+
+            .Name_class {
+                color: 909;
+                font-weight: bold;
+            }
+
+            .Name_def {
+                color: 909;
+                font-weight: bold;
+            }
+        </style>
+    </head>
+<body>
+<pre>
+
+<span class=Line_class>class <span class=Name_class>singleton</span>: pass</span>
+
+
+<span class=Line_class>class <span class=Name_class>ExceptionHandler(Object)</span>:</span>
+<span class=Line_def>    def <span class=Name_class>writeExceptionReport</span>(self, handler):</span>
+<span class=Line_def>        def <span class=Name_class>write</span>(self, s):</span>
+<span class=Line_def>        def <span class=Name_class>writeln</span>(self, s):</span>
+<span class=Line_def>        def <span class=Name_class>writeTitle</span>(self, s):</span>
+<span class=Line_def>        def <span class=Name_class>writeDict</span>(self, d):</span>
+<span class=Line_def>        def <span class=Name_class>writeTable</span>(self, listOfDicts, keys=None):</span>
+<span class=Line_def>        def <span class=Name_class>writeAttrs</span>(self, obj, attrNames):</span>
+
+
+<span class=Line_class>        class <span class=Name_class>ExceptionHandler(_ExceptionHandler)</span>:</span>
+<span class=Line_def>            def <span class=Name_class>work</span>(self):</span>
+<span class=Line_def>        def <span class=Name_class>contextInitialize</span>(app, ctxPath):</span>
+
+<span class=Line_category>    ## Init ##</span>
+<span class=Line_def>    def <span class=Name_class>__init__</span>(self, application, transaction, excInfo):</span>
+
+<span class=Line_category>        ## @@ 2003-01-10 sd: This requires a transaction which we do not have.</span>
+
+<span class=Line_category>        ## Making remaining code safe for no transaction.</span>
+
+<span class=Line_category>    ## Utilities ##</span>
+<span class=Line_def>    def <span class=Name_class>setting</span>(self, name):</span>
+<span class=Line_def>    def <span class=Name_class>servletPathname</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>basicServletName</span>(self):</span>
+
+<span class=Line_category>    ## Exception handling ##</span>
+<span class=Line_def>    def <span class=Name_class>work</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>logExceptionToConsole</span>(self, stderr=None):</span>
+<span class=Line_def>    def <span class=Name_class>publicErrorPage</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>privateErrorPage</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>htmlDebugInfo</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>writeHTML</span>(self):</span>
+
+<span class=Line_category>    ## Write utility methods ##</span>
+<span class=Line_def>    def <span class=Name_class>write</span>(self, s):</span>
+<span class=Line_def>    def <span class=Name_class>writeln</span>(self, s):</span>
+<span class=Line_def>    def <span class=Name_class>writeTitle</span>(self, s):</span>
+<span class=Line_def>    def <span class=Name_class>writeDict</span>(self, d):</span>
+<span class=Line_def>    def <span class=Name_class>writeTable</span>(self, listOfDicts, keys=None):</span>
+<span class=Line_def>    def <span class=Name_class>writeAttrs</span>(self, obj, attrNames):</span>
+
+<span class=Line_category>    ## Write specific parts ##</span>
+<span class=Line_def>    def <span class=Name_class>writeTraceback</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>writeMiscInfo</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>writeTransaction</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>writeEnvironment</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>writeIds</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>writeFancyTraceback</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>saveErrorPage</span>(self, html):</span>
+<span class=Line_def>    def <span class=Name_class>errorPageFilename</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>logExceptionToDisk</span>(self, errorMsgFilename=''):</span>
+<span class=Line_def>        def <span class=Name_class>fixElement</span>(element):</span>
+<span class=Line_def>    def <span class=Name_class>emailException</span>(self, htmlErrMsg):</span>
+
+<span class=Line_category>        ## Construct the message headers</span>
+
+<span class=Line_category>        ## Construct the message body</span>
+
+<span class=Line_category>    ## Filtering Values ##</span>
+<span class=Line_def>    def <span class=Name_class>filterDictValue</span>(self, value, key, dict):</span>
+<span class=Line_def>    def <span class=Name_class>filterTableValue</span>(self, value, key, row, table):</span>
+<span class=Line_def>    def <span class=Name_class>filterValue</span>(self, value, key):</span>
+
+<span class=Line_category>    ## Self utility ##</span>
+<span class=Line_def>    def <span class=Name_class>repr</span>(self, x):</span>
+<span class=Line_def>def <span class=Name_class>htTitle</span>(name):</span>
+<span class=Line_def>def <span class=Name_class>osIdTable</span>():</span>
+</pre> </body> </html>

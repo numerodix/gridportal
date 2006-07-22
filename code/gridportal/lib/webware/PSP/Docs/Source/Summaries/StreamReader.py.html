@@ -1,0 +1,67 @@
+
+<html>
+    <head>
+        <title>PSP/StreamReader.py</title>
+        <style type="text/css">
+            .Line_class {
+            }
+
+            .Line_category {
+                color: 11B;
+            }
+
+            .Line_def {
+            }
+
+            .Name_class {
+                color: 909;
+                font-weight: bold;
+            }
+
+            .Name_def {
+                color: 909;
+                font-weight: bold;
+            }
+        </style>
+    </head>
+<body>
+<pre>
+
+<span class=Line_class>class <span class=Name_class>Mark</span>:</span>
+<span class=Line_def>    def <span class=Name_class>__init__</span>(self, reader, fileid=None, stream=None, inBaseDir=None, encoding=None):</span>
+
+<span class=Line_category>## JSP has an equals function, but I don't think I need that, b/c of using copy,</span>
+
+<span class=Line_category>## but maybe I do</span>
+<span class=Line_def>    def <span class=Name_class>getFile</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>__str__</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>__repr__</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>pushStream</span>(self, infileid, inStream, inBaseDir, inEncoding):</span>
+<span class=Line_def>    def <span class=Name_class>popStream</span>(self):</span>
+
+
+<span class=Line_class>class <span class=Name_class>StreamReader</span>:</span>
+<span class=Line_def>    def <span class=Name_class>__init__</span>(self,filename,ctxt):</span>
+<span class=Line_def>    def <span class=Name_class>init</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>registerSourceFile</span>(self, file):</span>
+<span class=Line_def>    def <span class=Name_class>pushFile</span>(self, file, encoding=None):</span>
+<span class=Line_def>    def <span class=Name_class>popFile</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>getFile</span>(self,i):</span>
+<span class=Line_def>    def <span class=Name_class>newSourceFile</span>(self,filename):</span>
+<span class=Line_def>    def <span class=Name_class>Mark</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>skipUntil</span>(self, st):</span>
+<span class=Line_def>    def <span class=Name_class>reset</span>(self, mark):</span>
+<span class=Line_def>    def <span class=Name_class>Matches</span>(self,st):</span>
+<span class=Line_def>    def <span class=Name_class>Advance</span>(self,length):</span>
+<span class=Line_def>    def <span class=Name_class>nextChar</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>isSpace</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>isDelimiter</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>peekChar</span>(self,cnt=1):</span>
+<span class=Line_def>    def <span class=Name_class>skipSpaces</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>getChars</span>(self,start,stop):</span>
+<span class=Line_def>    def <span class=Name_class>hasMoreInput</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>nextContent</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>parseTagAttributes</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>parseAttributeValue</span>(self, valuedict):</span>
+<span class=Line_def>    def <span class=Name_class>parseToken</span>(self, quoted):</span>
+</pre> </body> </html>

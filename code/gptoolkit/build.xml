@@ -1,0 +1,56 @@
+<project name="toolkit.publish" default="publish" basedir=".">
+	
+	<property name="version" value="1.0.1"/>
+	
+	<property name="release" value="src/${version}"/>
+	<property name="head" value="src/gpclient"/>
+	
+	<property name="srcroot" location="${release}"/>
+	<property name="wwwroot" location="www"/>
+	
+	<property name="lib" location="${srcroot}/lib"/>
+	<property name="src" location="${srcroot}/src"/>
+	<property name="dist" location="${srcroot}/dist"/>
+	
+	<property name="pubdir" location="${wwwroot}/files"/>
+	<property name="docdir" location="${wwwroot}/docs/api"/>
+	
+	
+	
+	<target name="init"/>
+	
+	
+	<target name="doc" depends="init">
+		<delete>
+			<fileset dir="${docdir}" excludes="**/.svn"/>
+		</delete>
+		
+		<javadoc destdir="${docdir}" classpath="${lib}" use="yes" author="true"
+						access="private">
+			<fileset dir="${src}" defaultexcludes="no">
+				<include name="**/*.java"/>
+				<exclude name="**/.svn/**"/>
+			</fileset>
+		</javadoc>
+	</target>
+	
+	
+	<target name="build" depends="init">
+		<exec executable="ant" dir="${srcroot}"/>
+	</target>
+	
+	
+	<target name="publish" depends="build">
+		<mkdir dir="${pubdir}/tmp/gptoolkit"/>
+		
+		<copy todir="${pubdir}/tmp/gptoolkit">
+			<fileset dir="${dist}"/>
+		</copy>
+		
+		<zip destfile="${pubdir}/gptoolkit-${version}.zip"
+				 basedir="${pubdir}/tmp"/>
+		
+		<delete dir="${pubdir}/tmp"/>
+	</target>
+ 
+</project>

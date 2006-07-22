@@ -1,0 +1,389 @@
+<HTML><HEAD><TITLE>PSP/StreamReader.py</TITLE></HEAD>
+                  <BODY BGCOLOR=#EEEEEE>
+                  <!--header-->
+                  <!--script--><PRE><FONT COLOR=#FF0000>"""
+This module co-ordinates the reading of the source file.
+It maintains the current position of the parser in the source file.
+
+--------------------------------------------------------------------------
+   (c) Copyright by Jay Love, 2000 (mailto:jsliv@jslove.net)
+
+    Permission to use, copy, modify, and distribute this software and its
+    documentation for any purpose and without fee or royalty is hereby granted,
+    provided that the above copyright notice appear in all copies and that
+    both that copyright notice and this permission notice appear in
+    supporting documentation or portions thereof, including modifications,
+    that you make.
+
+    THE AUTHORS DISCLAIM ALL WARRANTIES WITH REGARD TO
+    THIS SOFTWARE, INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
+    FITNESS, IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL,
+    INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING
+    FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
+    NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
+    WITH THE USE OR PERFORMANCE OF THIS SOFTWARE !
+
+        This software is based in part on work done by the Jakarta group.
+
+"""</FONT>
+
+<FONT COLOR=black><B>from</B></FONT> Context <FONT COLOR=black><B>import</B></FONT> *
+
+<FONT COLOR=black><B>import</B></FONT> types
+<FONT COLOR=black><B>import</B></FONT> copy
+<FONT COLOR=black><B>import</B></FONT> string
+<FONT COLOR=black><B>import</B></FONT> os
+
+
+
+<FONT COLOR=black><B>class</B></FONT> Mark:
+    <FONT COLOR=#FF0000>"""The Mark class marks a point in an input stream."""</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> __init__(self, reader, fileid=None, stream=None, inBaseDir=None, encoding=None):
+        
+        <FONT COLOR=black><B>if</B></FONT> isinstance(reader,StreamReader):
+            self.reader = reader
+            self.fileid = fileid
+            self.includeStack = []
+            self.cursor = 0
+            self.stream = stream
+            self.baseDir=inBaseDir
+            self.encoding=encoding
+
+        <FONT COLOR=black><B>else</B></FONT>:
+            self = copy.copy(reader)
+        
+<FONT COLOR=#1111CC>##      I think the includeStack will be copied correctly, but check here for problems</FONT>
+<FONT COLOR=#1111CC>##      raise 'clone include stack'</FONT>
+
+
+<FONT COLOR=#1111CC>## JSP has an equals function, but I don't think I need that, b/c of using copy,</FONT>
+<FONT COLOR=#1111CC>## but maybe I do</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> getFile(self):
+        <FONT COLOR=black><B>return</B></FONT> self.reader.getFile(self.fileid)
+
+    <FONT COLOR=black><B>def</B></FONT> __str__(self):
+        <FONT COLOR=black><B>return</B></FONT> self.getFile() + <FONT COLOR=#FF0000>'('</FONT> + str(self.line) + str(self.col) + <FONT COLOR=#FF0000>')'</FONT>
+    
+    
+    <FONT COLOR=black><B>def</B></FONT> __repr__(self):
+        <FONT COLOR=black><B>return</B></FONT> self.getFile() + <FONT COLOR=#FF0000>'('</FONT> + str(self.col) + <FONT COLOR=#FF0000>')'</FONT>   
+
+    <FONT COLOR=black><B>def</B></FONT> pushStream(self, infileid, inStream, inBaseDir, inEncoding):
+        self.includeStack.append((self.cursor, self.fileid, self.baseDir, self.encoding, self.stream))
+        self.cursor=0
+        self.fileid=infileid
+        self.baseDir=inBaseDir
+        self.encoding=inEncoding
+        self.stream=inStream
+
+
+    <FONT COLOR=black><B>def</B></FONT> popStream(self):
+        <FONT COLOR=black><B>if</B></FONT> len(self.includeStack) == 0:
+            <FONT COLOR=black><B>return</B></FONT> 0 <FONT COLOR=#1111CC>#false</FONT>
+        list=self.includeStack[len(self.includeStack)-1]
+        <FONT COLOR=black><B>del</B></FONT> self.includeStack[len(self.includeStack)-1]
+        self.cursor=list[0]
+        self.fileid=list[1]
+        self.baseDir=list[2]
+        self.encoding=list[3]
+        self.stream=list[4]
+        <FONT COLOR=black><B>return</B></FONT> 1 <FONT COLOR=#1111CC>#true</FONT>
+     
+
+
+
+
+<FONT COLOR=black><B>class</B></FONT> StreamReader:
+    <FONT COLOR=#FF0000>"""This class handles the psp source file
+    It provides the characters to the other parts of the system.
+    It can move forward and backwards in a file and remember locactions"""</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> __init__(self,filename,ctxt):
+        self._pspfile = filename
+        self._ctxt = ctxt
+        self._filehandle = None
+        self.sourcefiles=[]
+        self.current = None
+        self.size = 0
+        self.master=None
+
+    <FONT COLOR=black><B>def</B></FONT> init(self):
+        self.pushFile(self._ctxt.getFullPspFileName())
+
+
+    <FONT COLOR=black><B>def</B></FONT> registerSourceFile(self, file):
+        self.sourcefiles.append(file)
+        self.size = self.size+1 <FONT COLOR=#1111CC>#what is size for?</FONT>
+        <FONT COLOR=black><B>return</B></FONT> len(self.sourcefiles)-1
+
+    <FONT COLOR=black><B>def</B></FONT> pushFile(self, file, encoding=None):
+        <FONT COLOR=black><B>assert</B></FONT> type(file)==type(<FONT COLOR=#FF0000>''</FONT>)
+        <FONT COLOR=#1111CC>#if </FONT>type(file) != type(<FONT COLOR=#FF0000>''</FONT>): <FONT COLOR=#1111CC>#we've got an open filehandle-don't think this case exists</FONT>
+
+        <FONT COLOR=#1111CC>#don't know what this master stuff is, but until I do, implement it</FONT>
+        <FONT COLOR=#1111CC>#Oh, it's the original file</FONT>
+
+        <FONT COLOR=black><B>if</B></FONT> self.master == None:
+            parent = None
+            self.master=file
+        <FONT COLOR=black><B>else</B></FONT>:
+            parent = os.path.split(self.master)[0]
+
+        isAbsolute = os.path.isabs(file)
+
+        <FONT COLOR=black><B>if</B></FONT> parent != None <FONT COLOR=black><B>and</B></FONT> <FONT COLOR=black><B>not</B></FONT> isAbsolute:
+            file = os.path.join(parent,file)
+
+
+        fileid = self.registerSourceFile(file)
+        handle = open(file,<FONT COLOR=#FF0000>'r'</FONT>)
+        stream = handle.read()
+        handle.seek(0,0)
+        lines = handle.readlines() <FONT COLOR=#1111CC>#(self, reader, linearray, fileid, includestack, stream):</FONT>
+        <FONT COLOR=#1111CC>#mark = Mark(self, lines, fileid, None, stream, self._ctxt.getBaseUri(),encoding)</FONT>
+
+        z=0
+        <FONT COLOR=black><B>for</B></FONT> i <FONT COLOR=black><B>in</B></FONT> lines:
+            lines[z]=string.replace(i,<FONT COLOR=#FF0000>'\r\n'</FONT>,<FONT COLOR=#FF0000>'\n'</FONT>)
+            z=z+1
+        
+        stream=string.join(lines,<FONT COLOR=#FF0000>''</FONT>)
+
+        <FONT COLOR=black><B>if</B></FONT> self.current == None:
+            <FONT COLOR=#1111CC>#self.current = mark</FONT>
+            self.current = mark = Mark(self, fileid, stream, self._ctxt.getBaseUri(),encoding)
+        <FONT COLOR=black><B>else</B></FONT>:
+            self.current.pushStream(fileid, stream, self._ctxt.getBaseUri(), encoding) <FONT COLOR=#1111CC>#don't use yet</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> popFile(self):
+        
+        <FONT COLOR=black><B>if</B></FONT> self.current == None:
+            <FONT COLOR=black><B>return</B></FONT> 0
+        self.size = self.size-1 <FONT COLOR=#1111CC>#what the hell is this?</FONT>
+        r=self.current.popStream()
+        <FONT COLOR=black><B>return</B></FONT> r
+
+    <FONT COLOR=black><B>def</B></FONT> getFile(self,i):
+        <FONT COLOR=black><B>return</B></FONT> self.sourcefiles[i]
+
+    <FONT COLOR=black><B>def</B></FONT> newSourceFile(self,filename):
+        <FONT COLOR=black><B>if</B></FONT> filename <FONT COLOR=black><B>in</B></FONT> self.sourcefiles:
+            <FONT COLOR=black><B>return</B></FONT> None
+        sourcefiles.append(filename)
+        <FONT COLOR=black><B>return</B></FONT> len(self.sourcefiles)
+
+    <FONT COLOR=black><B>def</B></FONT> Mark(self):
+        <FONT COLOR=black><B>return</B></FONT> copy.copy(self.current)
+        <FONT COLOR=#1111CC>#return </FONT>Mark(self.current)
+
+<FONT COLOR=#1111CC>##  def advanceLine(self):</FONT>
+<FONT COLOR=#1111CC>##      raise "NotUsingAnymore"</FONT>
+<FONT COLOR=#1111CC>##      if self.current.row &lt; len(self.current.linearray)-1:</FONT>
+<FONT COLOR=#1111CC>##          self.current.cursor = self.current.cursor + len(self.current.linearray[self.current.row][self.current.col:])</FONT>
+<FONT COLOR=#1111CC>##          self.current.row = self.current.row + 1</FONT>
+<FONT COLOR=#1111CC>##          self.current.col = 0</FONT>
+<FONT COLOR=#1111CC>##      else:</FONT>
+<FONT COLOR=#1111CC>##          self.current.cursor = self.current.cursor + len(self.current.linearray[self.current.row][self.current.col:])</FONT>
+<FONT COLOR=#1111CC>##          self.current.col = len(self.current.linearray[self.current.row][:])</FONT>
+<FONT COLOR=#1111CC>##          if self.hasMoreInput() == 0:</FONT>
+<FONT COLOR=#1111CC>##              raise EOFError()</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> skipUntil(self, st):
+        <FONT COLOR=#FF0000>"""greedy search, return the point before the string, but move reader past it"""</FONT>
+        pt = string.find(self.current.stream[self.current.cursor:],st)
+        <FONT COLOR=black><B>if</B></FONT> pt == -1:
+            self.current.cursor = len(self.current.stream)
+            <FONT COLOR=black><B>if</B></FONT> self.hasMoreInput():
+                self.popFile() <FONT COLOR=#1111CC>#Should I do this here? 6/1/00</FONT>
+                self.skipUntil(st)
+            <FONT COLOR=black><B>else</B></FONT>:
+                <FONT COLOR=black><B>raise</B></FONT> <FONT COLOR=#FF0000>"EndofInputError"</FONT>
+        <FONT COLOR=black><B>else</B></FONT>:
+            self.current.cursor = self.current.cursor+pt
+            ret =  self.Mark()
+            self.current.cursor = self.current.cursor+len(st)
+            <FONT COLOR=black><B>return</B></FONT> ret
+
+
+
+    <FONT COLOR=black><B>def</B></FONT> reset(self, mark):
+        self.current = mark <FONT COLOR=#1111CC>#Mark(mark)    </FONT>
+
+
+    <FONT COLOR=black><B>def</B></FONT> Matches(self,st):
+        <FONT COLOR=black><B>if</B></FONT> st == self.current.stream[self.current.cursor:self.current.cursor+len(st)]:
+            <FONT COLOR=black><B>return</B></FONT> 1
+        <FONT COLOR=black><B>return</B></FONT> 0
+
+    <FONT COLOR=black><B>def</B></FONT> Advance(self,length):
+        <FONT COLOR=#FF0000>"""Advance length characters"""</FONT>
+        <FONT COLOR=black><B>if</B></FONT> length + self.current.cursor &lt;= len(self.current.stream):
+            self.current.cursor = self.current.cursor+length
+        <FONT COLOR=black><B>else</B></FONT>:
+            prog = len(self.current.stream) - self.current.cursor
+            self.current.cursor=len(self.current.stream) <FONT COLOR=#1111CC># -1??</FONT>
+            <FONT COLOR=black><B>if</B></FONT> self.hasMoreInput():
+                self.Advance(length-prog)
+            <FONT COLOR=black><B>else</B></FONT>:
+                <FONT COLOR=black><B>raise</B></FONT> EOFError()
+
+
+    <FONT COLOR=black><B>def</B></FONT> nextChar(self):
+        <FONT COLOR=black><B>if</B></FONT> self.hasMoreInput() == 0: <FONT COLOR=black><B>return</B></FONT> -1
+        ch = self.current.stream[self.current.cursor]
+        self.Advance(1)
+        <FONT COLOR=black><B>return</B></FONT> ch
+
+
+    <FONT COLOR=black><B>def</B></FONT> isSpace(self):
+        <FONT COLOR=#FF0000>"""no advancing"""</FONT>
+        <FONT COLOR=black><B>return</B></FONT> self.current.stream[self.current.cursor] == <FONT COLOR=#FF0000>' '</FONT> <FONT COLOR=black><B>or</B></FONT> self.current.stream[self.current.cursor] == <FONT COLOR=#FF0000>'\n'</FONT>
+
+
+    <FONT COLOR=black><B>def</B></FONT> isDelimiter(self):
+        <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> self.isSpace():
+            ch = self.peekChar()
+            <FONT COLOR=#1111CC>#look for single character work delimiter</FONT>
+            <FONT COLOR=black><B>if</B></FONT> ch == <FONT COLOR=#FF0000>'='</FONT> <FONT COLOR=black><B>or</B></FONT> ch == <FONT COLOR=#FF0000>'\"'</FONT> <FONT COLOR=black><B>or</B></FONT> ch == <FONT COLOR=#FF0000>"'"</FONT> <FONT COLOR=black><B>or</B></FONT> ch == <FONT COLOR=#FF0000>'/'</FONT>:
+                <FONT COLOR=black><B>return</B></FONT> 1
+            <FONT COLOR=#1111CC>#look for end of comment or basic end tag</FONT>
+            <FONT COLOR=black><B>if</B></FONT> ch == <FONT COLOR=#FF0000>'-'</FONT>:
+                mark = self.Mark()
+                ch = self.nextChar()
+                ch2 = self.nextChar()
+                <FONT COLOR=black><B>if</B></FONT> ch == <FONT COLOR=#FF0000>'&gt;'</FONT> <FONT COLOR=black><B>or</B></FONT> (ch == <FONT COLOR=#FF0000>'-'</FONT> <FONT COLOR=black><B>and</B></FONT> ch2 == <FONT COLOR=#FF0000>'&gt;'</FONT>):
+                    self.reset(mark)
+                    <FONT COLOR=black><B>return</B></FONT> 1
+                <FONT COLOR=black><B>else</B></FONT>:
+                    self.reset(mark)
+                    <FONT COLOR=black><B>return</B></FONT> 0
+        <FONT COLOR=black><B>else</B></FONT>:
+            <FONT COLOR=black><B>return</B></FONT> 1
+        
+
+
+
+    <FONT COLOR=black><B>def</B></FONT> peekChar(self,cnt=1):
+        <FONT COLOR=black><B>if</B></FONT> self.hasMoreInput():
+            <FONT COLOR=black><B>return</B></FONT> self.current.stream[self.current.cursor:self.current.cursor+cnt]
+        <FONT COLOR=black><B>raise</B></FONT> <FONT COLOR=#FF0000>"EndofStream"</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> skipSpaces(self):
+        i = 0
+        <FONT COLOR=black><B>while</B></FONT> self.isSpace():
+            self.nextChar()
+            i = i+1
+        <FONT COLOR=black><B>return</B></FONT> i
+
+    <FONT COLOR=black><B>def</B></FONT> getChars(self,start,stop):
+        oldcurr = self.Mark()
+        self.reset(start)
+        chars = self.current.stream[start.cursor:stop.cursor]
+        self.reset(oldcurr)
+        <FONT COLOR=black><B>return</B></FONT> chars
+
+    <FONT COLOR=black><B>def</B></FONT> hasMoreInput(self):
+        <FONT COLOR=black><B>if</B></FONT> self.current.cursor &gt;= len(self.current.stream):
+            <FONT COLOR=black><B>while</B></FONT> self.popFile():
+                <FONT COLOR=black><B>if</B></FONT> self.current.cursor &lt; len(self.current.stream) :
+                    <FONT COLOR=black><B>return</B></FONT> 1
+            <FONT COLOR=black><B>return</B></FONT> 0
+        <FONT COLOR=black><B>return</B></FONT> 1
+
+    
+    <FONT COLOR=black><B>def</B></FONT> nextContent(self):
+        <FONT COLOR=#FF0000>""" Find next &lt;"""</FONT>
+        cur_cursor = self.current.cursor
+        self.current.cursor = self.current.cursor+1
+        pt = string.find(self.current.stream[self.current.cursor:],<FONT COLOR=#FF0000>'&lt;'</FONT>)
+        <FONT COLOR=black><B>if</B></FONT> pt == -1:
+                self.current.cursor = len(self.current.stream) <FONT COLOR=#1111CC>#-1???</FONT>
+        <FONT COLOR=black><B>else</B></FONT>:
+            self.current.cursor=self.current.cursor+pt
+        <FONT COLOR=black><B>return</B></FONT> self.current.stream[cur_cursor:self.current.cursor]
+
+
+
+    <FONT COLOR=black><B>def</B></FONT> parseTagAttributes(self):
+        <FONT COLOR=#FF0000>"""parses the attributes at the beginning of a tag"""</FONT>
+
+        values = {}
+        <FONT COLOR=black><B>while</B></FONT> 1:
+            self.skipSpaces()
+            ch = self.peekChar()
+            <FONT COLOR=black><B>if</B></FONT> ch == <FONT COLOR=#FF0000>'&gt;'</FONT>:
+                <FONT COLOR=black><B>return</B></FONT> values
+            <FONT COLOR=black><B>if</B></FONT> ch == <FONT COLOR=#FF0000>'-'</FONT>:
+                mark = self.Mark()
+                self.nextChar()
+                <FONT COLOR=black><B>try</B></FONT>:
+                    <FONT COLOR=black><B>if</B></FONT> self.nextChar() == <FONT COLOR=#FF0000>'-'</FONT> <FONT COLOR=black><B>and</B></FONT> self.nextChar() == <FONT COLOR=#FF0000>'&gt;'</FONT>:
+                        <FONT COLOR=black><B>return</B></FONT> values
+                <FONT COLOR=black><B>finally</B></FONT>:
+                    self.reset(mark)
+            <FONT COLOR=black><B>elif</B></FONT> ch == <FONT COLOR=#FF0000>'%'</FONT>:
+                mark = self.Mark()
+                self.nextChar()
+                <FONT COLOR=black><B>try</B></FONT>:
+                    ts = self.peekChar()
+                    <FONT COLOR=black><B>if</B></FONT> ts == <FONT COLOR=#FF0000>'&gt;'</FONT>:
+                        self.reset(mark)
+                        <FONT COLOR=black><B>return</B></FONT> values
+                <FONT COLOR=black><B>finally</B></FONT>:
+                    self.reset(mark)
+
+            <FONT COLOR=black><B>if</B></FONT> ch == None:
+                <FONT COLOR=black><B>break</B></FONT>
+
+            self.parseAttributeValue(values)
+        <FONT COLOR=#1111CC>#EOF</FONT>
+        <FONT COLOR=black><B>raise</B></FONT> <FONT COLOR=#FF0000>'Unterminated Attribute'</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> parseAttributeValue(self, valuedict):
+        self.skipSpaces()
+        name = self.parseToken(0)
+        self.skipSpaces()
+        <FONT COLOR=black><B>if</B></FONT> self.peekChar() != <FONT COLOR=#FF0000>'='</FONT>:
+            <FONT COLOR=black><B>raise</B></FONT> <FONT COLOR=#FF0000>'PSP Error - no attribute value'</FONT>
+        ch = self.nextChar()
+        self.skipSpaces()
+        value = self.parseToken(1)
+        self.skipSpaces()
+        valuedict[name]=value
+
+    <FONT COLOR=black><B>def</B></FONT> parseToken(self, quoted):
+        <FONT COLOR=#FF0000>""" This may not be quite right"""</FONT>
+        buffer=[]
+        self.skipSpaces()
+        ch = self.peekChar()
+        <FONT COLOR=black><B>if</B></FONT> quoted:
+            <FONT COLOR=black><B>if</B></FONT> (ch==<FONT COLOR=#FF0000>'\"'</FONT> <FONT COLOR=black><B>or</B></FONT> ch == <FONT COLOR=#FF0000>"\'"</FONT>):
+                endquote = ch
+                ch = self.nextChar()
+                ch=self.peekChar()
+                <FONT COLOR=black><B>while</B></FONT> ch != None <FONT COLOR=black><B>and</B></FONT> ch != endquote:
+                    ch = self.nextChar() 
+                    <FONT COLOR=black><B>if</B></FONT> ch == <FONT COLOR=#FF0000>'\\'</FONT>:
+                        ch = nextChar()
+                    buffer.append(ch)
+                    ch = self.peekChar()
+                <FONT COLOR=black><B>if</B></FONT> ch == None:
+                    <FONT COLOR=black><B>raise</B></FONT> <FONT COLOR=#FF0000>'Unterminated Attribute Value'</FONT>
+                self.nextChar()
+        <FONT COLOR=black><B>else</B></FONT>:
+            <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> self.isDelimiter():
+                <FONT COLOR=black><B>while</B></FONT> <FONT COLOR=black><B>not</B></FONT> self.isDelimiter():
+                    ch = self.nextChar()
+                    <FONT COLOR=black><B>if</B></FONT> ch == <FONT COLOR=#FF0000>'\\'</FONT>:
+                        ch = self.peekChar()
+                        <FONT COLOR=black><B>if</B></FONT> ch == <FONT COLOR=#FF0000>'\"'</FONT> <FONT COLOR=black><B>or</B></FONT> ch == <FONT COLOR=#FF0000>"'"</FONT> <FONT COLOR=black><B>or</B></FONT> ch == <FONT COLOR=#FF0000>'&gt;'</FONT> <FONT COLOR=black><B>or</B></FONT> ch == <FONT COLOR=#FF0000>'%'</FONT>:
+                            ch = self.nextChar()
+                    buffer.append(ch)
+        <FONT COLOR=black><B>return</B></FONT> string.join(buffer,<FONT COLOR=#FF0000>''</FONT>)
+    
+
+</PRE>
+                  <!--footer-->
+                  </BODY>

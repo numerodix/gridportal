@@ -1,0 +1,161 @@
+
+<html>
+    <head>
+        <title>WebKit/Application.py</title>
+        <style type="text/css">
+            .Line_class {
+            }
+
+            .Line_category {
+                color: 11B;
+            }
+
+            .Line_def {
+            }
+
+            .Name_class {
+                color: 909;
+                font-weight: bold;
+            }
+
+            .Name_def {
+                color: 909;
+                font-weight: bold;
+            }
+        </style>
+    </head>
+<body>
+<pre>
+
+<span class=Line_class>class <span class=Name_class>ApplicationError(Exception)</span>:</span>
+
+
+<span class=Line_class>class <span class=Name_class>EndResponse(Exception)</span>:</span>
+
+
+<span class=Line_class>class <span class=Name_class>Application(ConfigurableForServerSidePath, Object)</span>:</span>
+
+<span class=Line_category>    ## Init ##</span>
+<span class=Line_def>    def <span class=Name_class>__init__</span>(self, server=None, transactionClass=None, sessionClass=None, requestClass=None, responseClass=None, exceptionHandlerClass=None, contexts=None, useSessionSweeper=1):</span>
+
+<span class=Line_category>## TaskManager</span>
+
+<span class=Line_category>## End TaskManager</span>
+
+<span class=Line_category>## Contexts</span>
+
+<span class=Line_category>## End Contexts</span>
+
+<span class=Line_category>## Session store</span>
+
+<span class=Line_category>## End Session store</span>
+<span class=Line_def>    def <span class=Name_class>initVersions</span>(self):</span>
+
+<span class=Line_category>## Task access</span>
+<span class=Line_def>    def <span class=Name_class>taskManager</span>(self):</span>
+
+<span class=Line_category>## Session sweep task</span>
+<span class=Line_def>    def <span class=Name_class>startSessionSweeper</span>(self):</span>
+
+<span class=Line_category>## Shutdown</span>
+<span class=Line_def>    def <span class=Name_class>shutDown</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>addShutDownHandler</span>(self, func):</span>
+
+<span class=Line_category>    ## Config ##</span>
+<span class=Line_def>    def <span class=Name_class>defaultConfig</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>configFilename</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>configReplacementValues</span>(self):</span>
+
+<span class=Line_category>    ## Versions ##</span>
+<span class=Line_def>    def <span class=Name_class>version</span>(self):</span>
+
+<span class=Line_category>        ## @@ 2000-05-01 ce: Maybe this could be a setting 'AppVersion'</span>
+<span class=Line_def>    def <span class=Name_class>webwareVersion</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>webwareVersionString</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>webKitVersion</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>webKitVersionString</span>(self):</span>
+
+<span class=Line_category>    ## Dispatching Requests ##</span>
+<span class=Line_def>    def <span class=Name_class>dispatchRawRequest</span>(self, newRequestDict, strmOut):</span>
+<span class=Line_def>    def <span class=Name_class>dispatchRequest</span>(self, request, strmOut):</span>
+<span class=Line_def>    def <span class=Name_class>handleBadURL</span>(self, transaction):</span>
+<span class=Line_def>    def <span class=Name_class>handleDeficientDirectoryURL</span>(self, transaction):</span>
+<span class=Line_def>    def <span class=Name_class>isSessionIdProblematic</span>(self, request, debug=0):</span>
+<span class=Line_def>    def <span class=Name_class>handleInvalidSession</span>(self, transaction):</span>
+<span class=Line_def>    def <span class=Name_class>handleMissingPathSession</span>(self,transaction):</span>
+<span class=Line_def>    def <span class=Name_class>handleGoodURL</span>(self, transaction):</span>
+<span class=Line_def>    def <span class=Name_class>processURLPath</span>(self, req, URL):</span>
+<span class=Line_def>    def <span class=Name_class>forward</span>(self, trans, URL):</span>
+<span class=Line_def>    def <span class=Name_class>forwardRequest</span>(self, trans, URL):</span>
+<span class=Line_def>    def <span class=Name_class>includeURL</span>(self, trans, URL):</span>
+<span class=Line_def>    def <span class=Name_class>forwardRequestFast</span>(self, trans, url):</span>
+<span class=Line_def>    def <span class=Name_class>callMethodOfServlet</span>(self, trans, URL, method, *args, **kwargs):</span>
+
+<span class=Line_category>    ## Transactions ##</span>
+<span class=Line_def>    def <span class=Name_class>awake</span>(self, transaction):</span>
+<span class=Line_def>    def <span class=Name_class>respond</span>(self, transaction):</span>
+<span class=Line_def>    def <span class=Name_class>sleep</span>(self, transaction):</span>
+
+<span class=Line_category>    ## Sessions ##</span>
+<span class=Line_def>    def <span class=Name_class>session</span>(self, sessionId, default=NoDefault):</span>
+<span class=Line_def>    def <span class=Name_class>hasSession</span>(self, sessionId):</span>
+<span class=Line_def>    def <span class=Name_class>sessions</span>(self):</span>
+
+<span class=Line_category>    ## Misc Access ##</span>
+<span class=Line_def>    def <span class=Name_class>server</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>serverSidePath</span>(self, path=None):</span>
+<span class=Line_def>    def <span class=Name_class>webwarePath</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>webKitPath</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>name</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>transactionClass</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>setTransactionClass</span>(self, newClass):</span>
+<span class=Line_def>    def <span class=Name_class>responseClass</span>(self, newClass):</span>
+<span class=Line_def>    def <span class=Name_class>setResponseClass</span>(self, newClass):</span>
+
+<span class=Line_category>    ## Contexts ##</span>
+<span class=Line_def>    def <span class=Name_class>context</span>(self, name, default=NoDefault):</span>
+<span class=Line_def>    def <span class=Name_class>hasContext</span>(self, name):</span>
+<span class=Line_def>    def <span class=Name_class>contexts</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>addContext</span>(self, name, dir):</span>
+
+<span class=Line_category>    ## Factory access ##</span>
+<span class=Line_def>    def <span class=Name_class>addServletFactory</span>(self, factory):</span>
+<span class=Line_def>    def <span class=Name_class>factories</span>(self):</span>
+
+<span class=Line_category>    ## Activity Log ##</span>
+<span class=Line_def>    def <span class=Name_class>writeActivityLog</span>(self, transaction):</span>
+
+<span class=Line_category>    ## Utilities/Hooks ##</span>
+<span class=Line_def>    def <span class=Name_class>createRequestForDict</span>(self, newRequestDict):</span>
+<span class=Line_def>    def <span class=Name_class>createTransactionForRequest</span>(self, request):</span>
+<span class=Line_def>    def <span class=Name_class>createResponseInTransaction</span>(self, transaction, strmOut):</span>
+<span class=Line_def>    def <span class=Name_class>createSessionForTransaction</span>(self, transaction):</span>
+<span class=Line_def>    def <span class=Name_class>getServlet</span>(self, transaction, path, cache=None): #send the cache if you want the cache info set</span>
+<span class=Line_def>    def <span class=Name_class>returnInstance</span>(self, transaction, path):</span>
+<span class=Line_def>    def <span class=Name_class>newServletCacheItem</span>(self,key,item):</span>
+<span class=Line_def>    def <span class=Name_class>flushServletCache</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>createServletInTransaction</span>(self, transaction):</span>
+<span class=Line_def>    def <span class=Name_class>handleExceptionInTransaction</span>(self, excInfo, transaction):</span>
+<span class=Line_def>    def <span class=Name_class>handleException</span>(self, excInfo=None):</span>
+<span class=Line_def>    def <span class=Name_class>filenamesForBaseName</span>(self, baseName):</span>
+<span class=Line_def>    def <span class=Name_class>defaultContextNameAndPath</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>serverSideInfoForRequest</span>(self, request):</span>
+<span class=Line_def>    def <span class=Name_class>findDirectoryIndex</span>(self, ssPath, debug=0):</span>
+<span class=Line_def>    def <span class=Name_class>processExtraURLPath</span>(self, ssPath, urlPath, debug=0):</span>
+
+<span class=Line_category>        ## Now test to see if the next element is a file without an extension</span>
+<span class=Line_def>    def <span class=Name_class>writeExceptionReport</span>(self, handler):</span>
+
+<span class=Line_category>    ## New Path Algorithm ##</span>
+<span class=Line_def>    def <span class=Name_class>serverSideInfoForRequestNewAlgorithm</span>(self, request):</span>
+<span class=Line_def>    def <span class=Name_class>findContext</span>(self, fullPath):</span>
+<span class=Line_def>    def <span class=Name_class>findServlet</span>(self, contextPath, urlPath):</span>
+<span class=Line_def>    def <span class=Name_class>filenamesForBaseNameNew</span>(self, baseName):</span>
+
+<span class=Line_category>    ## Deprecated ##</span>
+<span class=Line_def>    def <span class=Name_class>serverSidePathForRequest</span>(self, request, debug=0):</span>
+<span class=Line_def>    def <span class=Name_class>serverDir</span>(self):</span>
+<span class=Line_def>def <span class=Name_class>isdir</span>(s):</span>
+<span class=Line_def>def <span class=Name_class>noslash</span>(s):</span>
+<span class=Line_def>def <span class=Name_class>main</span>(requestDict):</span>
+</pre> </body> </html>

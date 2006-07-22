@@ -1,0 +1,506 @@
+<HTML><HEAD><TITLE>WebKit/ExceptionHandler.py</TITLE></HEAD>
+                  <BODY BGCOLOR=#EEEEEE>
+                  <!--header-->
+                  <!--script--><PRE><FONT COLOR=black><B>from</B></FONT> Common <FONT COLOR=black><B>import</B></FONT> *
+<FONT COLOR=black><B>import</B></FONT> string, time, traceback, types, whrandom, sys, MimeWriter, smtplib, StringIO
+<FONT COLOR=black><B>from</B></FONT> time <FONT COLOR=black><B>import</B></FONT> asctime, localtime
+<FONT COLOR=black><B>from</B></FONT> MiscUtils.Funcs <FONT COLOR=black><B>import</B></FONT> dateForEmail
+<FONT COLOR=black><B>from</B></FONT> WebUtils.HTMLForException <FONT COLOR=black><B>import</B></FONT> HTMLForException
+<FONT COLOR=black><B>from</B></FONT> WebUtils.Funcs <FONT COLOR=black><B>import</B></FONT> htmlForDict, htmlEncode
+<FONT COLOR=black><B>from</B></FONT> HTTPResponse <FONT COLOR=black><B>import</B></FONT> HTTPResponse
+<FONT COLOR=black><B>from</B></FONT> types <FONT COLOR=black><B>import</B></FONT> DictType, StringType
+
+<FONT COLOR=black><B>class</B></FONT> singleton: <FONT COLOR=black><B>pass</B></FONT>
+
+
+<FONT COLOR=black><B>class</B></FONT> ExceptionHandler(Object):
+    <FONT COLOR=#FF0000>"""
+    ExceptionHandler is a utility class for Application that is created
+    to handle a particular exception. The object is a one-shot deal.
+    After handling an exception, it should be removed.
+
+    At some point, the exception handler sends "writeExceptionReport"
+    to the transaction (if present), which in turn sends it to the other
+    transactional objects (application, request, response, etc.)
+    The handler is the single argument for this message.
+
+    Classes may find it useful to do things like this:
+
+    exceptionReportAttrs = 'foo bar baz'.split()
+    def writeExceptionReport(self, handler):
+        handler.writeTitle(self.__class__.__name__)
+        handler.writeAttrs(self, self.exceptionReportAttrs)
+
+    The handler write methods that may be useful are:
+        def write(self, s):
+        def writeln(self, s):
+        def writeTitle(self, s):
+        def writeDict(self, d):
+        def writeTable(self, listOfDicts, keys=None):
+        def writeAttrs(self, obj, attrNames):
+
+    Derived classes must not assume that the error occured in a
+    transaction.  self._tra may be None for exceptions outside
+    of transactions.
+
+    See the WebKit.html documentation for other information.
+
+
+    HOW TO CREATE A CUSTOM EXCEPTION HANDLER
+
+    In the __init__.py of your context:
+
+        from WebKit.ExceptionHandler import ExceptionHandler as _ExceptionHandler
+
+        class ExceptionHandler(_ExceptionHandler):
+
+            hideValuesForFields = _ExceptionHandler.hideValuesForFields + ['foo', 'bar']
+
+            def work(self):
+                _ExceptionHandler.work(self)
+                # do whatever
+                # override other methods if you like
+
+        def contextInitialize(app, ctxPath):
+            app._exceptionHandlerClass = ExceptionHandler
+    """</FONT>
+
+    hideValuesForFields = [<FONT COLOR=#FF0000>'creditcard'</FONT>, <FONT COLOR=#FF0000>'credit card'</FONT>, <FONT COLOR=#FF0000>'cc'</FONT>, <FONT COLOR=#FF0000>'password'</FONT>, <FONT COLOR=#FF0000>'passwd'</FONT>]
+        <FONT COLOR=#1111CC># ^ keep all lower case to support case insensitivity</FONT>
+    <FONT COLOR=black><B>if</B></FONT> 0: <FONT COLOR=#1111CC># for testing</FONT>
+        hideValuesForFields.extend(<FONT COLOR=#FF0000>'application uri http_accept userid'</FONT>.split())
+
+    hiddenString = <FONT COLOR=#FF0000>'*** hidden ***'</FONT>
+
+
+    <FONT COLOR=#1111CC>## Init ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> __init__(self, application, transaction, excInfo):
+        Object.__init__(self)
+
+        <FONT COLOR=#1111CC># Keep references to the objects</FONT>
+        self._app = application
+        self._tra = transaction
+        self._exc = excInfo
+        <FONT COLOR=black><B>if</B></FONT> self._tra:
+            self._req = self._tra.request()
+            self._res = self._tra.response()
+        <FONT COLOR=black><B>else</B></FONT>:
+            self._req = self._res = None
+
+        <FONT COLOR=#1111CC># Make some repairs, if needed. We use the transaction & response to get the error page back out</FONT>
+        <FONT COLOR=#1111CC># @@ 2000-05-09 ce: Maybe a fresh transaction and response should always be made for that purpose</FONT>
+        <FONT COLOR=#1111CC>## @@ 2003-01-10 sd: This requires a transaction which we do not have.</FONT>
+        <FONT COLOR=#1111CC>## Making remaining code safe for no transaction.</FONT>
+        <FONT COLOR=#1111CC>##</FONT>
+                <FONT COLOR=#1111CC>##if self._res is None:</FONT>
+        <FONT COLOR=#1111CC>##  self._res = HTTPResponse()</FONT>
+        <FONT COLOR=#1111CC>##  self._tra.setResponse(self._res)</FONT>
+
+        <FONT COLOR=#1111CC># Cache MaxValueLengthInExceptionReport for speed</FONT>
+        self._maxValueLength = self.setting(<FONT COLOR=#FF0000>'MaxValueLengthInExceptionReport'</FONT>)
+
+        <FONT COLOR=#1111CC># exception occurance time. (overridden by response.endTime())</FONT>
+        self._time = time.time()
+
+        <FONT COLOR=#1111CC># Get to work</FONT>
+        self.work()
+
+
+    <FONT COLOR=#1111CC>## Utilities ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> setting(self, name):
+        <FONT COLOR=black><B>return</B></FONT> self._app.setting(name)
+
+    <FONT COLOR=black><B>def</B></FONT> servletPathname(self):
+        <FONT COLOR=black><B>try</B></FONT>:
+            <FONT COLOR=black><B>return</B></FONT> self._tra.request().serverSidePath()
+        <FONT COLOR=black><B>except</B></FONT>:
+            
+            <FONT COLOR=black><B>return</B></FONT> None
+
+    <FONT COLOR=black><B>def</B></FONT> basicServletName(self):
+        name = self.servletPathname()
+        <FONT COLOR=black><B>if</B></FONT> name <FONT COLOR=black><B>is</B></FONT> None:
+            <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=#FF0000>'unknown'</FONT>
+        <FONT COLOR=black><B>else</B></FONT>:
+            <FONT COLOR=black><B>return</B></FONT> os.path.basename(name)
+
+
+    <FONT COLOR=#1111CC>## Exception handling ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> work(self):
+        <FONT COLOR=#FF0000>''' Invoked by __init__ to do the main work. '''</FONT>
+
+        <FONT COLOR=black><B>if</B></FONT> self._res:
+            self._res.recordEndTime()
+            self._time = self._res.endTime()
+            
+        self.logExceptionToConsole()
+
+        <FONT COLOR=#1111CC># write the error page out to the response if available.</FONT>
+        <FONT COLOR=black><B>if</B></FONT> self._res <FONT COLOR=black><B>and</B></FONT> (<FONT COLOR=black><B>not</B></FONT> self._res.isCommitted() <FONT COLOR=black><B>or</B></FONT> self._res.header(<FONT COLOR=#FF0000>'Content-type'</FONT>, None)==<FONT COLOR=#FF0000>'text/html'</FONT>):
+            <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> self._res.isCommitted():
+                self._res.reset()
+            <FONT COLOR=black><B>if</B></FONT> self.setting(<FONT COLOR=#FF0000>'ShowDebugInfoOnErrors'</FONT>)==1:
+                publicErrorPage = self.privateErrorPage()
+            <FONT COLOR=black><B>else</B></FONT>:
+                publicErrorPage = self.publicErrorPage()
+            self._res.write(publicErrorPage)
+
+        privateErrorPage = None
+        <FONT COLOR=black><B>if</B></FONT> self.setting(<FONT COLOR=#FF0000>'SaveErrorMessages'</FONT>):
+            privateErrorPage = self.privateErrorPage()
+            filename = self.saveErrorPage(privateErrorPage)
+        <FONT COLOR=black><B>else</B></FONT>:
+            filename = <FONT COLOR=#FF0000>''</FONT>
+
+        self.logExceptionToDisk(errorMsgFilename=filename)
+
+        <FONT COLOR=black><B>if</B></FONT> self.setting(<FONT COLOR=#FF0000>'EmailErrors'</FONT>):
+            <FONT COLOR=black><B>if</B></FONT> privateErrorPage <FONT COLOR=black><B>is</B></FONT> None:
+                privateErrorPage = self.privateErrorPage()
+            self.emailException(privateErrorPage)
+
+    <FONT COLOR=black><B>def</B></FONT> logExceptionToConsole(self, stderr=None):
+        <FONT COLOR=#FF0000>''' Logs the time, servlet name and traceback to the console (typically stderr). This usually results in the information appearing in console/terminal from which AppServer was launched. '''</FONT>
+        <FONT COLOR=black><B>if</B></FONT> stderr <FONT COLOR=black><B>is</B></FONT> None:
+            stderr = sys.stderr
+        stderr.write(<FONT COLOR=#FF0000>'[%s] [error] WebKit: Error while executing script %s\n'</FONT> % (
+            asctime(localtime(self._time)), self.servletPathname()))
+        traceback.print_exc(file=stderr)
+
+    <FONT COLOR=black><B>def</B></FONT> publicErrorPage(self):
+        <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=#FF0000>'''&lt;html&gt;
+    &lt;head&gt;
+        &lt;title&gt;Error&lt;/title&gt;
+    &lt;/head&gt;
+    &lt;body fgcolor=black bgcolor=white&gt;
+        %s
+        &lt;p&gt; %s
+    &lt;/body&gt;
+&lt;/html&gt;
+'''</FONT> % (htTitle(<FONT COLOR=#FF0000>'Error'</FONT>), self.setting(<FONT COLOR=#FF0000>'UserErrorMessage'</FONT>))
+
+    <FONT COLOR=black><B>def</B></FONT> privateErrorPage(self):
+        <FONT COLOR=#FF0000>''' Returns an HTML page intended for the developer with useful information such as the traceback. '''</FONT>
+        html = [<FONT COLOR=#FF0000>'''
+&lt;html&gt;
+    &lt;head&gt;
+        &lt;title&gt;Error&lt;/title&gt;
+    &lt;/head&gt;
+    &lt;body fgcolor=black bgcolor=white&gt;
+%s
+&lt;p&gt; %s'''</FONT> % (htTitle(<FONT COLOR=#FF0000>'Error'</FONT>), self.setting(<FONT COLOR=#FF0000>'UserErrorMessage'</FONT>))]
+
+        html.append(self.htmlDebugInfo())
+
+        html.append(<FONT COLOR=#FF0000>'&lt;/body&gt;&lt;/html&gt;'</FONT>)
+        <FONT COLOR=black><B>return</B></FONT> string.join(html, <FONT COLOR=#FF0000>''</FONT>)
+
+    <FONT COLOR=black><B>def</B></FONT> htmlDebugInfo(self):
+        <FONT COLOR=#FF0000>''' Return HTML-formatted debugging information about the current exception. '''</FONT>
+        self.html = []
+        self.writeHTML()
+        html = <FONT COLOR=#FF0000>''</FONT>.join(self.html)
+        self.html = None
+        <FONT COLOR=black><B>return</B></FONT> html
+
+    <FONT COLOR=black><B>def</B></FONT> writeHTML(self):
+        self.writeTraceback()
+        self.writeMiscInfo()
+        self.writeTransaction()
+        self.writeEnvironment()
+        self.writeIds()
+        self.writeFancyTraceback()
+
+
+    <FONT COLOR=#1111CC>## Write utility methods ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> write(self, s):
+        self.html.append(str(s))
+
+    <FONT COLOR=black><B>def</B></FONT> writeln(self, s):
+        self.html.append(str(s))
+        self.html.append(<FONT COLOR=#FF0000>'\n'</FONT>)
+
+    <FONT COLOR=black><B>def</B></FONT> writeTitle(self, s):
+        self.writeln(htTitle(s))
+
+    <FONT COLOR=black><B>def</B></FONT> writeDict(self, d):
+        self.writeln(htmlForDict(d, filterValueCallBack=self.filterDictValue, maxValueLength=self._maxValueLength))
+
+    <FONT COLOR=black><B>def</B></FONT> writeTable(self, listOfDicts, keys=None):
+        <FONT COLOR=#FF0000>"""
+        Writes a table whose contents are given by listOfDicts. The
+        keys of each dictionary are expected to be the same. If the
+        keys arg is None, the headings are taken in alphabetical order
+        from the first dictionary. If listOfDicts is "false", nothing
+        happens.
+
+        The keys and values are already considered to be HTML.
+
+        Caveat: There's no way to influence the formatting or to use
+        column titles that are different than the keys.
+
+        Note: Used by writeAttrs().
+        """</FONT>
+        <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> listOfDicts:
+            <FONT COLOR=black><B>return</B></FONT>
+
+        <FONT COLOR=black><B>if</B></FONT> keys <FONT COLOR=black><B>is</B></FONT> None:
+            keys = listOfDicts[0].keys()
+            keys.sort()
+
+        wr = self.writeln
+        wr(<FONT COLOR=#FF0000>'&lt;table&gt;\n&lt;tr&gt;'</FONT>)
+        <FONT COLOR=black><B>for</B></FONT> key <FONT COLOR=black><B>in</B></FONT> keys:
+            wr(<FONT COLOR=#FF0000>'&lt;td bgcolor=#F0F0F0&gt;&lt;b&gt;%s&lt;/b&gt;&lt;/td&gt;'</FONT> % key)
+        wr(<FONT COLOR=#FF0000>'&lt;/tr&gt;\n'</FONT>)
+
+        <FONT COLOR=black><B>for</B></FONT> row <FONT COLOR=black><B>in</B></FONT> listOfDicts:
+            wr(<FONT COLOR=#FF0000>'&lt;tr&gt;'</FONT>)
+            <FONT COLOR=black><B>for</B></FONT> key <FONT COLOR=black><B>in</B></FONT> keys:
+                wr(<FONT COLOR=#FF0000>'&lt;td bgcolor=#F0F0F0&gt;%s&lt;/td&gt;'</FONT> % self.filterTableValue(row[key], key, row, listOfDicts))
+            wr(<FONT COLOR=#FF0000>'&lt;/tr&gt;\n'</FONT>)
+
+        wr(<FONT COLOR=#FF0000>'&lt;/table&gt;'</FONT>)
+
+    <FONT COLOR=black><B>def</B></FONT> writeAttrs(self, obj, attrNames):
+        <FONT COLOR=#FF0000>"""
+        Writes the attributes of the object as given by attrNames.
+        Tries obj._name first, followed by obj.name(). Is resilient
+        regarding exceptions so as not to spoil the exception report.
+        """</FONT>
+        rows = []
+        <FONT COLOR=black><B>for</B></FONT> name <FONT COLOR=black><B>in</B></FONT> attrNames:
+            value = getattr(obj, <FONT COLOR=#FF0000>'_'</FONT>+name, singleton) <FONT COLOR=#1111CC># go for data attribute</FONT>
+            <FONT COLOR=black><B>try</B></FONT>:
+                <FONT COLOR=black><B>if</B></FONT> value <FONT COLOR=black><B>is</B></FONT> singleton:
+                    value = getattr(obj, name, singleton) <FONT COLOR=#1111CC># go for method</FONT>
+                    <FONT COLOR=black><B>if</B></FONT> value <FONT COLOR=black><B>is</B></FONT> singleton:
+                        value = <FONT COLOR=#FF0000>'(could not find attribute or method)'</FONT>
+                    <FONT COLOR=black><B>else</B></FONT>:
+                        <FONT COLOR=black><B>try</B></FONT>:
+                            <FONT COLOR=black><B>if</B></FONT> callable(value):
+                                value = value()
+                        <FONT COLOR=black><B>except</B></FONT> Exception, e:
+                            value = <FONT COLOR=#FF0000>'(exception during method call: %s: %s)'</FONT> % (e.__class__.__name__, e)
+                        value = self.repr(value)
+                <FONT COLOR=black><B>else</B></FONT>:
+                    value = self.repr(value)
+            <FONT COLOR=black><B>except</B></FONT> Exception, e:
+                value = <FONT COLOR=#FF0000>'(exception during value processing: %s: %s)'</FONT> % (e.__class__.__name__, e)
+            rows.append({<FONT COLOR=#FF0000>'attr'</FONT>: name, <FONT COLOR=#FF0000>'value'</FONT>: value})
+        self.writeTable(rows, (<FONT COLOR=#FF0000>'attr'</FONT>, <FONT COLOR=#FF0000>'value'</FONT>))
+
+
+    <FONT COLOR=#1111CC>## Write specific parts ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> writeTraceback(self):
+        self.writeTitle(<FONT COLOR=#FF0000>'Traceback'</FONT>)
+        self.write(<FONT COLOR=#FF0000>'&lt;p&gt; &lt;i&gt;%s&lt;/i&gt;'</FONT> % self.servletPathname())
+        self.write(HTMLForException(self._exc))
+
+    <FONT COLOR=black><B>def</B></FONT> writeMiscInfo(self):
+        self.writeTitle(<FONT COLOR=#FF0000>'MiscInfo'</FONT>)
+        info = {
+            <FONT COLOR=#FF0000>'time'</FONT>:          asctime(localtime(self._time)),
+            <FONT COLOR=#FF0000>'filename'</FONT>:      self.servletPathname(),
+            <FONT COLOR=#FF0000>'os.getcwd()'</FONT>:   os.getcwd(),
+            <FONT COLOR=#FF0000>'sys.path'</FONT>:      sys.path
+        }
+        self.writeDict(info)
+
+    <FONT COLOR=black><B>def</B></FONT> writeTransaction(self):
+        <FONT COLOR=black><B>if</B></FONT> self._tra:
+            self._tra.writeExceptionReport(self)
+        <FONT COLOR=black><B>else</B></FONT>:
+            self.writeTitle(<FONT COLOR=#FF0000>"No current Transaction"</FONT>)
+            
+
+    <FONT COLOR=black><B>def</B></FONT> writeEnvironment(self):
+        self.writeTitle(<FONT COLOR=#FF0000>'Environment'</FONT>)
+        self.writeDict(os.environ)
+
+    <FONT COLOR=black><B>def</B></FONT> writeIds(self):
+        self.writeTitle(<FONT COLOR=#FF0000>'Ids'</FONT>)
+        self.writeTable(osIdTable(), [<FONT COLOR=#FF0000>'name'</FONT>, <FONT COLOR=#FF0000>'value'</FONT>])
+
+    <FONT COLOR=black><B>def</B></FONT> writeFancyTraceback(self):
+        <FONT COLOR=black><B>if</B></FONT> self.setting(<FONT COLOR=#FF0000>'IncludeFancyTraceback'</FONT>):
+            self.writeTitle(<FONT COLOR=#FF0000>'Fancy Traceback'</FONT>)
+            <FONT COLOR=black><B>try</B></FONT>:
+                <FONT COLOR=black><B>from</B></FONT> WebUtils.ExpansiveHTMLForException <FONT COLOR=black><B>import</B></FONT> ExpansiveHTMLForException
+                self.write(ExpansiveHTMLForException(context=self.setting(<FONT COLOR=#FF0000>'FancyTracebackContext'</FONT>)))
+            <FONT COLOR=black><B>except</B></FONT>:
+                self.write(<FONT COLOR=#FF0000>'Unable to generate a fancy traceback! (uncaught exception)'</FONT>)
+                <FONT COLOR=black><B>try</B></FONT>:
+                    self.write(HTMLForException(sys.exc_info()))
+                <FONT COLOR=black><B>except</B></FONT>:
+                    self.write(<FONT COLOR=#FF0000>'&lt;br&gt;Unable to even generate a normal traceback of the exception in fancy traceback!'</FONT>)
+
+    <FONT COLOR=black><B>def</B></FONT> saveErrorPage(self, html):
+        <FONT COLOR=#FF0000>''' Saves the given HTML error page for later viewing by the developer, and returns the filename used. '''</FONT>
+        filename = self._app.serverSidePath(os.path.join(self.setting(<FONT COLOR=#FF0000>'ErrorMessagesDir'</FONT>), self.errorPageFilename()))
+        f = open(filename, <FONT COLOR=#FF0000>'w'</FONT>)
+        f.write(html)
+        f.close()
+        <FONT COLOR=black><B>return</B></FONT> filename
+
+    <FONT COLOR=black><B>def</B></FONT> errorPageFilename(self):
+        <FONT COLOR=#FF0000>''' Construct a filename for an HTML error page, not including the 'ErrorMessagesDir' setting. '''</FONT>
+        <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=#FF0000>'Error-%s-%s-%d.html'</FONT> % (
+            self.basicServletName(),
+            string.join(map(<FONT COLOR=black><B>lambda</B></FONT> x: <FONT COLOR=#FF0000>'%02d'</FONT> % x, localtime(self._time)[:6]), <FONT COLOR=#FF0000>'-'</FONT>),
+            whrandom.whrandom().randint(10000, 99999))
+            <FONT COLOR=#1111CC># @@ 2000-04-21 ce: Using the timestamp & a random number is a poor technique for filename uniqueness, but this works for now</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> logExceptionToDisk(self, errorMsgFilename=<FONT COLOR=#FF0000>''</FONT>):
+        <FONT COLOR=#FF0000>''' Writes a tuple containing (date-time, filename, pathname, exception-name, exception-data,error report filename) to the errors file (typically 'Errors.csv') in CSV format. Invoked by handleException(). '''</FONT>
+        logline = (
+            asctime(localtime(self._time)),
+            self.basicServletName(),
+            self.servletPathname(),
+            str(self._exc[0]),
+            str(self._exc[1]),
+            errorMsgFilename)
+        filename = self._app.serverSidePath(self.setting(<FONT COLOR=#FF0000>'ErrorLogFilename'</FONT>))
+        <FONT COLOR=black><B>if</B></FONT> os.path.exists(filename):
+            f = open(filename, <FONT COLOR=#FF0000>'a'</FONT>)
+        <FONT COLOR=black><B>else</B></FONT>:
+            f = open(filename, <FONT COLOR=#FF0000>'w'</FONT>)
+            f.write(<FONT COLOR=#FF0000>'time,filename,pathname,exception name,exception data,error report filename\n'</FONT>)
+            
+        <FONT COLOR=black><B>def</B></FONT> fixElement(element):
+            element = str(element)
+            <FONT COLOR=black><B>if</B></FONT> string.find(element, <FONT COLOR=#FF0000>','</FONT>) <FONT COLOR=black><B>or</B></FONT> string.find(element, <FONT COLOR=#FF0000>'"'</FONT>):
+                element = string.replace(str(element), <FONT COLOR=#FF0000>'"'</FONT>, <FONT COLOR=#FF0000>'""'</FONT>)
+                element = <FONT COLOR=#FF0000>'"'</FONT> + element + <FONT COLOR=#FF0000>'"'</FONT>
+            <FONT COLOR=black><B>return</B></FONT> element
+        logline = map(fixElement, logline)
+        
+        f.write(string.join(logline, <FONT COLOR=#FF0000>','</FONT>))
+        f.write(<FONT COLOR=#FF0000>'\n'</FONT>)
+        f.close()
+
+    <FONT COLOR=black><B>def</B></FONT> emailException(self, htmlErrMsg):
+        message = StringIO.StringIO()
+        writer = MimeWriter.MimeWriter(message)
+
+        <FONT COLOR=#1111CC>## Construct the message headers</FONT>
+        headers = self.setting(<FONT COLOR=#FF0000>'ErrorEmailHeaders'</FONT>).copy()
+        headers[<FONT COLOR=#FF0000>'Date'</FONT>] = dateForEmail()
+        headers[<FONT COLOR=#FF0000>'Subject'</FONT>] = headers.get(<FONT COLOR=#FF0000>'Subject'</FONT>,<FONT COLOR=#FF0000>'[WebKit Error]'</FONT>) + <FONT COLOR=#FF0000>' '</FONT> \
+                     + str(sys.exc_info()[0]) + <FONT COLOR=#FF0000>': '</FONT> \
+                     + str(sys.exc_info()[1])
+        <FONT COLOR=black><B>for</B></FONT> h,v <FONT COLOR=black><B>in</B></FONT> headers.items():
+            <FONT COLOR=black><B>if</B></FONT> isinstance(v, types.ListType):
+                v = <FONT COLOR=#FF0000>','</FONT>.join(v)
+            writer.addheader(h, v)
+
+        <FONT COLOR=#1111CC>## Construct the message body</FONT>
+
+        <FONT COLOR=black><B>if</B></FONT> self.setting(<FONT COLOR=#FF0000>'EmailErrorReportAsAttachment'</FONT>):
+            writer.startmultipartbody(<FONT COLOR=#FF0000>'mixed'</FONT>)
+            <FONT COLOR=#1111CC># start off with a text/plain part</FONT>
+            part = writer.nextpart()
+            body = part.startbody(<FONT COLOR=#FF0000>'text/plain'</FONT>)
+            body.write(
+                <FONT COLOR=#FF0000>'WebKit caught an exception while processing '</FONT> +
+                <FONT COLOR=#FF0000>'a request for "%s" '</FONT> % self.servletPathname() +
+                <FONT COLOR=#FF0000>'at %s (timestamp: %s).  '</FONT> %
+                (asctime(localtime(self._time)), self._time) +
+                <FONT COLOR=#FF0000>'The plain text traceback from Python is printed below and '</FONT> +
+                <FONT COLOR=#FF0000>'the full HTML error report from WebKit is attached.\n\n'</FONT>
+                )
+            traceback.print_exc(file=body)
+            
+            <FONT COLOR=#1111CC># now add htmlErrMsg</FONT>
+            part = writer.nextpart()
+            part.addheader(<FONT COLOR=#FF0000>'Content-Transfer-Encoding'</FONT>, <FONT COLOR=#FF0000>'7bit'</FONT>)
+            part.addheader(<FONT COLOR=#FF0000>'Content-Description'</FONT>, <FONT COLOR=#FF0000>'HTML version of WebKit error message'</FONT>)
+            body = part.startbody(<FONT COLOR=#FF0000>'text/html; name=WebKitErrorMsg.html'</FONT>)
+            body.write(htmlErrMsg)
+            
+            <FONT COLOR=#1111CC># finish off</FONT>
+            writer.lastpart()
+        <FONT COLOR=black><B>else</B></FONT>:
+            body = writer.startbody(<FONT COLOR=#FF0000>'text/html'</FONT>)
+            body.write(htmlErrMsg)
+            
+        <FONT COLOR=#1111CC># Send the message</FONT>
+        server = smtplib.SMTP(self.setting(<FONT COLOR=#FF0000>'ErrorEmailServer'</FONT>))
+        server.set_debuglevel(0)
+        server.sendmail(headers[<FONT COLOR=#FF0000>'From'</FONT>], headers[<FONT COLOR=#FF0000>'To'</FONT>], message.getvalue())
+        server.quit()
+
+
+    <FONT COLOR=#1111CC>## Filtering Values ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> filterDictValue(self, value, key, dict):
+        <FONT COLOR=black><B>return</B></FONT> self.filterValue(value, key)
+
+    <FONT COLOR=black><B>def</B></FONT> filterTableValue(self, value, key, row, table):
+        <FONT COLOR=#FF0000>"""
+        Invoked by writeTable() to afford the opportunity to filter
+        the values written in tables. These values are already HTML
+        when they arrive here. Use the extra key, row and table
+        args as necessary.
+        """</FONT>
+        <FONT COLOR=black><B>if</B></FONT> row.has_key(<FONT COLOR=#FF0000>'attr'</FONT>) <FONT COLOR=black><B>and</B></FONT> key!=<FONT COLOR=#FF0000>'attr'</FONT>:
+            <FONT COLOR=black><B>return</B></FONT> self.filterValue(value, row[<FONT COLOR=#FF0000>'attr'</FONT>])
+        <FONT COLOR=black><B>else</B></FONT>:
+            <FONT COLOR=black><B>return</B></FONT> self.filterValue(value, key)
+
+    <FONT COLOR=black><B>def</B></FONT> filterValue(self, value, key):
+        <FONT COLOR=#FF0000>"""
+        This is the core filter method that is used in all filtering.
+        By default, it simply returns self.hiddenString if the key is
+        in self.hideValuesForField (case insensitive). Subclasses
+        could override for more elaborate filtering techniques.
+        """</FONT>
+        <FONT COLOR=black><B>if</B></FONT> key.lower() <FONT COLOR=black><B>in</B></FONT> self.hideValuesForFields:
+            <FONT COLOR=black><B>return</B></FONT> self.hiddenString
+        <FONT COLOR=black><B>else</B></FONT>:
+            <FONT COLOR=black><B>return</B></FONT> value
+
+
+    <FONT COLOR=#1111CC>## Self utility ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> repr(self, x):
+        <FONT COLOR=#FF0000>"""
+        Returns the repr() of x already html encoded. As a special case, dictionaries are nicely formatted in table.
+
+        This is a utility method for writeAttrs.
+        """</FONT>
+        <FONT COLOR=black><B>if</B></FONT> type(x) <FONT COLOR=black><B>is</B></FONT> DictType:
+            <FONT COLOR=black><B>return</B></FONT> htmlForDict(x, filterValueCallBack=self.filterDictValue, maxValueLength=self._maxValueLength)
+        <FONT COLOR=black><B>else</B></FONT>:
+            rep = repr(x)
+            <FONT COLOR=black><B>if</B></FONT> self._maxValueLength <FONT COLOR=black><B>and</B></FONT> len(rep) &gt; self._maxValueLength:
+                rep = rep[:self._maxValueLength] + <FONT COLOR=#FF0000>'...'</FONT>
+            <FONT COLOR=black><B>return</B></FONT> htmlEncode(rep)
+
+
+<FONT COLOR=#1111CC># Some misc functions</FONT>
+<FONT COLOR=black><B>def</B></FONT> htTitle(name):
+    <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=#FF0000>'''
+&lt;p&gt; &lt;br&gt; &lt;table border=0 cellpadding=4 cellspacing=0 bgcolor=#A00000 width=100%%&gt; &lt;tr&gt; &lt;td align=center&gt;
+    &lt;font face="Tahoma, Arial, Helvetica" color=white&gt; &lt;b&gt; %s &lt;/b&gt; &lt;/font&gt;
+&lt;/td&gt; &lt;/tr&gt; &lt;/table&gt;'''</FONT> % name
+
+
+<FONT COLOR=black><B>def</B></FONT> osIdTable():
+    <FONT COLOR=#FF0000>''' Returns a list of dictionaries contained id information such as uid, gid, etc.,
+        all obtained from the os module. Dictionary keys are 'name' and 'value'. '''</FONT>
+    funcs = [<FONT COLOR=#FF0000>'getegid'</FONT>, <FONT COLOR=#FF0000>'geteuid'</FONT>, <FONT COLOR=#FF0000>'getgid'</FONT>, <FONT COLOR=#FF0000>'getpgrp'</FONT>, <FONT COLOR=#FF0000>'getpid'</FONT>, <FONT COLOR=#FF0000>'getppid'</FONT>, <FONT COLOR=#FF0000>'getuid'</FONT>]
+    table = []
+    <FONT COLOR=black><B>for</B></FONT> funcName <FONT COLOR=black><B>in</B></FONT> funcs:
+        <FONT COLOR=black><B>if</B></FONT> hasattr(os, funcName):
+            value = getattr(os, funcName)()
+            table.append({<FONT COLOR=#FF0000>'name'</FONT>: funcName, <FONT COLOR=#FF0000>'value'</FONT>: value})
+    <FONT COLOR=black><B>return</B></FONT> table
+</PRE>
+                  <!--footer-->
+                  </BODY>

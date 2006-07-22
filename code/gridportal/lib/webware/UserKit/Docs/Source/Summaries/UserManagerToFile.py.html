@@ -1,0 +1,70 @@
+
+<html>
+    <head>
+        <title>UserKit/UserManagerToFile.py</title>
+        <style type="text/css">
+            .Line_class {
+            }
+
+            .Line_category {
+                color: 11B;
+            }
+
+            .Line_def {
+            }
+
+            .Name_class {
+                color: 909;
+                font-weight: bold;
+            }
+
+            .Name_def {
+                color: 909;
+                font-weight: bold;
+            }
+        </style>
+    </head>
+<body>
+<pre>
+
+<span class=Line_class>class <span class=Name_class>UserManagerToFile(UserManager)</span>:</span>
+
+<span class=Line_category>    ## Init ##</span>
+<span class=Line_def>    def <span class=Name_class>__init__</span>(self, userClass=None):</span>
+<span class=Line_def>    def <span class=Name_class>initNextSerialNum</span>(self):</span>
+
+<span class=Line_category>    ## WebKit integration ##</span>
+<span class=Line_def>    def <span class=Name_class>wasInstalled</span>(self, owner):</span>
+
+<span class=Line_category>    ## File storage specifics ##</span>
+<span class=Line_def>    def <span class=Name_class>userDir</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>setUserDir</span>(self, userDir):</span>
+<span class=Line_def>    def <span class=Name_class>loadUser</span>(self, serialNum, default=NoDefault):</span>
+<span class=Line_def>    def <span class=Name_class>scanSerialNums</span>(self):</span>
+
+<span class=Line_category>    ## UserManager customizations ##</span>
+<span class=Line_def>    def <span class=Name_class>setUserClass</span>(self, userClass):</span>
+
+<span class=Line_category>    ## UserManager concrete methods ##</span>
+<span class=Line_def>    def <span class=Name_class>nextSerialNum</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>addUser</span>(self, user):</span>
+<span class=Line_def>    def <span class=Name_class>userForSerialNum</span>(self, serialNum, default=NoDefault):</span>
+<span class=Line_def>    def <span class=Name_class>userForExternalId</span>(self, externalId, default=NoDefault):</span>
+<span class=Line_def>    def <span class=Name_class>userForName</span>(self, name, default=NoDefault):</span>
+<span class=Line_def>    def <span class=Name_class>users</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>activeUsers</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>inactiveUsers</span>(self):</span>
+
+<span class=Line_category>    ## Encoder/decoder ##</span>
+<span class=Line_def>    def <span class=Name_class>encoder</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>decoder</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>setEncoderDecoder</span>(self, encoder, decoder):</span>
+
+
+<span class=Line_class>class <span class=Name_class>UserMixIn</span>:</span>
+<span class=Line_def>    def <span class=Name_class>filename</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>save</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>__init__</span>(self, mgr, filterFunc=None):</span>
+<span class=Line_def>    def <span class=Name_class>__getitem__</span>(self, index):</span>
+<span class=Line_def>    def <span class=Name_class>__len__</span>(self):</span>
+</pre> </body> </html>

@@ -1,0 +1,40 @@
+5 October 2005, Martin Matusiak:
+
++ Now enforcing all requests to be processed in a secure channel (https)
+
+
+29 September 2005, Martin Matusiak:
+
++++ release 0.5.3
+
+A feature release above all, some bugfixes
++ Authentication model change from proxy upload to myproxy integration
++ GRIDportal now deployed with GridPortalToolkit
+	(http://gridportal.dynalias.org/gptoolkit/www/)
++ Documentation added for the use of GridPortalToolkit
+
+
+23 August 2005, Martin Matusiak:
+
++++ authentication switched from proxy upload to myproxy
+
+In the old model, a user would have to generate a proxy locally and upload this
+to the portal for every session. The new model uses myproxy as a credential 
+storage repository. With the new GridPortalToolkit client application, the user 
+will create a certificate and register it with myproxy, all done locally.
+
+This adds a new dependency in the form of pyGlobus.
+
+
+5 July 2005, Martin Matusiak:
+
++++ javascript menu replaced with SmartMenus5.5
+
+problems with transmenu: 
+- a bit cumbersome loading with animated slideout
+- menu broken in Opera, buggy in Konqueror
+
+SmartMenus was made to mimmick transmenu as much as possible, even though it 
+looks slightly different. SmartMenus is bundled with test results from a wide 
+variety of browsers and the menu was tested successfully in IE6, Opera8, 
+Firefox1.0.4 and Konqueror3.4.0.

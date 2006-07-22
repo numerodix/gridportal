@@ -1,0 +1,190 @@
+
+<html>
+    <head>
+        <title>MiscUtils/pydoc.py</title>
+        <style type="text/css">
+            .Line_class {
+            }
+
+            .Line_category {
+                color: 11B;
+            }
+
+            .Line_def {
+            }
+
+            .Name_class {
+                color: 909;
+                font-weight: bold;
+            }
+
+            .Name_def {
+                color: 909;
+                font-weight: bold;
+            }
+        </style>
+    </head>
+<body>
+<pre>
+
+<span class=Line_class>class <span class=Name_class>or function within a module or module in a package.  If th</span>e</span>
+<span class=Line_def>def <span class=Name_class>pathdirs</span>():</span>
+<span class=Line_def>def <span class=Name_class>getdoc</span>(object):</span>
+<span class=Line_def>def <span class=Name_class>splitdoc</span>(doc):</span>
+<span class=Line_def>def <span class=Name_class>classname</span>(object, modname):</span>
+<span class=Line_def>def <span class=Name_class>isdata</span>(object):</span>
+<span class=Line_def>def <span class=Name_class>replace</span>(text, *pairs):</span>
+<span class=Line_def>def <span class=Name_class>cram</span>(text, maxlen):</span>
+<span class=Line_def>def <span class=Name_class>stripid</span>(text):</span>
+<span class=Line_def>def <span class=Name_class>allmethods</span>(cl):</span>
+<span class=Line_def>def <span class=Name_class>ispackage</span>(path):</span>
+<span class=Line_def>def <span class=Name_class>synopsis</span>(filename, cache={}):</span>
+
+
+<span class=Line_class>class <span class=Name_class>ErrorDuringImport(Exception)</span>:</span>
+<span class=Line_def>    def <span class=Name_class>__init__</span>(self, filename, (exc, value, tb)):</span>
+<span class=Line_def>    def <span class=Name_class>__str__</span>(self):</span>
+<span class=Line_def>def <span class=Name_class>importfile</span>(path):</span>
+<span class=Line_def>def <span class=Name_class>safeimport</span>(path, forceload=0, cache={}):</span>
+
+
+<span class=Line_class>class <span class=Name_class>Doc</span>:</span>
+<span class=Line_def>    def <span class=Name_class>document</span>(self, object, name=None, *args):</span>
+<span class=Line_def>    def <span class=Name_class>fail</span>(self, object, name=None, *args):</span>
+
+
+<span class=Line_class>class <span class=Name_class>HTMLRepr(Repr)</span>:</span>
+<span class=Line_def>    def <span class=Name_class>__init__</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>escape</span>(self, text):</span>
+<span class=Line_def>    def <span class=Name_class>repr</span>(self, object):</span>
+<span class=Line_def>    def <span class=Name_class>repr1</span>(self, x, level):</span>
+<span class=Line_def>    def <span class=Name_class>repr_string</span>(self, x, level):</span>
+<span class=Line_def>    def <span class=Name_class>repr_instance</span>(self, x, level):</span>
+
+
+<span class=Line_class>class <span class=Name_class>HTMLDoc(Doc)</span>:</span>
+<span class=Line_def>    def <span class=Name_class>page</span>(self, title, contents):</span>
+<span class=Line_def>    def <span class=Name_class>heading</span>(self, title, fgcol, bgcol, extras=''):</span>
+<span class=Line_def>    def <span class=Name_class>section</span>(self, title, fgcol, bgcol, contents, width=10,</span>
+<span class=Line_def>    def <span class=Name_class>bigsection</span>(self, title, *args):</span>
+<span class=Line_def>    def <span class=Name_class>preformat</span>(self, text):</span>
+<span class=Line_def>    def <span class=Name_class>multicolumn</span>(self, list, format, cols=4):</span>
+<span class=Line_def>    def <span class=Name_class>small</span>(self, text): return '<small>%s</small>' % text</span>
+<span class=Line_def>    def <span class=Name_class>grey</span>(self, text): return '<font color="#909090">%s</font>' % text</span>
+<span class=Line_def>    def <span class=Name_class>namelink</span>(self, name, *dicts):</span>
+<span class=Line_def>    def <span class=Name_class>classlink</span>(self, object, modname):</span>
+<span class=Line_def>    def <span class=Name_class>modulelink</span>(self, object):</span>
+<span class=Line_def>    def <span class=Name_class>modpkglink</span>(self, (name, path, ispackage, shadowed)):</span>
+<span class=Line_def>    def <span class=Name_class>markup</span>(self, text, escape=None, funcs={}, classes={}, methods={}):</span>
+<span class=Line_def>    def <span class=Name_class>formattree</span>(self, tree, modname, parent=None):</span>
+<span class=Line_def>    def <span class=Name_class>docmodule</span>(self, object, name=None, mod=None):</span>
+<span class=Line_def>    def <span class=Name_class>docclass</span>(self, object, name=None, mod=None, funcs={}, classes={}):</span>
+<span class=Line_def>    def <span class=Name_class>formatvalue</span>(self, object):</span>
+<span class=Line_def>    def <span class=Name_class>docroutine</span>(self, object, name=None, mod=None,</span>
+<span class=Line_def>    def <span class=Name_class>docother</span>(self, object, name=None, mod=None):</span>
+<span class=Line_def>    def <span class=Name_class>index</span>(self, dir, shadowed=None):</span>
+<span class=Line_def>        def <span class=Name_class>found</span>(name, ispackage,</span>
+
+
+<span class=Line_class>class <span class=Name_class>TextRepr(Repr)</span>:</span>
+<span class=Line_def>    def <span class=Name_class>__init__</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>repr1</span>(self, x, level):</span>
+<span class=Line_def>    def <span class=Name_class>repr_string</span>(self, x, level):</span>
+<span class=Line_def>    def <span class=Name_class>repr_instance</span>(self, x, level):</span>
+
+
+<span class=Line_class>class <span class=Name_class>TextDoc(Doc)</span>:</span>
+<span class=Line_def>    def <span class=Name_class>bold</span>(self, text):</span>
+<span class=Line_def>    def <span class=Name_class>indent</span>(self, text, prefix='    '):</span>
+<span class=Line_def>    def <span class=Name_class>section</span>(self, title, contents):</span>
+<span class=Line_def>    def <span class=Name_class>formattree</span>(self, tree, modname, parent=None, prefix=''):</span>
+<span class=Line_def>    def <span class=Name_class>docmodule</span>(self, object, name=None, mod=None):</span>
+<span class=Line_def>    def <span class=Name_class>docclass</span>(self, object, name=None, mod=None):</span>
+<span class=Line_def>            def <span class=Name_class>makename</span>(c, m=object.__module__): return classname(c, m)</span>
+<span class=Line_def>    def <span class=Name_class>formatvalue</span>(self, object):</span>
+<span class=Line_def>    def <span class=Name_class>docroutine</span>(self, object, name=None, mod=None, cl=None):</span>
+<span class=Line_def>    def <span class=Name_class>docother</span>(self, object, name=None, mod=None, maxlen=None):</span>
+<span class=Line_def>def <span class=Name_class>pager</span>(text):</span>
+<span class=Line_def>def <span class=Name_class>getpager</span>():</span>
+<span class=Line_def>def <span class=Name_class>plain</span>(text):</span>
+<span class=Line_def>def <span class=Name_class>pipepager</span>(text, cmd):</span>
+<span class=Line_def>def <span class=Name_class>tempfilepager</span>(text, cmd):</span>
+<span class=Line_def>def <span class=Name_class>ttypager</span>(text):</span>
+<span class=Line_def>def <span class=Name_class>plainpager</span>(text):</span>
+<span class=Line_def>def <span class=Name_class>describe</span>(thing):</span>
+<span class=Line_def>def <span class=Name_class>locate</span>(path, forceload=0):</span>
+<span class=Line_def>def <span class=Name_class>doc</span>(thing, title='Python Library Documentation: %s', forceload=0):</span>
+<span class=Line_def>def <span class=Name_class>writedoc</span>(key, forceload=0):</span>
+<span class=Line_def>def <span class=Name_class>writedocs</span>(dir, pkgpath='', done=None):</span>
+
+
+<span class=Line_class>class <span class=Name_class>Helper</span>:</span>
+<span class=Line_def>    def <span class=Name_class>__init__</span>(self, input, output):</span>
+<span class=Line_def>    def <span class=Name_class>__repr__</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>__call__</span>(self, request=None):</span>
+<span class=Line_def>    def <span class=Name_class>interact</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>help</span>(self, request):</span>
+<span class=Line_def>    def <span class=Name_class>intro</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>list</span>(self, items, columns=4, width=80):</span>
+<span class=Line_def>    def <span class=Name_class>listkeywords</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>listtopics</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>showtopic</span>(self, topic):</span>
+<span class=Line_def>    def <span class=Name_class>listmodules</span>(self, key=''):</span>
+<span class=Line_def>            def <span class=Name_class>callback</span>(path, modname, desc, modules=modules):</span>
+
+
+<span class=Line_class>class <span class=Name_class>Scanner</span>:</span>
+<span class=Line_def>    def <span class=Name_class>__init__</span>(self, roots, children, descendp):</span>
+<span class=Line_def>    def <span class=Name_class>next</span>(self):</span>
+
+
+<span class=Line_class>class <span class=Name_class>ModuleScanner(Scanner)</span>:</span>
+<span class=Line_def>    def <span class=Name_class>__init__</span>(self):</span>
+<span class=Line_def>    def <span class=Name_class>submodules</span>(self, (dir, package)):</span>
+<span class=Line_def>    def <span class=Name_class>isnewpackage</span>(self, (dir, package)):</span>
+<span class=Line_def>    def <span class=Name_class>run</span>(self, callback, key=None, completer=None):</span>
+<span class=Line_def>def <span class=Name_class>apropos</span>(key):</span>
+<span class=Line_def>    def <span class=Name_class>callback</span>(path, modname, desc):</span>
+<span class=Line_def>def <span class=Name_class>serve</span>(port, callback=None, completer=None):</span>
+
+
+<span class=Line_class>    class <span class=Name_class>Message(mimetools.Message)</span>:</span>
+<span class=Line_def>        def <span class=Name_class>__init__</span>(self, fp, seekable=1):</span>
+
+
+<span class=Line_class>    class <span class=Name_class>DocHandler(BaseHTTPServer.BaseHTTPRequestHandler)</span>:</span>
+<span class=Line_def>        def <span class=Name_class>send_document</span>(self, title, contents):</span>
+<span class=Line_def>        def <span class=Name_class>do_GET</span>(self):</span>
+<span class=Line_def>                def <span class=Name_class>bltinlink</span>(name):</span>
+<span class=Line_def>        def <span class=Name_class>log_message</span>(self, *args): pass</span>
+
+
+<span class=Line_class>    class <span class=Name_class>DocServer(BaseHTTPServer.HTTPServer)</span>:</span>
+<span class=Line_def>        def <span class=Name_class>__init__</span>(self, port, callback):</span>
+<span class=Line_def>        def <span class=Name_class>serve_until_quit</span>(self):</span>
+<span class=Line_def>        def <span class=Name_class>server_activate</span>(self):</span>
+<span class=Line_def>def <span class=Name_class>gui</span>():</span>
+
+
+<span class=Line_class>    class <span class=Name_class>GUI</span>:</span>
+<span class=Line_def>        def <span class=Name_class>__init__</span>(self, window, port=7464):</span>
+<span class=Line_def>        def <span class=Name_class>ready</span>(self, server):</span>
+<span class=Line_def>        def <span class=Name_class>open</span>(self, event=None, url=None):</span>
+<span class=Line_def>        def <span class=Name_class>quit</span>(self, event=None):</span>
+<span class=Line_def>        def <span class=Name_class>search</span>(self, event=None):</span>
+<span class=Line_def>        def <span class=Name_class>update</span>(self, path, modname, desc):</span>
+<span class=Line_def>        def <span class=Name_class>stop</span>(self, event=None):</span>
+<span class=Line_def>        def <span class=Name_class>done</span>(self):</span>
+<span class=Line_def>        def <span class=Name_class>select</span>(self, event=None):</span>
+<span class=Line_def>        def <span class=Name_class>goto</span>(self, event=None):</span>
+<span class=Line_def>        def <span class=Name_class>collapse</span>(self):</span>
+<span class=Line_def>        def <span class=Name_class>expand</span>(self):</span>
+<span class=Line_def>        def <span class=Name_class>hide</span>(self, event=None):</span>
+<span class=Line_def>def <span class=Name_class>ispath</span>(x):</span>
+<span class=Line_def>def <span class=Name_class>cli</span>():</span>
+
+
+<span class=Line_class>    class <span class=Name_class>BadUsage</span>: pass</span>
+<span class=Line_def>                def <span class=Name_class>ready</span>(server):</span>
+<span class=Line_def>                def <span class=Name_class>stopped</span>():</span>
+</pre> </body> </html>

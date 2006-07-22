@@ -1,0 +1,115 @@
+<HTML><HEAD><TITLE>UserKit/__init__.py</TITLE></HEAD>
+                  <BODY BGCOLOR=#EEEEEE>
+                  <!--header-->
+                  <!--script--><PRE><FONT COLOR=#1111CC># UserKit</FONT>
+<FONT COLOR=#1111CC># Webware for Python</FONT>
+
+
+<FONT COLOR=black><B>def</B></FONT> InstallInWebKit(appServer):
+    <FONT COLOR=black><B>pass</B></FONT>
+
+
+<FONT COLOR=black><B>def</B></FONT> dont_use_combineManagerClasses(*classesOrNamesThereof):
+    <FONT COLOR=#FF0000>"""
+    ----
+    While this was a nice idea that nearly worked, it broke on keyword arguments to __init__ methods. Fixing it seemed nastier than the next solution: Split RoleUserManager's methods out into RoleUserManagerMixIn, which inherits nothing. Then use the mix-in for the various manager classes, taking care of problems manually in the classes.
+    @@ 2002-04-10 ce
+    ----
+
+    Given a list of "orthogonal" classes (or their names), that all inherit from UserManager, this function returns a new class that combines all of them. By "orthogonal" we mean that the features of the user manager are separate concerns and not dependent on each other.
+    Out of the box, UserKit provides custom user managers for:
+        * persistence
+        * defining roles
+
+    Example:
+        from UserKit.UserManagerToFile import UserManagerToFile as UMFile
+        from UserKit.RoleUserManager import RoleUserManager as UMRole
+        MyUserManager = UserManagerCombo(UMFile, UMRole)
+
+    Or using strings:
+        MyUserManager = UserManagerCombo('UserManagerToFile', 'RoleUserManager')
+
+    Note that strings only work for UserManager subclasses found in UserKit (or somewhere on the Python path). @@ 2001-04-03 ce: a future version should accepted dotted notation for pkgA.pkgB.module.
+
+    Do not include the top level, abstract UserManager class in the list.
+
+    If you must know, the classes are combined by stacking copies of them vertically. The original classes are not modified in any way.
+
+    You could pass a single parameter if you wanted.
+
+    For subclassers of UserManager: In order to qualify for use by this class you have to follow some conventions:
+        - Suppose your class name is Foo
+        - Your class must inherit UserKit.UserManager
+        - Your class must define this attribute:
+            baseOfFoo = UserManager
+        - When "invoking super" you cannot do this:
+            UserManager.someMethod(self, arg1, arg2)
+          But instead must do this:
+            self.baseOfFoo.someMethod(self, arg1, arg2)
+    Yes, that's a little weird. But it's minimal and it empowers this function to create a combination class from orthogonal subclasses of UserManager. I think that if Python had a true "super" feature like Smalltalk and Objective-C, these conventions wouldn't be necessary.
+    """</FONT>
+    <FONT COLOR=black><B>import</B></FONT> types
+
+    classes = []
+    <FONT COLOR=black><B>for</B></FONT> arg <FONT COLOR=black><B>in</B></FONT> classesOrNamesThereof:
+        <FONT COLOR=black><B>if</B></FONT> type(arg) <FONT COLOR=black><B>is</B></FONT> types.StringType:
+            module = __import__(arg, globals())
+            pyClass = getattr(module, arg, None)
+            <FONT COLOR=black><B>assert</B></FONT> pyClass <FONT COLOR=black><B>is</B></FONT> <FONT COLOR=black><B>not</B></FONT> None
+            arg = pyClass
+        <FONT COLOR=black><B>assert</B></FONT> type(arg) <FONT COLOR=black><B>is</B></FONT> types.ClassType
+        classes.append(arg)
+
+    <FONT COLOR=black><B>from</B></FONT> UserManager <FONT COLOR=black><B>import</B></FONT> UserManager
+    <FONT COLOR=black><B>assert</B></FONT> UserManager <FONT COLOR=black><B>not</B></FONT> <FONT COLOR=black><B>in</B></FONT> classes, <FONT COLOR=#FF0000>'You cannot specify the abstract ancestor class, UserManager, as one of the classes to combine. It is implicit.'</FONT>
+
+    <FONT COLOR=#1111CC># Stack the classes in reverse order.</FONT>
+    <FONT COLOR=#1111CC># I'm not sure why; just feels right.</FONT>
+    <FONT COLOR=#1111CC># Theoretically, it shouldn't matter since the classes</FONT>
+    <FONT COLOR=#1111CC># are supposed to be orthogonal.</FONT>
+    classes.reverse()
+    classes.append(UserManager)
+
+    theClass = None
+    prevClass = None
+    <FONT COLOR=black><B>for</B></FONT> curClass <FONT COLOR=black><B>in</B></FONT> classes:
+        <FONT COLOR=#1111CC>#print </FONT><FONT COLOR=#FF0000>'&gt;&gt; curClass = %r, %r'</FONT> % (curClass, type(curClass))
+        <FONT COLOR=black><B>if</B></FONT> prevClass:
+            <FONT COLOR=black><B>class</B></FONT> newClass: <FONT COLOR=black><B>pass</B></FONT>
+            newClass.__name__ = prevClass.__name__
+            newClass.__dict__.update(prevClass.__dict__)
+            newClass.__bases__ = (curClass,)
+            baseOfName = <FONT COLOR=#FF0000>'baseOf'</FONT>+prevClass.__name__
+            setattr(newClass, baseOfName, curClass)
+            <FONT COLOR=black><B>if</B></FONT> theClass <FONT COLOR=black><B>is</B></FONT> None:
+                theClass = newClass
+        prevClass = curClass
+
+    <FONT COLOR=black><B>assert</B></FONT> issubclass(theClass, UserManager)
+    theClass.__name__ = <FONT COLOR=#FF0000>'_'</FONT>.join([c.__name__ <FONT COLOR=black><B>for</B></FONT> c <FONT COLOR=black><B>in</B></FONT> classes])
+
+    <FONT COLOR=black><B>if</B></FONT> 0:
+        <FONT COLOR=#1111CC># For debugging</FONT>
+        <FONT COLOR=black><B>print</B></FONT>
+        <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>'&gt;&gt; UserKit.combineUserManagers()'</FONT>
+        c = theClass
+        num = 1
+        <FONT COLOR=black><B>while</B></FONT> c <FONT COLOR=black><B>is</B></FONT> <FONT COLOR=black><B>not</B></FONT> None:
+            <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>'%02i. c = %s'</FONT> % (num, c)
+            <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>'c.__bases__ ='</FONT>, c.__bases__
+            <FONT COLOR=black><B>for</B></FONT> attrName <FONT COLOR=black><B>in</B></FONT> dir(c):
+                <FONT COLOR=black><B>if</B></FONT> attrName.startswith(<FONT COLOR=#FF0000>'baseOf'</FONT>):
+                    <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>'c.%s = %s'</FONT> % (attrName, getattr(c, attrName))
+            <FONT COLOR=black><B>print</B></FONT>
+            <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> c.__bases__:
+                <FONT COLOR=black><B>break</B></FONT>
+            c = c.__bases__[0]
+            num += 1
+        <FONT COLOR=black><B>print</B></FONT>
+        <FONT COLOR=black><B>print</B></FONT>
+
+
+    <FONT COLOR=black><B>return</B></FONT> theClass
+</PRE>
+                  <!--footer-->
+                  </BODY>

@@ -1,0 +1,8 @@
+Jonas Lindemann <jonas.lindemann@byggmek.lth.se>
+	* Original program author
+
+Martin Matusiak <numerodix@gmail.com>
+	* GRIDportal fork, [mpi]BLAST & Matlab plugins, MyProxy integration,
+		drop down menu fix, other bugfixes, 
+	* documentation: api docs, white paper, test report
+	* help files: Getting Started, User's Guide & Handling .tar.gz files

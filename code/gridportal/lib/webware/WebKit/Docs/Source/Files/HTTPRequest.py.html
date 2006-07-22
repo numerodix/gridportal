@@ -1,0 +1,651 @@
+<HTML><HEAD><TITLE>WebKit/HTTPRequest.py</TITLE></HEAD>
+                  <BODY BGCOLOR=#EEEEEE>
+                  <!--header-->
+                  <!--script--><PRE><FONT COLOR=black><B>from</B></FONT> Common <FONT COLOR=black><B>import</B></FONT> *
+<FONT COLOR=black><B>from</B></FONT> Request <FONT COLOR=black><B>import</B></FONT> Request
+<FONT COLOR=black><B>from</B></FONT> WebKit.Cookie <FONT COLOR=black><B>import</B></FONT> CookieEngine
+Cookie = CookieEngine.SimpleCookie
+<FONT COLOR=black><B>import</B></FONT> os, cgi, sys, traceback
+<FONT COLOR=black><B>from</B></FONT> types <FONT COLOR=black><B>import</B></FONT> ListType
+<FONT COLOR=black><B>from</B></FONT> WebUtils.Funcs <FONT COLOR=black><B>import</B></FONT> requestURI
+<FONT COLOR=black><B>from</B></FONT> WebUtils <FONT COLOR=black><B>import</B></FONT> FieldStorage
+
+debug=0
+
+<FONT COLOR=black><B>class</B></FONT> HTTPRequest(Request):
+    <FONT COLOR=#FF0000>"""
+    FUTURE
+        * How about some documentation?
+        * The "Information" section is a bit screwed up. Because the WebKit server adapter is a CGI script, these values are oriented towards that rather than the servlet.
+    """</FONT>
+
+
+    <FONT COLOR=#1111CC>## Initialization ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> __init__(self, dict={}):
+<FONT COLOR=#1111CC>##      import pprint</FONT>
+<FONT COLOR=#1111CC>##      pprint.pprint(dict)</FONT>
+        Request.__init__(self)
+        self._parents = []
+        <FONT COLOR=black><B>if</B></FONT> dict:
+            <FONT COLOR=#1111CC># Dictionaries come in from web server adapters like the CGIAdapter</FONT>
+            <FONT COLOR=black><B>assert</B></FONT> dict[<FONT COLOR=#FF0000>'format'</FONT>]==<FONT COLOR=#FF0000>'CGI'</FONT>
+            self._time    = dict[<FONT COLOR=#FF0000>'time'</FONT>]
+            self._environ = dict[<FONT COLOR=#FF0000>'environ'</FONT>]
+            self._input   = dict[<FONT COLOR=#FF0000>'input'</FONT>]
+            self._fields  = FieldStorage.FieldStorage(self._input, environ=self._environ, keep_blank_values=1, strict_parsing=0)
+            self._fields.parse_qs()
+            self._cookies = Cookie()
+            <FONT COLOR=black><B>if</B></FONT> self._environ.has_key(<FONT COLOR=#FF0000>'HTTP_COOKIE'</FONT>):
+                <FONT COLOR=#1111CC># Protect the loading of cookies with an exception handler, because some cookies</FONT>
+                <FONT COLOR=#1111CC># from IE are known to break the cookie module.</FONT>
+                <FONT COLOR=black><B>try</B></FONT>:
+                    self._cookies.load(self._environ[<FONT COLOR=#FF0000>'HTTP_COOKIE'</FONT>])
+                <FONT COLOR=black><B>except</B></FONT>:
+                    traceback.print_exc(file=sys.stderr)
+        <FONT COLOR=black><B>else</B></FONT>:
+            <FONT COLOR=#1111CC># If there's no dictionary, we pretend we're a CGI script and see what happens...</FONT>
+            <FONT COLOR=black><B>import</B></FONT> time
+            self._time    = time.time()
+            self._environ = os.environ.copy()
+            self._input   = None
+            self._fields  = cgi.FieldStorage(keep_blank_values=1)
+            self._cookies = Cookie()
+
+        <FONT COLOR=#1111CC># Debugging</FONT>
+        <FONT COLOR=black><B>if</B></FONT> 0:
+            f = open(<FONT COLOR=#FF0000>'env.text'</FONT>, <FONT COLOR=#FF0000>'a'</FONT>)
+            save = sys.stdout
+            sys.stdout = f
+            <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>'&gt;&gt; env for request:'</FONT>
+            keys = self._environ.keys()
+            keys.sort()
+            <FONT COLOR=black><B>for</B></FONT> key <FONT COLOR=black><B>in</B></FONT> keys:
+                <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>'%s: %s'</FONT> % (repr(key), repr(self._environ[key]))
+            <FONT COLOR=black><B>print</B></FONT>
+            sys.stdout = save
+            f.close()
+
+        <FONT COLOR=#1111CC># Fix up environ if it doesn't look right.</FONT>
+
+        <FONT COLOR=#1111CC># Fix #1: No PATH_INFO</FONT>
+        <FONT COLOR=#1111CC># This can happen when there is no extra path info past the adapter.</FONT>
+        <FONT COLOR=#1111CC># e.g., http://localhost/WebKit.cgi</FONT>
+        <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> self._environ.has_key(<FONT COLOR=#FF0000>'PATH_INFO'</FONT>):
+            self._environ[<FONT COLOR=#FF0000>'PATH_INFO'</FONT>] = <FONT COLOR=#FF0000>''</FONT>
+
+        <FONT COLOR=#1111CC># Fix #2: No REQUEST_URI</FONT>
+        <FONT COLOR=#1111CC># REQUEST_URI isn't actually part of the CGI standard and some</FONT>
+        <FONT COLOR=#1111CC># web servers like IIS don't set it (as of 8/22/2000).</FONT>
+        <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> self._environ.has_key(<FONT COLOR=#FF0000>'REQUEST_URI'</FONT>):
+            self._environ[<FONT COLOR=#FF0000>'REQUEST_URI'</FONT>] = requestURI(self._environ)
+
+        self._adapterName = self._environ.get(<FONT COLOR=#FF0000>'SCRIPT_NAME'</FONT>, <FONT COLOR=#FF0000>''</FONT>)
+
+        <FONT COLOR=#1111CC># We use the cgi module to get the fields, but then change them into an ordinary dictionary of values</FONT>
+        <FONT COLOR=black><B>try</B></FONT>:
+            keys = self._fields.keys()
+        <FONT COLOR=black><B>except</B></FONT> TypeError:
+            <FONT COLOR=#1111CC># This can happen if, for example, the request is an XML-RPC request, not</FONT>
+            <FONT COLOR=#1111CC># a regular POST from an HTML form.  In that case we just create an empty</FONT>
+            <FONT COLOR=#1111CC># set of fields.</FONT>
+            keys = []
+        dict = {}
+
+        <FONT COLOR=black><B>for</B></FONT> key <FONT COLOR=black><B>in</B></FONT> keys:
+            value = self._fields[key]
+            <FONT COLOR=black><B>if</B></FONT> type(value) <FONT COLOR=black><B>is</B></FONT> <FONT COLOR=black><B>not</B></FONT> ListType:
+                <FONT COLOR=black><B>if</B></FONT> value.filename:
+                    <FONT COLOR=black><B>if</B></FONT> debug: <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>"Uploaded File Found"</FONT>
+                <FONT COLOR=black><B>else</B></FONT>:
+                    value = value.value <FONT COLOR=#1111CC># i.e., if we don't have a list, we have one of those cgi.MiniFieldStorage objects. Get it's value.</FONT>
+            <FONT COLOR=black><B>else</B></FONT>:
+                value = map(<FONT COLOR=black><B>lambda</B></FONT> miniFieldStorage: miniFieldStorage.value, value) <FONT COLOR=#1111CC># extract those .value's</FONT>
+
+            dict[key] = value
+        self._fieldStorage = self._fields
+        self._fields = dict
+        self._pathInfo = None
+
+        <FONT COLOR=#1111CC># We use Tim O'Malley's Cookie class to get the cookies, but then change them into an ordinary dictionary of values</FONT>
+        dict = {}
+        <FONT COLOR=black><B>for</B></FONT> key <FONT COLOR=black><B>in</B></FONT> self._cookies.keys():
+            dict[key] = self._cookies[key].value
+        self._cookies = dict
+
+        self._transaction    = None
+        self._serverRootPath = <FONT COLOR=#FF0000>""</FONT>
+        self._extraURLPath  = <FONT COLOR=#FF0000>""</FONT>
+
+        <FONT COLOR=#1111CC># try to get automatic path session</FONT>
+        <FONT COLOR=#1111CC># if UseAutomaticPathSessions is enabled in Application.config</FONT>
+        <FONT COLOR=#1111CC># Application.py redirects the browser to a url with SID in path </FONT>
+        <FONT COLOR=#1111CC># http://gandalf/a/_SID_=2001080221301877755/Examples/</FONT>
+        <FONT COLOR=#1111CC># _SID_ is extracted and removed from path </FONT>
+        self._pathSession = None
+        <FONT COLOR=black><B>if</B></FONT> self._environ[<FONT COLOR=#FF0000>'PATH_INFO'</FONT>][1:6] == <FONT COLOR=#FF0000>'_SID_'</FONT>:
+            self._pathSession = self._environ[<FONT COLOR=#FF0000>'PATH_INFO'</FONT>][7:].split(<FONT COLOR=#FF0000>'/'</FONT>,1)[0]
+            self._cookies[<FONT COLOR=#FF0000>'_SID_'</FONT>] = self._pathSession
+            sidstring = <FONT COLOR=#FF0000>'_SID_='</FONT> +  self._pathSession +<FONT COLOR=#FF0000>'/'</FONT>
+            self._environ[<FONT COLOR=#FF0000>'REQUEST_URI'</FONT>] = self._environ[<FONT COLOR=#FF0000>'REQUEST_URI'</FONT>].replace(sidstring,<FONT COLOR=#FF0000>''</FONT>)
+            self._environ[<FONT COLOR=#FF0000>'PATH_INFO'</FONT>] = self._environ[<FONT COLOR=#FF0000>'PATH_INFO'</FONT>].replace(sidstring,<FONT COLOR=#FF0000>''</FONT>)
+            <FONT COLOR=black><B>if</B></FONT> self._environ.has_key(<FONT COLOR=#FF0000>'PATH_TRANSLATED'</FONT>):
+                self._environ[<FONT COLOR=#FF0000>'PATH_TRANSLATED'</FONT>] = self._environ[<FONT COLOR=#FF0000>'PATH_TRANSLATED'</FONT>].replace(sidstring,<FONT COLOR=#FF0000>''</FONT>)
+            <FONT COLOR=black><B>assert</B></FONT>(<FONT COLOR=black><B>not</B></FONT> self._environ.has_key(<FONT COLOR=#FF0000>'WK_URI'</FONT>)) <FONT COLOR=#1111CC># obsolete?</FONT>
+
+        self._sessionExpired = 0
+
+        <FONT COLOR=#1111CC># Save the original urlPath.</FONT>
+        self._originalURLPath = self.urlPath()
+
+        <FONT COLOR=black><B>if</B></FONT> debug: <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>"Done setting up request, found keys %s"</FONT> % repr(self._fields.keys())
+
+
+    <FONT COLOR=#1111CC>## Transactions ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> transaction(self):
+        <FONT COLOR=black><B>return</B></FONT> self._transaction
+
+
+    <FONT COLOR=black><B>def</B></FONT> setTransaction(self, trans):
+        <FONT COLOR=#FF0000>""" This method should be invoked after the transaction is created for this request. """</FONT>
+        self._transaction = trans
+
+
+    <FONT COLOR=#1111CC>## Values ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> value(self, name, default=NoDefault):
+        <FONT COLOR=#FF0000>""" Returns the value with the given name. Values are fields or cookies. Use this method when you're field/cookie agnostic. """</FONT>
+        <FONT COLOR=black><B>if</B></FONT> self._fields.has_key(name):
+            <FONT COLOR=black><B>return</B></FONT> self._fields[name]
+        <FONT COLOR=black><B>else</B></FONT>:
+            <FONT COLOR=black><B>return</B></FONT> self.cookie(name, default)
+
+    <FONT COLOR=black><B>def</B></FONT> hasValue(self, name):
+        <FONT COLOR=black><B>return</B></FONT> self._fields.has_key(name) <FONT COLOR=black><B>or</B></FONT> self._cookies.has_key(name)
+
+    <FONT COLOR=black><B>def</B></FONT> extraURLPath(self):
+        <FONT COLOR=black><B>return</B></FONT> self._extraURLPath
+
+
+    <FONT COLOR=#1111CC>## Fields ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> fieldStorage(self):
+        <FONT COLOR=black><B>return</B></FONT> self._fieldStorage
+
+    <FONT COLOR=black><B>def</B></FONT> field(self, name, default=NoDefault):
+        <FONT COLOR=black><B>if</B></FONT> default <FONT COLOR=black><B>is</B></FONT> NoDefault:
+            <FONT COLOR=black><B>return</B></FONT> self._fields[name]
+        <FONT COLOR=black><B>else</B></FONT>:
+            <FONT COLOR=black><B>return</B></FONT> self._fields.get(name, default)
+
+    <FONT COLOR=black><B>def</B></FONT> hasField(self, name):
+        <FONT COLOR=black><B>return</B></FONT> self._fields.has_key(name)
+
+    <FONT COLOR=black><B>def</B></FONT> fields(self):
+        <FONT COLOR=black><B>return</B></FONT> self._fields
+
+    <FONT COLOR=black><B>def</B></FONT> setField(self, name, value):
+        self._fields[name] = value
+
+    <FONT COLOR=black><B>def</B></FONT> delField(self, name):
+        <FONT COLOR=black><B>del</B></FONT> self._fields[name]
+
+
+    <FONT COLOR=#1111CC>## Cookies ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> cookie(self, name, default=NoDefault):
+        <FONT COLOR=#FF0000>""" Returns the value of the specified cookie. """</FONT>
+        <FONT COLOR=black><B>if</B></FONT> default <FONT COLOR=black><B>is</B></FONT> NoDefault:
+            <FONT COLOR=black><B>return</B></FONT> self._cookies[name]
+        <FONT COLOR=black><B>else</B></FONT>:
+            <FONT COLOR=black><B>return</B></FONT> self._cookies.get(name, default)
+
+    <FONT COLOR=black><B>def</B></FONT> hasCookie(self, name):
+        <FONT COLOR=black><B>return</B></FONT> self._cookies.has_key(name)
+
+    <FONT COLOR=black><B>def</B></FONT> cookies(self):
+        <FONT COLOR=#FF0000>""" Returns a dictionary-style object of all Cookie objects the client sent with this request. """</FONT>
+        <FONT COLOR=black><B>return</B></FONT> self._cookies
+
+
+    <FONT COLOR=#1111CC>## Variables passed by server ##</FONT>
+    <FONT COLOR=black><B>def</B></FONT> serverDictionary(self):
+        <FONT COLOR=#FF0000>"""
+        Returns a dictionary with the data the web server gave us, like HTTP_HOST or
+        HTTP_USER_AGENT.
+        """</FONT>
+        <FONT COLOR=black><B>return</B></FONT> self._environ
+
+
+    <FONT COLOR=#1111CC>## Sessions ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> session(self):
+        <FONT COLOR=#FF0000>""" Returns the session associated with this request, either as specified by sessionId() or newly created. This is a convenience for transaction.session() """</FONT>
+        <FONT COLOR=black><B>return</B></FONT> self._transaction.session()
+
+    <FONT COLOR=black><B>def</B></FONT> isSessionExpired(self):
+        <FONT COLOR=#FF0000>"""
+        Returns bool: whether or not this request originally contained an expired session ID.  Only works if
+        the Application.config setting "IgnoreInvalidSession" is set to 1; otherwise you get a canned error page
+        on an invalid session, so your servlet never gets processed.
+        """</FONT>
+        <FONT COLOR=black><B>return</B></FONT> self._sessionExpired
+    
+    <FONT COLOR=black><B>def</B></FONT> setSessionExpired(self, sessionExpired):
+        self._sessionExpired = sessionExpired
+
+
+    <FONT COLOR=#1111CC>## Authentication ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> remoteUser(self):
+        <FONT COLOR=#FF0000>""" Always returns None since authentication is not yet supported. Take from CGI variable REMOTE_USER. """</FONT>
+        <FONT COLOR=#1111CC># @@ 2000-03-26 ce: maybe belongs in section below. clean up docs</FONT>
+        <FONT COLOR=black><B>return</B></FONT> self._environ[<FONT COLOR=#FF0000>'REMOTE_USER'</FONT>]
+
+
+    <FONT COLOR=#1111CC>## Remote info ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> remoteAddress(self):
+        <FONT COLOR=#FF0000>""" Returns a string containing the Internet Protocol (IP) address of the client that sent the request. """</FONT>
+        <FONT COLOR=black><B>return</B></FONT> self._environ[<FONT COLOR=#FF0000>'REMOTE_ADDR'</FONT>]
+
+    <FONT COLOR=black><B>def</B></FONT> remoteName(self):
+        <FONT COLOR=#FF0000>""" Returns the fully qualified name of the client that sent the request, or the IP address of the client if the name cannot be determined. """</FONT>
+        env = self._environ
+        <FONT COLOR=black><B>return</B></FONT> env.get(<FONT COLOR=#FF0000>'REMOTE_NAME'</FONT>, env[<FONT COLOR=#FF0000>'REMOTE_ADDR'</FONT>])
+
+    <FONT COLOR=#1111CC>## Path ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> urlPath(self):
+        <FONT COLOR=#FF0000>""" Returns the URL path of the servlet sans host, adapter and query string. For example, http://host/WebKit.cgi/Context/Servlet?x=1 yields '/Context/Servlet'. """</FONT>
+        self._absolutepath = 0
+<FONT COLOR=#1111CC>##      if self._environ.has_key('WK_URI'): #added by the adapter</FONT>
+<FONT COLOR=#1111CC>##          self._environ['PATH_INFO'] = self._environ['WK_URI']</FONT>
+<FONT COLOR=#1111CC>##          return self._environ['WK_URI']</FONT>
+        <FONT COLOR=black><B>if</B></FONT> self._environ.has_key(<FONT COLOR=#FF0000>'WK_ABSOLUTE'</FONT>): <FONT COLOR=#1111CC>#set by the adapter, used by modpHandler</FONT>
+            self._absolutepath = 1
+            <FONT COLOR=black><B>return</B></FONT> self.fsPath()
+        <FONT COLOR=black><B>return</B></FONT> self._environ[<FONT COLOR=#FF0000>'PATH_INFO'</FONT>]
+
+    <FONT COLOR=black><B>def</B></FONT> originalURLPath(self):
+        <FONT COLOR=#FF0000>""" Returns the URL path of the _original_ servlet before any forwarding. """</FONT>
+        <FONT COLOR=black><B>return</B></FONT> self._originalURLPath
+        
+    <FONT COLOR=black><B>def</B></FONT> urlPathDir(self):
+        <FONT COLOR=#FF0000>"""
+        Same as urlPath, but only gives the directory
+        """</FONT>
+        path = self.urlPath()
+        <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> path[:-1] == <FONT COLOR=#FF0000>"/"</FONT>:
+            path = path[:string.rfind(path, <FONT COLOR=#FF0000>"/"</FONT>)+1]
+        <FONT COLOR=black><B>return</B></FONT> path
+
+
+    _evars = (<FONT COLOR=#FF0000>'PATH_INFO'</FONT>, <FONT COLOR=#FF0000>'REQUEST_URI'</FONT>, <FONT COLOR=#FF0000>'SCRIPT_NAME'</FONT>)
+    _pvars = (<FONT COLOR=#FF0000>'_absolutepath'</FONT>, <FONT COLOR=#FF0000>'_serverSidePath'</FONT>, <FONT COLOR=#FF0000>'_serverSideContextPath'</FONT>,
+          <FONT COLOR=#FF0000>'_adapterName'</FONT>)
+
+    <FONT COLOR=black><B>def</B></FONT> getstate(self):
+        <FONT COLOR=#FF0000>"""
+        Debugging and testing code. This will likely be removed in the future.
+        """</FONT>
+        rv = []
+        env = self._environ
+        <FONT COLOR=black><B>for</B></FONT> key <FONT COLOR=black><B>in</B></FONT> self._evars:
+            rv.append(<FONT COLOR=#FF0000>"  * env['%s'] = %s"</FONT> % (key, env.get(key,<FONT COLOR=#FF0000>"* no def *"</FONT>)))
+        <FONT COLOR=black><B>for</B></FONT> key <FONT COLOR=black><B>in</B></FONT> self._pvars + (<FONT COLOR=#FF0000>'_contextName'</FONT>, <FONT COLOR=#FF0000>'_extraURLPath'</FONT>):
+            <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> hasattr(self,key):
+                <FONT COLOR=#1111CC># reload cached values.</FONT>
+                self.serverSideContextPath()
+            rv.append(<FONT COLOR=#FF0000>"  * req.%s = %s"</FONT> % (key, getattr(self,key, <FONT COLOR=#FF0000>"* no def *"</FONT>)))
+        <FONT COLOR=black><B>return</B></FONT> string.join(rv, <FONT COLOR=#FF0000>'\n'</FONT>)
+        
+    <FONT COLOR=black><B>def</B></FONT> setURLPath(self, path):
+        <FONT COLOR=#FF0000>""" Sets the URL path of the request. There is rarely a need to do this. Proceed with caution. The only known current use for this is Application.forwardRequest(). """</FONT>
+        <FONT COLOR=black><B>if</B></FONT> hasattr(self, <FONT COLOR=#FF0000>'_serverSidePath'</FONT>):
+            <FONT COLOR=black><B>del</B></FONT> self._serverSidePath
+            <FONT COLOR=black><B>del</B></FONT> self._serverSideContextPath
+        <FONT COLOR=black><B>if</B></FONT> hasattr(self, <FONT COLOR=#FF0000>'_serverSideDir'</FONT>):
+            <FONT COLOR=black><B>del</B></FONT> self._serverSideDir
+        self._environ[<FONT COLOR=#FF0000>'PATH_INFO'</FONT>] = path
+        self._environ[<FONT COLOR=#FF0000>'REQUEST_URI'</FONT>] = self.adapterName() + path
+
+    <FONT COLOR=black><B>def</B></FONT> serverSidePath(self, path=None):
+        <FONT COLOR=#FF0000>""" Returns the absolute server-side path of the request. If the optional path is passed in, then it is joined with the server side directory to form a path relative to the object.
+        """</FONT>
+        <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> hasattr(self, <FONT COLOR=#FF0000>'_serverSidePath'</FONT>):
+            app = self._transaction.application()
+            self._serverSidePath, self._serverSideContextPath, self._contextName = app.serverSideInfoForRequest(self)
+        <FONT COLOR=black><B>if</B></FONT> path:
+            <FONT COLOR=black><B>return</B></FONT> os.path.normpath(os.path.join(os.path.dirname(self._serverSidePath), path))
+        <FONT COLOR=black><B>else</B></FONT>:
+            <FONT COLOR=black><B>return</B></FONT> self._serverSidePath
+
+    <FONT COLOR=black><B>def</B></FONT> serverSideContextPath(self, path=None):
+        <FONT COLOR=#FF0000>""" Returns the absolute server-side path of the context of this request.
+        If the optional path is passed in, then it is joined with the server side context directory
+        to form a path relative to the object.
+
+        This directory could be different from the result of serverSidePath() if the request
+        is in a subdirectory of the main context directory."""</FONT>
+        <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> hasattr(self, <FONT COLOR=#FF0000>'_serverSideContextPath'</FONT>):
+            app = self._transaction.application()
+            self._serverSidePath, self._serverSideContextPath, self._contextName = app.serverSideInfoForRequest(self)
+        <FONT COLOR=black><B>if</B></FONT> path:
+            <FONT COLOR=black><B>return</B></FONT> os.path.normpath(os.path.join(self._serverSideContextPath, path))  <FONT COLOR=#1111CC># The contextPath is already the dirname, no need to dirname it again</FONT>
+        <FONT COLOR=black><B>else</B></FONT>:
+            <FONT COLOR=black><B>return</B></FONT> self._serverSideContextPath
+
+    <FONT COLOR=black><B>def</B></FONT> contextName(self):
+        <FONT COLOR=#FF0000>""" Returns the name of the context of this request.  This isn't necessarily the same as the name of the directory containing the context. """</FONT>
+        <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> hasattr(self, <FONT COLOR=#FF0000>'_contextName'</FONT>):
+            app = self._transaction.application()
+            self._serverSidePath, self._serverSideContextPath, self._contextName = app.serverSideInfoForRequest(self)
+        <FONT COLOR=black><B>return</B></FONT> self._contextName
+
+    <FONT COLOR=black><B>def</B></FONT> servletURI(self):
+        <FONT COLOR=#FF0000>"""This is the URI of the servlet, without any query strings or extra path info"""</FONT>
+
+        sspath=self.serverSidePath() <FONT COLOR=#1111CC>#ensure that extraURLPath has been stripped</FONT>
+        pinfo=self.pathInfo()
+        <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> self._extraURLPath:
+            <FONT COLOR=black><B>if</B></FONT> pinfo[-1]==<FONT COLOR=#FF0000>"/"</FONT>: pinfo = pinfo[:-1]
+            <FONT COLOR=black><B>return</B></FONT> pinfo
+        URI=pinfo[:string.rfind(pinfo,self._extraURLPath)]
+        <FONT COLOR=black><B>if</B></FONT> URI[-1]==<FONT COLOR=#FF0000>"/"</FONT>: URI=URI[:-1]
+        <FONT COLOR=black><B>return</B></FONT> URI
+
+    <FONT COLOR=black><B>def</B></FONT> uriWebKitRoot(self):
+        <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> self._serverRootPath:
+            self._serverRootPath = <FONT COLOR=#FF0000>''</FONT>
+            loc = self.urlPath() <FONT COLOR=#1111CC>#self.servletURI()</FONT>
+            loc,curr = os.path.split(loc)
+            <FONT COLOR=black><B>while</B></FONT> 1:
+                loc,curr = os.path.split(loc)
+                <FONT COLOR=black><B>if</B></FONT> curr:
+                    self._serverRootPath = self._serverRootPath + <FONT COLOR=#FF0000>"../"</FONT>
+                <FONT COLOR=black><B>else</B></FONT>: <FONT COLOR=black><B>break</B></FONT>
+        <FONT COLOR=black><B>return</B></FONT> self._serverRootPath
+
+    <FONT COLOR=black><B>def</B></FONT> fsPath(self):
+        <FONT COLOR=#FF0000>""" The filesystem path of the request, using the webserver's docroot"""</FONT>
+        docroot = self._environ[<FONT COLOR=#FF0000>'DOCUMENT_ROOT'</FONT>]
+        requri = self._environ[<FONT COLOR=#FF0000>'REQUEST_URI'</FONT>][1:]<FONT COLOR=#1111CC>#strip leading /</FONT>
+        <FONT COLOR=black><B>if</B></FONT> self.queryString():
+            qslength = len(self.queryString())+1
+            requri = requri[:-qslength] <FONT COLOR=#1111CC>##pull off the query string and the ?-mark</FONT>
+        fspath = os.path.join(docroot,requri)
+        <FONT COLOR=black><B>return</B></FONT> fspath
+
+    <FONT COLOR=black><B>def</B></FONT> serverURL(self):
+        <FONT COLOR=#FF0000>""" Returns the full internet path to this request, without any extra path info or query strings.
+        ie: www.my.own.host.com/WebKit/TestPage.py
+        """</FONT>
+        host = self._environ[<FONT COLOR=#FF0000>'HTTP_HOST'</FONT>]
+        adapter = self.adapterName()
+        path = self.urlPath()
+        <FONT COLOR=black><B>return</B></FONT> host+adapter+path
+
+    <FONT COLOR=black><B>def</B></FONT> serverURLDir(self):
+        <FONT COLOR=#FF0000>"""
+        Returns the Directory of the URL in full internet form.  This is the same as serverURL,
+        but removes the actual page name if it was included.
+        """</FONT>
+        fullurl = self.serverURL()
+        <FONT COLOR=black><B>if</B></FONT> fullurl[-1]!=<FONT COLOR=#FF0000>"/"</FONT>:
+            fullurl = fullurl[:string.rfind(fullurl,<FONT COLOR=#FF0000>"/"</FONT>)+1]
+        <FONT COLOR=black><B>return</B></FONT> fullurl
+
+    <FONT COLOR=black><B>def</B></FONT> siteRoot(self):
+        <FONT COLOR=#FF0000>"""
+        Returns the URL path components necessary to get back home from
+        the current location.
+
+        Examples:
+            ''
+            '../'
+            '../../'
+
+        You can use this as a prefix to a URL that you know is based off
+        the home location.  Any time you are in a servlet that may have been
+        forwarded to from another servlet at a different level,
+        you should prefix your URL's with this.  That is, if servlet "Foo/Bar"
+        forwards to "Qux", then the qux servlet should use siteRoot() to construct all
+        links to avoid broken links.  This works properly because this method
+        computes the path based on the _original_ servlet, not the location of the
+        servlet that you have forwarded to.
+        """</FONT>
+        url = self.originalURLPath()[1:]
+        contextName = self.contextName() + <FONT COLOR=#FF0000>'/'</FONT>
+        <FONT COLOR=black><B>if</B></FONT> url.startswith(contextName):
+            url = url[len(contextName):]
+        numStepsBackward = len(url.split(<FONT COLOR=#FF0000>'/'</FONT>)) - 1
+        <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=#FF0000>'../'</FONT> * numStepsBackward
+        
+    <FONT COLOR=black><B>def</B></FONT> siteRootFromCurrentServlet(self):
+        <FONT COLOR=#FF0000>"""
+        Similar to siteRoot() but instead, it returns the site root
+        relative to the _current_ servlet, not the _original_ servlet.
+        """</FONT>
+        url = self.urlPath()[1:]
+        contextName = self.contextName() + <FONT COLOR=#FF0000>'/'</FONT>
+        <FONT COLOR=black><B>if</B></FONT> url.startswith(contextName):
+            url = url[len(contextName):]
+        numStepsBackward = len(url.split(<FONT COLOR=#FF0000>'/'</FONT>)) - 1
+        <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=#FF0000>'../'</FONT> * numStepsBackward
+        
+    <FONT COLOR=black><B>def</B></FONT> servletPathFromSiteRoot(self):
+        <FONT COLOR=#FF0000>"""
+        Returns the "servlet path" of this servlet relative to the siteRoot.  In
+        other words, everything after the name of the context (if present).
+        If you append this to the result of self.siteRoot() you get back to the
+        current servlet.  This is useful for saving the path to the current servlet
+        in a database, for example.
+        """</FONT>
+        urlPath = self.urlPath()
+        <FONT COLOR=black><B>if</B></FONT> urlPath[:1] == <FONT COLOR=#FF0000>'/'</FONT>:
+            urlPath = urlPath[1:]
+        parts = urlPath.split(<FONT COLOR=#FF0000>'/'</FONT>)
+        newParts = []
+        <FONT COLOR=black><B>for</B></FONT> part <FONT COLOR=black><B>in</B></FONT> parts:
+            <FONT COLOR=black><B>if</B></FONT> part == <FONT COLOR=#FF0000>'..'</FONT>:
+                <FONT COLOR=black><B>if</B></FONT> newParts:
+                    newParts.pop()
+            <FONT COLOR=black><B>else</B></FONT>:
+                newParts.append(part)
+        <FONT COLOR=black><B>if</B></FONT> newParts[:1] == [self.contextName()]:
+            newParts[:1] = []
+        <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=#FF0000>'/'</FONT>.join(newParts)
+
+    <FONT COLOR=#1111CC>## Special ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> adapterName(self):
+        <FONT COLOR=#FF0000>"""
+        Returns the name of the adapter as it appears in the URL.
+        Example: '/WebKit.cgi'
+        This is useful in special cases when you are constructing URLs. See Testing/Main.py for an example use.
+        """</FONT>
+        <FONT COLOR=black><B>return</B></FONT> self._adapterName
+
+    <FONT COLOR=black><B>def</B></FONT> rawRequest(self):
+        <FONT COLOR=#FF0000>""" Returns the raw request that was used to initialize this request object. """</FONT>
+        <FONT COLOR=black><B>return</B></FONT> self._rawRequest
+
+    <FONT COLOR=black><B>def</B></FONT> environ(self):
+        <FONT COLOR=black><B>return</B></FONT> self._environ  <FONT COLOR=#1111CC># @@ 2000-05-01 ce: To implement ExceptionHandler.py</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> addParent(self, servlet):
+        self._parents.append(servlet)
+
+    <FONT COLOR=black><B>def</B></FONT> popParent(self):
+        <FONT COLOR=black><B>if</B></FONT> self._parents:
+            self._parents.pop()
+
+    <FONT COLOR=black><B>def</B></FONT> parent(self):
+        <FONT COLOR=#FF0000>"""
+        Get the servlet that passed this request to us, if any.
+        """</FONT>
+        <FONT COLOR=black><B>if</B></FONT> self._parents:
+            <FONT COLOR=black><B>return</B></FONT> self._parents[len(self._parents)-1]
+
+    <FONT COLOR=black><B>def</B></FONT> parents(self):
+        <FONT COLOR=#FF0000>"""
+        Returns the parents list
+        """</FONT>
+        <FONT COLOR=black><B>return</B></FONT> self._parents
+
+    <FONT COLOR=black><B>def</B></FONT> rawInput(self, rewind=0):
+        <FONT COLOR=#FF0000>"""
+        This gives you a file-like object for the data that was
+        sent with the request (e.g., the body of a POST request,
+        or the documented uploaded in a PUT request).
+
+        The file might not be rewound to the beginning if there
+        was valid, form-encoded POST data.  Pass rewind=1 if
+        you want to be sure you get the entire body of the request.
+        """</FONT>
+        fs = self.fieldStorage()
+        <FONT COLOR=black><B>if</B></FONT> rewind:
+            fs.file.seek(0)
+        <FONT COLOR=black><B>return</B></FONT> fs.file
+
+    <FONT COLOR=black><B>def</B></FONT> time(self):
+        <FONT COLOR=#FF0000>"""
+        Returns the time that the request was received.
+        """</FONT>
+        <FONT COLOR=black><B>return</B></FONT> self._time
+
+
+    <FONT COLOR=#1111CC>## Information ##</FONT>
+
+    <FONT COLOR=#1111CC># @@ 2000-05-10: See FUTURE section of class doc string</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> servletPath(self):
+        <FONT COLOR=#1111CC># @@ 2000-03-26 ce: document</FONT>
+        <FONT COLOR=black><B>return</B></FONT> self._environ[<FONT COLOR=#FF0000>'SCRIPT_NAME'</FONT>]
+
+    <FONT COLOR=black><B>def</B></FONT> contextPath(self):
+        <FONT COLOR=#FF0000>""" Returns the portion of the request URI that is the context of the request. """</FONT>
+        <FONT COLOR=#1111CC># @@ 2000-03-26 ce: this comes straight from Java servlets. Do we want this?</FONT>
+        <FONT COLOR=black><B>raise</B></FONT> NotImplementedError
+
+    <FONT COLOR=black><B>def</B></FONT> pathInfo(self):
+        <FONT COLOR=#FF0000>""" Returns any extra path information associated with the URL the client sent with this request. Equivalent to CGI variable PATH_INFO. """</FONT>
+        <FONT COLOR=black><B>if</B></FONT> self._pathInfo <FONT COLOR=black><B>is</B></FONT> None:
+            self._pathInfo = self._environ[<FONT COLOR=#FF0000>'PATH_INFO'</FONT>][1:]
+            <FONT COLOR=#1111CC># The [1:] above strips the preceding '/' that we get with Apache 1.3</FONT>
+        <FONT COLOR=black><B>return</B></FONT> self._pathInfo
+
+    <FONT COLOR=black><B>def</B></FONT> pathTranslated(self):
+        <FONT COLOR=#FF0000>""" Returns any extra path information after the servlet name but before the query string, translated to a file system path. Equivalent to CGI variable PATH_TRANSLATED. """</FONT>
+<FONT COLOR=#1111CC>#       return self._environ['PATH_TRANSLATED']</FONT>
+<FONT COLOR=#1111CC># @@ 2000-06-22 ce: resolve this</FONT>
+        <FONT COLOR=black><B>return</B></FONT> self._environ.get(<FONT COLOR=#FF0000>'PATH_TRANSLATED'</FONT>, None)
+
+    <FONT COLOR=black><B>def</B></FONT> queryString(self):
+        <FONT COLOR=#FF0000>""" Returns the query string portion of the URL for this request. Taken from the CGI variable QUERY_STRING. """</FONT>
+        <FONT COLOR=black><B>return</B></FONT> self._environ.get(<FONT COLOR=#FF0000>'QUERY_STRING'</FONT>, <FONT COLOR=#FF0000>''</FONT>)
+
+    <FONT COLOR=black><B>def</B></FONT> uri(self):
+        <FONT COLOR=#FF0000>""" Returns the request URI, which is the entire URL except for the query string. """</FONT>
+        <FONT COLOR=black><B>return</B></FONT> self._environ[<FONT COLOR=#FF0000>'REQUEST_URI'</FONT>]
+
+    <FONT COLOR=black><B>def</B></FONT> method(self):
+        <FONT COLOR=#FF0000>""" Returns the HTTP request method (in all uppercase), typically from the set GET, POST, PUT, DELETE, OPTIONS and TRACE. """</FONT>
+        <FONT COLOR=black><B>return</B></FONT> string.upper(self._environ[<FONT COLOR=#FF0000>'REQUEST_METHOD'</FONT>])
+
+    <FONT COLOR=black><B>def</B></FONT> sessionId(self):
+        <FONT COLOR=#FF0000>""" Returns a string with the session id specified by the client, or None if there isn't one. """</FONT>
+        sid = self.value(<FONT COLOR=#FF0000>'_SID_'</FONT>, None)
+        <FONT COLOR=black><B>if</B></FONT> self._transaction.application().setting(<FONT COLOR=#FF0000>'Debug'</FONT>)[<FONT COLOR=#FF0000>'Sessions'</FONT>]:
+            <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>'&gt;&gt; sessionId: returning sid ='</FONT>, sid
+        <FONT COLOR=black><B>return</B></FONT> sid
+
+    <FONT COLOR=black><B>def</B></FONT> hasPathSession(self):
+        <FONT COLOR=black><B>return</B></FONT> self._pathSession <FONT COLOR=black><B>is</B></FONT> <FONT COLOR=black><B>not</B></FONT> None
+    
+
+    <FONT COLOR=#1111CC>## Inspection ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> info(self):
+        <FONT COLOR=#FF0000>""" Returns a list of tuples where each tuple has a key/label (a string) and a value (any kind of object). Values are typically atomic values such as numbers and strings or another list of tuples in the same fashion. This is for debugging only. """</FONT>
+        <FONT COLOR=#1111CC># @@ 2000-04-10 ce: implement and invoke super if appropriate</FONT>
+        <FONT COLOR=#1111CC># @@ 2002-06-08 ib: should this also return the unparsed body</FONT>
+        <FONT COLOR=#1111CC># of the request?</FONT>
+        info = [
+            (<FONT COLOR=#FF0000>'time'</FONT>,    self._time),
+            (<FONT COLOR=#FF0000>'environ'</FONT>, self._environ),
+            (<FONT COLOR=#FF0000>'input'</FONT>,   self._input),
+            (<FONT COLOR=#FF0000>'fields'</FONT>,  self._fields),
+            (<FONT COLOR=#FF0000>'cookies'</FONT>, self._cookies)
+        ]
+
+        <FONT COLOR=#1111CC># Information methods</FONT>
+        <FONT COLOR=black><B>for</B></FONT> method <FONT COLOR=black><B>in</B></FONT> _infoMethods:
+            info.append((method.__name__, apply(method, (self,))))
+
+        <FONT COLOR=black><B>return</B></FONT> info
+
+    <FONT COLOR=black><B>def</B></FONT> htmlInfo(self):
+        <FONT COLOR=#FF0000>""" Returns a single HTML string that represents info(). Useful for inspecting objects via web browsers. """</FONT>
+        <FONT COLOR=black><B>return</B></FONT> htmlInfo(self.info())
+        info = self.info()
+        res = [<FONT COLOR=#FF0000>'&lt;table border=1&gt;\n'</FONT>]
+        <FONT COLOR=black><B>for</B></FONT> pair <FONT COLOR=black><B>in</B></FONT> info:
+            value = pair[1]
+            <FONT COLOR=black><B>if</B></FONT> hasattr(value, <FONT COLOR=#FF0000>'items'</FONT>) <FONT COLOR=black><B>and</B></FONT> (type(value) <FONT COLOR=black><B>is</B></FONT> type({}) <FONT COLOR=black><B>or</B></FONT> hasattr(value, <FONT COLOR=#FF0000>'__getitem__'</FONT>)):
+                value = _infoForDict(value)
+            res.append(<FONT COLOR=#FF0000>'&lt;tr valign=top&gt; &lt;td&gt; %s &lt;/td&gt;  &lt;td&gt; %s&nbsp;&lt;/td&gt; &lt;/tr&gt;\n'</FONT> % (pair[0], value))
+        res.append(<FONT COLOR=#FF0000>'&lt;/table&gt;\n'</FONT>)
+        <FONT COLOR=black><B>return</B></FONT> string.join(res, <FONT COLOR=#FF0000>''</FONT>)
+
+    exceptionReportAttrNames = Request.exceptionReportAttrNames + <FONT COLOR=#FF0000>'uri servletPath serverSidePath pathInfo pathTranslated queryString method sessionId parents fields cookies environ'</FONT>.split()
+
+
+    <FONT COLOR=#1111CC>## Deprecated ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> serverSideDir(self):
+        <FONT COLOR=#FF0000>""" deprecated: HTTPRequest.serverSideDir() on 01/24/01 in 0.5. use serverSidePath() instead. @ Returns the directory of the Servlet (as given through __init__()'s path). """</FONT>
+        self.deprecated(self.serverSideDir)
+        <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> hasattr(self, <FONT COLOR=#FF0000>'_serverSideDir'</FONT>):
+            self._serverSideDir = os.path.dirname(self.serverSidePath())
+        <FONT COLOR=black><B>return</B></FONT> self._serverSideDir
+
+    <FONT COLOR=black><B>def</B></FONT> relativePath(self, joinPath):
+        <FONT COLOR=#FF0000>""" deprecated: HTTPRequest.relativePath() on 01/24/01 in 0.5. use serverSidePath() instead. @ Returns a new path which includes the servlet's path appended by 'joinPath'. Note that if 'joinPath' is an absolute path, then only 'joinPath' is returned. """</FONT>
+        self.deprecated(self.relativePath)
+        <FONT COLOR=black><B>return</B></FONT> os.path.join(self.serverSideDir(), joinPath)
+
+
+_infoMethods = (
+    HTTPRequest.servletPath,
+    HTTPRequest.contextPath,
+    HTTPRequest.pathInfo,
+    HTTPRequest.pathTranslated,
+    HTTPRequest.queryString,
+    HTTPRequest.uri,
+    HTTPRequest.method,
+    HTTPRequest.sessionId
+)
+
+
+<FONT COLOR=black><B>def</B></FONT> htmlInfo(info):
+    <FONT COLOR=#FF0000>""" Returns a single HTML string that represents the info structure. Useful for inspecting objects via web browsers. """</FONT>
+    res = [<FONT COLOR=#FF0000>'&lt;table border=1&gt;\n'</FONT>]
+    <FONT COLOR=black><B>for</B></FONT> pair <FONT COLOR=black><B>in</B></FONT> info:
+        value = pair[1]
+        <FONT COLOR=black><B>if</B></FONT> hasattr(value, <FONT COLOR=#FF0000>'items'</FONT>) <FONT COLOR=black><B>and</B></FONT> (type(value) <FONT COLOR=black><B>is</B></FONT> type({}) <FONT COLOR=black><B>or</B></FONT> hasattr(value, <FONT COLOR=#FF0000>'__getitem__'</FONT>)):
+            value = htmlInfo(_infoForDict(value))
+        res.append(<FONT COLOR=#FF0000>'&lt;tr valign=top&gt; &lt;td&gt; %s &lt;/td&gt;  &lt;td&gt; %s&nbsp;&lt;/td&gt; &lt;/tr&gt;\n'</FONT> % (pair[0], value))
+    res.append(<FONT COLOR=#FF0000>'&lt;/table&gt;\n'</FONT>)
+    <FONT COLOR=black><B>return</B></FONT> string.join(res, <FONT COLOR=#FF0000>''</FONT>)
+
+<FONT COLOR=black><B>def</B></FONT> _infoForDict(dict):
+    <FONT COLOR=#FF0000>""" Returns an "info" structure for any dictionary-like object. """</FONT>
+    items = dict.items()
+    items.sort(<FONT COLOR=black><B>lambda</B></FONT> a, b: cmp(a[0], b[0]))
+    <FONT COLOR=black><B>return</B></FONT> items
+</PRE>
+                  <!--footer-->
+                  </BODY>

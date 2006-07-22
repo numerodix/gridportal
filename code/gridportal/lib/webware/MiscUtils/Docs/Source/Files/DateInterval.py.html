@@ -1,0 +1,76 @@
+<HTML><HEAD><TITLE>MiscUtils/DateInterval.py</TITLE></HEAD>
+                  <BODY BGCOLOR=#EEEEEE>
+                  <!--header-->
+                  <!--script--><PRE><FONT COLOR=#FF0000>"""
+DateInterval.py
+
+Convert interval strings (in the form of 1w2d, etc) to
+seconds, and back again.  Is not exactly about months or
+years (leap years in particular).
+
+Accepts (y)ear, (b)month, (w)eek, (d)ay, (h)our, (m)inute, (s)econd.
+
+Exports only timeEncode and timeDecode functions.  
+"""</FONT>
+
+<FONT COLOR=black><B>import</B></FONT> re
+
+second = 1
+minute = second*60
+hour = minute*60
+day = hour*24
+week = day*7
+month = day*30
+year = day*365
+timeValues = {
+    <FONT COLOR=#FF0000>'y'</FONT>: year,
+    <FONT COLOR=#FF0000>'b'</FONT>: month,
+    <FONT COLOR=#FF0000>'w'</FONT>: week,
+    <FONT COLOR=#FF0000>'d'</FONT>: day,
+    <FONT COLOR=#FF0000>'h'</FONT>: hour,
+    <FONT COLOR=#FF0000>'m'</FONT>: minute,
+    <FONT COLOR=#FF0000>'s'</FONT>: second,
+    }
+timeOrdered = timeValues.items()
+timeOrdered.sort(<FONT COLOR=black><B>lambda</B></FONT> a, b: -cmp(a[1], b[1]))
+    
+<FONT COLOR=black><B>def</B></FONT> timeEncode(seconds):
+    <FONT COLOR=#FF0000>"""Encodes a number of seconds (representing a time interval)
+    into a form like 1h2d3s."""</FONT>
+    s = <FONT COLOR=#FF0000>''</FONT>
+    <FONT COLOR=black><B>for</B></FONT> char, amount <FONT COLOR=black><B>in</B></FONT> timeOrdered:
+        <FONT COLOR=black><B>if</B></FONT> seconds &gt;= amount:
+            i, seconds = divmod(seconds, amount)
+            s += <FONT COLOR=#FF0000>'%i%s'</FONT> % (i, char)
+    <FONT COLOR=black><B>return</B></FONT> s
+
+_timeRE = re.compile(r<FONT COLOR=#FF0000>'[0-9]+[a-zA-Z]'</FONT>)
+<FONT COLOR=black><B>def</B></FONT> timeDecode(s):
+    <FONT COLOR=#FF0000>"""Decodes a number in the format 1h4d3m (1 hour, 3 days, 3 minutes)
+    into a number of seconds"""</FONT>
+    time = 0
+    <FONT COLOR=black><B>for</B></FONT> match <FONT COLOR=black><B>in</B></FONT> allMatches(s, _timeRE):
+        char = match.group(0)[-1].lower()
+        <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> timeValues.has_key(char):
+            <FONT COLOR=#1111CC># @@: should signal error</FONT>
+            <FONT COLOR=black><B>continue</B></FONT>
+        time += int(match.group(0)[:-1]) * timeValues[char]
+    <FONT COLOR=black><B>return</B></FONT> time
+
+<FONT COLOR=#1111CC># @@-sgd 2002-12-23 - this function does not belong in this module, find a better place.</FONT>
+<FONT COLOR=black><B>def</B></FONT> allMatches(source, regex):
+    <FONT COLOR=#FF0000>"""Return a list of matches for regex in source
+    """</FONT>
+    pos = 0
+    end = len(source)
+    rv = []
+    match = regex.search(source, pos)
+    <FONT COLOR=black><B>while</B></FONT> match:
+        rv.append(match)
+        match = regex.search(source, match.end() )
+    <FONT COLOR=black><B>return</B></FONT> rv
+
+__all__ = [timeEncode, timeDecode]
+</PRE>
+                  <!--footer-->
+                  </BODY>

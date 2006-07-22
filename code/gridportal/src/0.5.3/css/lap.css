@@ -1,0 +1,395 @@
+/* ----- General layout ---- */
+
+
+body {
+	padding-left: 0em;
+	color: black;
+	background-color: white;
+	font-size:10pt;
+
+}
+
+body, h1, p, th, td {
+	font-family: Verdana, Tahoma, Helvetica, Geneva, Arial,
+	SunSans-Regular, sans-serif
+}
+
+a:link {
+	color: #2f4380
+}
+
+a:visited {
+	color: #4c4c4c
+}
+
+a:hover {
+	text-decoration: underline
+}
+
+input, select {
+	font-family: Monospace, Verdana, Tahoma, Georgia, "Times New Roman", Times, serif;
+	size: 30;
+	font-size:8pt;	
+}
+
+textarea {
+	font-family: Monospace, Verdana, Tahoma, Georgia, "Times New Roman", Times, serif;
+	cols: 30;
+	rows: 13;
+	font-size:8pt;	
+}
+
+/* ----- User interface parts ----- */
+
+#workarea {
+ 	position:relative;
+	top:160px;
+	padding-top:5px;
+	padding-bottom:5px;
+	background-color:#FFFFFF;
+	border:0px dotted #5f779c;
+	left: 1%;
+	width: 90%;
+	margin-bottom:40px;
+}
+
+#wrap {
+	
+}
+
+#messagearea {
+	color:#000000;
+	position:absolute;
+	background-color:#edf2f8;
+	border:0px dotted #5f779c;
+	width: 100%;
+	left:0px;
+	padding-top:0.3em;
+	bottom:0px;
+	height:1.8em;
+	font-family: Verdana, Tahoma, Helvetica, Geneva, Arial, SunSans-Regular, sans-serif;
+	font-size:8pt;
+	text-align:left;
+	text-indent:4px;
+}
+
+#formWindow {
+	position:relative;
+	padding-top:0px;
+	padding-bottom:0px;
+	background-color:#edf2f8;
+	border:1px solid #5f779c;
+	left:5%;
+	width:90%;
+	top:20px;
+	bottom:5%;
+}
+
+#formViewWindow {
+	position:relative;
+	padding-top:0px;
+	padding-bottom:0px;
+	background-color:#edf2f8;
+	border:1px solid #5f779c;
+	left:5%;
+	width:90%;
+	height:400px;
+	top:20px;
+	bottom:40px;
+}
+
+#formViewContent {
+	margin-top:0;
+	position:relative;
+	background-color:#edf2f8;
+	border:1px solid #5f779c;
+	width:100%;
+	height:100%;
+	overflow:scroll;
+}
+
+#formCaption {
+	text-align:center;
+	font-weight:bold;
+	padding-top:0.3em;
+	padding-bottom:0.3em;
+	background-color:#5f779c;
+	color:#FFFFFF;
+}
+
+#formContent {
+	margin-top:0.6em;
+	background-color:#edf2f8;
+}
+
+#messageBoxWindow {
+	position:relative;
+	background-color:#edf2f8;
+	border:1px solid #5f779c;
+	margin:auto;
+	width:auto;
+	max-width:90%;
+	/*height:100px;*/
+	top:50px;
+	text-align:center;
+}
+
+#messageBoxCaption {
+	vertical-align:center;
+	text-align:center;
+	font-weight:bold;
+	padding-top:0.1em;
+	padding-bottom:0.1em;
+	background-color:#5f779c;
+	color:#FFFFFF;
+}
+
+#messageBoxContent {
+	text-align:center;
+	margin-top:0.2em;
+	margin-left:0.2em;
+	margin-right:0.2em;
+	margin-bottom:0.2em;
+	background-color:#edf2f8;
+}
+
+#messageBoxButtons {
+	vertical-align:middle;
+	text-align:center;
+	margin-top:0.0em;
+	margin-left:0.0em;
+	margin-right:0.0em;
+	margin-bottom:0.0em;
+	background-color:#edf2f8;
+	height:1em;
+}
+
+#messageBoxContentTable {
+	width:100%;
+	word-wrap:break-word;
+	text-align:center;
+}
+
+#messageBoxTDText {
+	vertical-align:middle;
+	height:60px;
+}
+
+#messageBoxTDButtons {
+	vertical-align:middle;
+	text-align:center;
+	border:1px solid;
+	height:10px;
+}
+
+/* ----- Table form ----- */
+
+table.lapform { 
+	font-family: Verdana, Tahoma, Helvetica, Geneva, Arial, SunSans-Regular, sans-serif;
+	font-size:10pt;
+	border-collapse: collapse;
+	width:100%;
+	/*background-color: rgb(218, 227, 237);*/
+	/*position:relative;*/
+}
+
+table.lapform tbody {
+	color:black;
+	/*background-color: rgb(218, 227, 237);*/
+}
+
+table.lapform thead {
+	background:black;
+	/*color:rgb(255, 255, 255);*/
+	font-weight:bold;
+	text-align:center;
+	background-color: #5f779c; 
+	vertical-align: top;
+}
+
+table.lapform tfoot {
+	/*background-color: rgb(218, 227, 237);*/
+}
+
+table.lapform #tdControl    { 
+	vertical-align:center;
+	text-align:left;
+	width:55%;
+}
+
+table.lapform #tdCaption    { 
+	vertical-align:center;
+	text-align:right;
+	width:45%;
+}
+
+table.lapform #cellStyle1   { 
+	background: #edf2f8;
+}
+
+table.lapform #cellStyle2   { 
+	background: rgb(218, 227, 237);
+}
+
+/* ----- Table form ----- */
+
+table.laptable #tdCaption {  
+	font-weight:bold;
+	text-align:center;
+	background: #5f779c; 
+	vertical-align: top;
+	color:white;
+}
+
+table.laptable { 
+	border-collapse: collapse;
+	border:1px solid #5f779c;
+	width:100%;
+	position:relative;
+/*	margin:auto; */
+	top:30px;
+}
+
+table.laptable tbody {
+	background:white;
+	color:black;
+}
+
+table.laptable thead {
+	background:blue;
+	color:white;
+	font-weight:bold;
+}
+
+table.laptable #cellStyle1   { 
+	background: #edf2f8;
+}
+
+table.laptable #cellStyle2   { 
+	background: rgb(218, 227, 237);
+}
+
+
+table.laptable tfoot {
+	background:red;
+}
+
+table.laptable td    { 
+	border: 0px solid #5f779c;
+	vertical-align:top; 
+}
+
+/* ----- Menu system settings ----- */
+
+#menu {
+    background:#edf2f8;
+    border-bottom:1px solid white;
+    padding:4px 0px;
+    }
+#menu a {
+    padding:4px 10px;
+    text-decoration:none;
+    /*font-weight:bold;*/
+    color:#4b567a;
+	background:#edf2f8;
+    }
+#menu a.hover {
+    background:#5f779c;
+	color:white;
+    }
+
+#menu span {
+    display:none;
+    }
+#img {
+    vertical-align:bottom;
+    }
+
+#subnav {
+    font-size:10px;
+    margin-bottom:2em;
+    }
+#subnav a {
+    color:#FB3B00;
+    margin-right:1em;
+    }
+#subnav span {
+    color:silver;
+    margin-right:1em;
+    }
+	
+/*	
+
+#menubar {
+	position:absolute;
+	padding-top:2px;
+	padding-bottom:2px;
+	background-color:#DAE3ED;
+	border:0px solid #7B9AC0;
+}
+
+#menubar a {
+	color:#7B9AC0;
+	letter-spacing:1px;
+	border:0px solid #7B9AC0;
+	padding:2px 10px;
+	text-decoration:none;
+}
+
+#menubar a.active {
+	background-color:#7B9AC0;
+	color:#FFFFFF;
+}
+
+#menubar a.hover {
+	background-color:#7B9AC0;
+	color:#FFFFFF;
+}
+
+.menu .options {
+	padding-top:5px;
+	padding-bottom:5px;
+	border:1px solid #7B9AC0;
+	background-color:#DAE3ED;
+}
+
+.menu a {
+	color:#7B9AC0;
+	display:block;
+	padding:2px 10px;
+	text-decoration:none;
+	background-color:transparent;
+}
+
+.menu a:hover {
+	background-color:#7B9AC0;
+	color:#FFFFFF;
+}
+*/
+
+#acc {
+	color: #0033CC;
+	font-weight: bold;
+}
+
+#accs {
+	color: #336633;
+	font-weight: bold;
+}
+
+#accb {
+	color: #FF6633;
+	font-weight: bold;
+}
+
+h2 { border: 1px dashed rgb(153, 153, 153);
+	padding: 2px 6px;
+	color: rgb(0, 0, 110);
+	font-size: 100%;
+	font-weight: bold;
+	background-color: rgb(236, 236, 236);
+	}
+	
+b {
+	font-weight: bold;
+}

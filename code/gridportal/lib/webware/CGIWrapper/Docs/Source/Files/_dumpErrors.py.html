@@ -1,0 +1,19 @@
+<HTML><HEAD><TITLE>CGIWrapper/_dumpErrors.py</TITLE></HEAD>
+                  <BODY BGCOLOR=#EEEEEE>
+                  <!--header-->
+                  <!--script--><PRE><FONT COLOR=black><B>from</B></FONT> _dumpCSV <FONT COLOR=black><B>import</B></FONT> _dumpCSV
+
+<FONT COLOR=black><B>class</B></FONT> _dumpErrors(_dumpCSV):
+    <FONT COLOR=black><B>def</B></FONT> cellContents(self, rowIndex, colIndex, value):
+        <FONT COLOR=#FF0000>"""
+        This is a hook for subclasses to customize the
+        contents of a cell based on any criteria (including
+        location).
+        """</FONT>
+        <FONT COLOR=black><B>if</B></FONT> self._headings[colIndex]==<FONT COLOR=#FF0000>'error report filename'</FONT>:
+            <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=#FF0000>'&lt;a href="%s"&gt;%s&lt;/a&gt;'</FONT> % (value, value)
+        <FONT COLOR=black><B>else</B></FONT>:
+            <FONT COLOR=black><B>return</B></FONT> value
+</PRE>
+                  <!--footer-->
+                  </BODY>

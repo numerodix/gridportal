@@ -1,0 +1,213 @@
+<HTML><HEAD><TITLE>UserKit/UserManagerToFile.py</TITLE></HEAD>
+                  <BODY BGCOLOR=#EEEEEE>
+                  <!--header-->
+                  <!--script--><PRE><FONT COLOR=black><B>from</B></FONT> UserManager <FONT COLOR=black><B>import</B></FONT> UserManager
+<FONT COLOR=black><B>from</B></FONT> MiscUtils <FONT COLOR=black><B>import</B></FONT> NoDefault
+<FONT COLOR=black><B>import</B></FONT> os
+<FONT COLOR=black><B>from</B></FONT> glob <FONT COLOR=black><B>import</B></FONT> glob
+<FONT COLOR=black><B>from</B></FONT> User <FONT COLOR=black><B>import</B></FONT> User
+
+
+<FONT COLOR=black><B>class</B></FONT> UserManagerToFile(UserManager):
+    <FONT COLOR=#FF0000>"""
+    When using this user manager, make sure you invoke setUserDir() and that this directory is writeable by your application. It will contain 1 file per user with the user's serial number as the main filename and an extension of '.user'.
+
+    The default user directory is the current working directory, but relying on the current directory is often a bad practice.
+    """</FONT>
+
+    baseOfUserManagerToFile = UserManager
+
+
+    <FONT COLOR=#1111CC>## Init ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> __init__(self, userClass=None):
+        self.baseOfUserManagerToFile.__init__(self, userClass=None)
+        <FONT COLOR=black><B>try</B></FONT>:
+            <FONT COLOR=black><B>from</B></FONT> cPickle <FONT COLOR=black><B>import</B></FONT> load, dump
+        <FONT COLOR=black><B>except</B></FONT> ImportError:
+            <FONT COLOR=black><B>from</B></FONT> pickle <FONT COLOR=black><B>import</B></FONT> load, dump
+        self.setEncoderDecoder(dump, load)
+        self.setUserDir(os.getcwd())
+        self.initNextSerialNum()
+
+    <FONT COLOR=black><B>def</B></FONT> initNextSerialNum(self):
+        <FONT COLOR=black><B>if</B></FONT> os.path.exists(self._userDir):
+            serialNums = self.scanSerialNums()
+            <FONT COLOR=black><B>if</B></FONT> serialNums:
+                self._nextSerialNum = max(serialNums)+1
+            <FONT COLOR=black><B>else</B></FONT>:
+                self._nextSerialNum = 1
+        <FONT COLOR=black><B>else</B></FONT>:
+            self._nextSerialNum = 1
+
+
+    <FONT COLOR=#1111CC>## WebKit integration ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> wasInstalled(self, owner):
+        self.baseOfUserManagerToFile.wasInstalled(self, owner)
+        self.setUserDir(owner.serverSidePath(<FONT COLOR=#FF0000>'Users'</FONT>))
+        self.initNextSerialNum()
+
+
+    <FONT COLOR=#1111CC>## File storage specifics ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> userDir(self):
+        <FONT COLOR=black><B>return</B></FONT> self._userDir
+
+    <FONT COLOR=black><B>def</B></FONT> setUserDir(self, userDir):
+        <FONT COLOR=#FF0000>""" Sets the directory where user information is stored. You should strongly consider invoking initNextSerialNum() afterwards. """</FONT>
+        self._userDir = userDir
+
+    <FONT COLOR=black><B>def</B></FONT> loadUser(self, serialNum, default=NoDefault):
+        <FONT COLOR=#FF0000>"""
+        Loads the user with the given serial number from disk.
+        If there is no such user, a KeyError will be raised unless a default value was passed, in which case that value is returned.
+        """</FONT>
+        filename = str(serialNum)+<FONT COLOR=#FF0000>'.user'</FONT>
+        filename = os.path.join(self.userDir(), filename)
+        <FONT COLOR=black><B>if</B></FONT> os.path.exists(filename):
+            file = open(filename, <FONT COLOR=#FF0000>'r'</FONT>)
+            user = self.decoder()(file)
+            file.close()
+            self._cachedUsers.append(user)
+            self._cachedUsersBySerialNum[serialNum] = user
+            <FONT COLOR=black><B>return</B></FONT> user
+        <FONT COLOR=black><B>else</B></FONT>:
+            <FONT COLOR=black><B>if</B></FONT> default <FONT COLOR=black><B>is</B></FONT> NoDefault:
+                <FONT COLOR=black><B>raise</B></FONT> KeyError, serialNum
+            <FONT COLOR=black><B>else</B></FONT>:
+                <FONT COLOR=black><B>return</B></FONT> default
+
+    <FONT COLOR=black><B>def</B></FONT> scanSerialNums(self):
+        <FONT COLOR=#FF0000>"""
+        Returns a list of all the serial numbers of users found on disk. Serial numbers are always integers.
+        """</FONT>
+        chopIndex = -len(<FONT COLOR=#FF0000>'.user'</FONT>)
+        nums = glob(os.path.join(self.userDir(), <FONT COLOR=#FF0000>'*.user'</FONT>))
+        nums = [num[:chopIndex] <FONT COLOR=black><B>for</B></FONT> num <FONT COLOR=black><B>in</B></FONT> nums]
+        nums = [os.path.basename(num) <FONT COLOR=black><B>for</B></FONT> num <FONT COLOR=black><B>in</B></FONT> nums]
+        nums = [int(num) <FONT COLOR=black><B>for</B></FONT> num <FONT COLOR=black><B>in</B></FONT> nums]
+        <FONT COLOR=black><B>return</B></FONT> nums
+
+
+    <FONT COLOR=#1111CC>## UserManager customizations ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> setUserClass(self, userClass):
+        <FONT COLOR=#FF0000>""" Overridden to mix in UserMixIn to the class that is passed in. """</FONT>
+        <FONT COLOR=black><B>from</B></FONT> MiscUtils.MixIn <FONT COLOR=black><B>import</B></FONT> MixIn
+        MixIn(userClass, UserMixIn)
+        self.baseOfUserManagerToFile.setUserClass(self, userClass)
+
+
+    <FONT COLOR=#1111CC>## UserManager concrete methods ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> nextSerialNum(self):
+        result = self._nextSerialNum
+        self._nextSerialNum += 1
+        <FONT COLOR=black><B>return</B></FONT> result
+
+    <FONT COLOR=black><B>def</B></FONT> addUser(self, user):
+        <FONT COLOR=black><B>assert</B></FONT> isinstance(user, User)
+        user._serialNum = self.nextSerialNum()
+        self.baseOfUserManagerToFile.addUser(self, user)
+        user.save()
+
+    <FONT COLOR=black><B>def</B></FONT> userForSerialNum(self, serialNum, default=NoDefault):
+        user = self._cachedUsersBySerialNum.get(serialNum, None)
+        <FONT COLOR=black><B>if</B></FONT> user <FONT COLOR=black><B>is</B></FONT> <FONT COLOR=black><B>not</B></FONT> None:
+            <FONT COLOR=black><B>return</B></FONT> user
+        <FONT COLOR=black><B>return</B></FONT> self.loadUser(serialNum, default)
+
+    <FONT COLOR=black><B>def</B></FONT> userForExternalId(self, externalId, default=NoDefault):
+        <FONT COLOR=black><B>for</B></FONT> user <FONT COLOR=black><B>in</B></FONT> self._cachedUsers:
+            <FONT COLOR=black><B>if</B></FONT> user.externalId()==externalId:
+                <FONT COLOR=black><B>return</B></FONT> user
+        <FONT COLOR=black><B>for</B></FONT> user <FONT COLOR=black><B>in</B></FONT> self.users():
+            <FONT COLOR=black><B>if</B></FONT> user.externalId()==externalId:
+                <FONT COLOR=black><B>return</B></FONT> user
+        <FONT COLOR=black><B>if</B></FONT> default <FONT COLOR=black><B>is</B></FONT> NoDefault:
+            <FONT COLOR=black><B>raise</B></FONT> KeyError, externalId
+        <FONT COLOR=black><B>else</B></FONT>:
+            <FONT COLOR=black><B>return</B></FONT> default
+
+    <FONT COLOR=black><B>def</B></FONT> userForName(self, name, default=NoDefault):
+        <FONT COLOR=black><B>for</B></FONT> user <FONT COLOR=black><B>in</B></FONT> self._cachedUsers:
+            <FONT COLOR=black><B>if</B></FONT> user.name()==name:
+                <FONT COLOR=black><B>return</B></FONT> user
+        <FONT COLOR=black><B>for</B></FONT> user <FONT COLOR=black><B>in</B></FONT> self.users():
+            <FONT COLOR=black><B>if</B></FONT> user.name()==name:
+                <FONT COLOR=black><B>return</B></FONT> user
+        <FONT COLOR=black><B>if</B></FONT> default <FONT COLOR=black><B>is</B></FONT> NoDefault:
+            <FONT COLOR=black><B>raise</B></FONT> KeyError, name
+        <FONT COLOR=black><B>else</B></FONT>:
+            <FONT COLOR=black><B>return</B></FONT> default
+
+    <FONT COLOR=black><B>def</B></FONT> users(self):
+        <FONT COLOR=black><B>return</B></FONT> _UserList(self)
+
+    <FONT COLOR=black><B>def</B></FONT> activeUsers(self):
+        <FONT COLOR=black><B>return</B></FONT> _UserList(self, <FONT COLOR=black><B>lambda</B></FONT> user: user.isActive())
+
+    <FONT COLOR=black><B>def</B></FONT> inactiveUsers(self):
+        <FONT COLOR=black><B>return</B></FONT> _UserList(self, <FONT COLOR=black><B>lambda</B></FONT> user: <FONT COLOR=black><B>not</B></FONT> user.isActive())
+
+
+    <FONT COLOR=#1111CC>## Encoder/decoder ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> encoder(self):
+        <FONT COLOR=black><B>return</B></FONT> self._encoder
+
+    <FONT COLOR=black><B>def</B></FONT> decoder(self):
+        <FONT COLOR=black><B>return</B></FONT> self._decoder
+
+    <FONT COLOR=black><B>def</B></FONT> setEncoderDecoder(self, encoder, decoder):
+        self._encoder = encoder
+        self._decoder = decoder
+
+
+<FONT COLOR=black><B>class</B></FONT> UserMixIn:
+
+    <FONT COLOR=black><B>def</B></FONT> filename(self):
+        <FONT COLOR=black><B>return</B></FONT> os.path.join(self.manager().userDir(), str(self.serialNum()))+<FONT COLOR=#FF0000>'.user'</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> save(self):
+        file = open(self.filename(), <FONT COLOR=#FF0000>'w'</FONT>)
+        self.manager().encoder()(self, file)
+        file.close()
+
+
+<FONT COLOR=black><B>class</B></FONT> _UserList:
+
+    <FONT COLOR=black><B>def</B></FONT> __init__(self, mgr, filterFunc=None):
+        self._mgr = mgr
+        self._serialNums = mgr.scanSerialNums()
+        self._count = len(self._serialNums)
+        self._data = None
+        <FONT COLOR=black><B>if</B></FONT> filterFunc:
+            results = []
+            <FONT COLOR=black><B>for</B></FONT> user <FONT COLOR=black><B>in</B></FONT> self:
+                <FONT COLOR=black><B>if</B></FONT> filterFunc(user):
+                    results.append(user)
+            self._count = len(results)
+            self._data = results
+
+    <FONT COLOR=black><B>def</B></FONT> __getitem__(self, index):
+        <FONT COLOR=black><B>if</B></FONT> index&gt;=self._count:
+            <FONT COLOR=black><B>raise</B></FONT> IndexError
+        <FONT COLOR=black><B>if</B></FONT> self._data:
+            <FONT COLOR=#1111CC># We have the data directly. Just return it</FONT>
+            <FONT COLOR=black><B>return</B></FONT> self._data[index]
+        <FONT COLOR=black><B>else</B></FONT>:
+            <FONT COLOR=#1111CC># We have a list of the serial numbers.</FONT>
+            <FONT COLOR=#1111CC># Get the user from the manager via the cache or loading</FONT>
+            serialNum = self._serialNums[index]
+            <FONT COLOR=black><B>if</B></FONT> self._mgr._cachedUsersBySerialNum.has_key(serialNum):
+                <FONT COLOR=black><B>return</B></FONT> self._mgr._cachedUsersBySerialNum[serialNum]
+            <FONT COLOR=black><B>else</B></FONT>:
+                <FONT COLOR=black><B>return</B></FONT> self._mgr.loadUser(self._serialNums[index])
+
+    <FONT COLOR=black><B>def</B></FONT> __len__(self):
+        <FONT COLOR=black><B>return</B></FONT> self._count
+</PRE>
+                  <!--footer-->
+                  </BODY>

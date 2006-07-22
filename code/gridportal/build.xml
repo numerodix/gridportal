@@ -1,0 +1,49 @@
+<project name="gridportal.publish" default="publish" basedir=".">
+	
+	<property name="version" value="0.5.4"/>
+	
+	<property name="release" value="src/${version}"/>
+	<property name="head" value="src/gridportal"/>
+	
+	<property name="srcroot" location="${release}"/>
+	<property name="wwwroot" location="www"/>
+	
+	<property name="doclib" location="lib/webware"/>
+	
+	<property name="pubdir" location="${wwwroot}/files"/>
+	<property name="docdir" location="${wwwroot}/docs/api/html"/>
+	
+	
+	
+	<target name="init"/>
+	
+	
+	<target name="doc" depends="init">
+		<delete>
+			<fileset dir="${docdir}" excludes="**/.svn"/>
+		</delete>
+		
+		<javadoc destdir="${docdir}" classpath="${lib}" use="yes" author="true"
+						access="private">
+			<fileset dir="${src}" defaultexcludes="no">
+				<include name="**/*.java"/>
+				<exclude name="**/.svn/**"/>
+			</fileset>
+		</javadoc>
+	</target>
+	
+	
+	<target name="publish">
+		<mkdir dir="${pubdir}/tmp/gridportal"/>
+		
+		<copy todir="${pubdir}/tmp/gridportal">
+			<fileset dir="${srcroot}"/>
+		</copy>
+		
+		<zip destfile="${pubdir}/gridportal-${version}.zip"
+				 basedir="${pubdir}/tmp"/>
+		
+		<delete dir="${pubdir}/tmp"/>
+	</target>
+ 
+</project>

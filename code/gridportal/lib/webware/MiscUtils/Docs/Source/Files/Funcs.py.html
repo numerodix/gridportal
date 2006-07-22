@@ -1,0 +1,288 @@
+<HTML><HEAD><TITLE>MiscUtils/Funcs.py</TITLE></HEAD>
+                  <BODY BGCOLOR=#EEEEEE>
+                  <!--header-->
+                  <!--script--><PRE><FONT COLOR=#FF0000>"""
+Funcs.py
+
+Funcs.py, a member of MiscUtils, holds functions that don't fit in anywhere else.
+"""</FONT>
+
+<FONT COLOR=black><B>import</B></FONT> md5, os, random, string, time, sys, tempfile
+True, False = 1==1, 1==0
+
+
+<FONT COLOR=black><B>def</B></FONT> commas(number):
+    <FONT COLOR=#FF0000>""" Returns the given number as a string with commas to separate the thousands positions. The number can be a float, int, long or string. Returns None for None. """</FONT>
+    <FONT COLOR=black><B>if</B></FONT> number <FONT COLOR=black><B>is</B></FONT> None:
+        <FONT COLOR=black><B>return</B></FONT> None
+    <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> number:
+        <FONT COLOR=black><B>return</B></FONT> str(number)
+    number = list(str(number))
+    <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=#FF0000>'.'</FONT> <FONT COLOR=black><B>in</B></FONT> number:
+        i = number.index(<FONT COLOR=#FF0000>'.'</FONT>)
+    <FONT COLOR=black><B>else</B></FONT>:
+        i = len(number)
+    <FONT COLOR=black><B>while</B></FONT> 1:
+        i = i-3
+        <FONT COLOR=black><B>if</B></FONT> i&lt;=0 <FONT COLOR=black><B>or</B></FONT> number[i-1]==<FONT COLOR=#FF0000>'-'</FONT>:
+            <FONT COLOR=black><B>break</B></FONT>
+        number[i:i] = [<FONT COLOR=#FF0000>','</FONT>]
+    <FONT COLOR=black><B>return</B></FONT> string.join(number, <FONT COLOR=#FF0000>''</FONT>)
+
+
+<FONT COLOR=black><B>def</B></FONT> charWrap(s, width, hanging=0):
+    <FONT COLOR=#FF0000>""" Returns a new version of the string word wrapped with the given width and hanging indent. The font is assumed to be monospaced.
+    This can be useful for including text between &lt;pre&gt; &lt;/pre&gt; tags since &lt;pre&gt; will not word wrap and for lengthly lines, will increase the width of a web page.
+    It can also be used to help delineate the entries in log-style output by passing hanging=4.
+    """</FONT>
+    <FONT COLOR=black><B>import</B></FONT> string
+    <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> s:
+        <FONT COLOR=black><B>return</B></FONT> s
+    <FONT COLOR=black><B>assert</B></FONT> hanging&lt;width
+    hanging = <FONT COLOR=#FF0000>' '</FONT> * hanging
+    lines = string.split(s, <FONT COLOR=#FF0000>'\n'</FONT>)
+    i = 0
+    <FONT COLOR=black><B>while</B></FONT> i&lt;len(lines):
+        s = lines[i]
+        <FONT COLOR=black><B>while</B></FONT> len(s)&gt;width:
+            t = s[width:]
+            s = s[:width]
+            lines[i] = s
+            i = i + 1
+            lines.insert(i, None)
+            s = hanging + t
+        <FONT COLOR=black><B>else</B></FONT>:
+            lines[i] = s
+        i = i + 1
+    <FONT COLOR=black><B>return</B></FONT> string.join(lines, <FONT COLOR=#FF0000>'\n'</FONT>)
+
+<FONT COLOR=#1111CC># Python 2.3 contains mktemp and mkstemp, both of which accept a</FONT>
+<FONT COLOR=#1111CC># directory argument.  Earlier versions of Python only contained</FONT>
+<FONT COLOR=#1111CC># mktemp which didn't accept a directory argument.  So we have to</FONT>
+<FONT COLOR=#1111CC># implement our own versions here.</FONT>
+<FONT COLOR=black><B>if</B></FONT> sys.version_info &gt;= (2, 3, None, None):
+    <FONT COLOR=#1111CC># Just use the Python 2.3 built-in versions.</FONT>
+    <FONT COLOR=black><B>from</B></FONT> tempfile <FONT COLOR=black><B>import</B></FONT> mktemp, mkstemp
+<FONT COLOR=black><B>else</B></FONT>:
+    <FONT COLOR=black><B>def</B></FONT> mktemp(suffix=<FONT COLOR=#FF0000>""</FONT>, dir=None):
+        <FONT COLOR=#FF0000>"""
+        User-callable function to return a unique temporary file name.
+        
+        Duplicated from Python's own tempfile with the optional "dir"
+        argument added. This allows customization of the directory, without
+        having to take over the module level variable, tempdir.
+        """</FONT>
+        <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> dir: dir = tempfile.gettempdir()
+        pre = tempfile.gettempprefix()
+        <FONT COLOR=black><B>while</B></FONT> 1:
+            i = tempfile._counter.get_next()
+            file = os.path.join(dir, pre + str(i) + suffix)
+            <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> os.path.exists(file):
+                <FONT COLOR=black><B>return</B></FONT> file
+
+    <FONT COLOR=black><B>def</B></FONT> mkstemp(suffix=<FONT COLOR=#FF0000>""</FONT>, dir=None):
+        <FONT COLOR=#FF0000>"""
+        User-callable function to return a tuple containing:
+            - a os-level file handle for the temp file, open for read/write
+            - the absolute path of that file
+
+        Note that this version of the function is not as secure as the
+        version included in Python 2.3.
+        """</FONT>
+        path = mktemp(suffix, dir)
+        <FONT COLOR=black><B>return</B></FONT> os.open(path, os.O_RDWR|os.O_CREAT|os.O_EXCL, 0600), path
+
+<FONT COLOR=black><B>def</B></FONT> wordWrap(s, width=78):
+    <FONT COLOR=#FF0000>"""
+    Returns a version of the string word wrapped to the given width.
+    Respects existing newlines in the string.
+
+    Taken from:
+    http://aspn.activestate.com/ASPN/Cookbook/Python/Recipe/148061
+    """</FONT>
+    <FONT COLOR=black><B>return</B></FONT> reduce(
+        <FONT COLOR=black><B>lambda</B></FONT> line, word, width=width: <FONT COLOR=#FF0000>"%s%s%s"</FONT> % (
+            line,
+            <FONT COLOR=#FF0000>' \n'</FONT>[(len(line[line.rfind(<FONT COLOR=#FF0000>'\n'</FONT>)+1:]) + len(word) &gt;= width)],
+            word
+        ),
+        s.split(<FONT COLOR=#FF0000>' '</FONT>)
+    )
+
+
+<FONT COLOR=black><B>def</B></FONT> dateForEmail(now=None):
+    <FONT COLOR=#FF0000>""" Returns a properly formatted date/time string for email messages """</FONT>
+    <FONT COLOR=black><B>if</B></FONT> now <FONT COLOR=black><B>is</B></FONT> None:
+        now = time.localtime(time.time())
+    <FONT COLOR=black><B>if</B></FONT> now[8]==1:
+        offset = -time.altzone / 60
+    <FONT COLOR=black><B>else</B></FONT>:
+        offset = -time.timezone / 60
+    <FONT COLOR=black><B>if</B></FONT> offset&lt;0:
+        plusminus = <FONT COLOR=#FF0000>'-'</FONT>
+    <FONT COLOR=black><B>else</B></FONT>:
+        plusminus = <FONT COLOR=#FF0000>'+'</FONT>
+    <FONT COLOR=black><B>return</B></FONT> time.strftime(<FONT COLOR=#FF0000>'%a, %d %b %Y %H:%M:%S '</FONT>, now) + plusminus + <FONT COLOR=#FF0000>'%02d%02d'</FONT> % (abs(offset/60), abs(offset%60))
+
+
+<FONT COLOR=black><B>def</B></FONT> hostName():
+    <FONT COLOR=#FF0000>"""
+    Returns the host name which is taken first from the os environment and failing that, from the 'hostname' executable. May return None if neither attempt succeeded.
+    The environment keys checked are HOST and HOSTNAME both upper and lower case.
+    """</FONT>
+    <FONT COLOR=black><B>for</B></FONT> name <FONT COLOR=black><B>in</B></FONT> [<FONT COLOR=#FF0000>'HOST'</FONT>, <FONT COLOR=#FF0000>'HOSTNAME'</FONT>, <FONT COLOR=#FF0000>'host'</FONT>, <FONT COLOR=#FF0000>'hostname'</FONT>]:
+        hostName = os.environ.get(name, None)
+        <FONT COLOR=black><B>if</B></FONT> hostName:
+            <FONT COLOR=black><B>break</B></FONT>
+    <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> hostName:
+        hostName = string.strip(os.popen(<FONT COLOR=#FF0000>'hostname'</FONT>).read())
+    <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> hostName:
+        hostName = None
+    <FONT COLOR=black><B>else</B></FONT>:
+        hostName = string.lower(hostName)
+    <FONT COLOR=black><B>return</B></FONT> hostName
+
+
+_localIP = None
+
+<FONT COLOR=black><B>def</B></FONT> localIP(remote=(<FONT COLOR=#FF0000>'www.yahoo.com'</FONT>, 80), useCache=1):
+    <FONT COLOR=#FF0000>"""
+    Gets the "public" address of the local machine, i.e. that address
+    which is connected to the general Internet.
+
+    This function connects to a remote HTTP server the first time it is
+    invoked (or every time it is invoked with useCache=0). If that is
+    not acceptable, pass remote=None, but be warned that the result is
+    less likely to be externally visible.
+
+    Getting your local ip is actually quite complex. If this function
+    is not serving your needs then you probably need to think deeply
+    about what you really want and how your network is really set up.
+    Search comp.lang.python for "local ip" for more information.
+    http://groups.google.com/groups?q=%22local+ip%22+group:comp.lang.python.*
+    """</FONT>
+    <FONT COLOR=black><B>global</B></FONT> _localIP
+    <FONT COLOR=black><B>if</B></FONT> useCache <FONT COLOR=black><B>and</B></FONT> _localIP:
+        <FONT COLOR=black><B>return</B></FONT> _localIP
+    <FONT COLOR=black><B>import</B></FONT> socket
+    <FONT COLOR=black><B>if</B></FONT> remote:
+        <FONT COLOR=#1111CC># code from Donn Cave on comp.lang.python</FONT>
+
+        <FONT COLOR=#1111CC># My notes:</FONT>
+        <FONT COLOR=#1111CC># Q: Why not use this?  socket.gethostbyname(socket.gethostname())</FONT>
+        <FONT COLOR=#1111CC># A: On some machines, it returns '127.0.0.1' - not what we had in mind.</FONT>
+        <FONT COLOR=#1111CC>#</FONT>
+        <FONT COLOR=#1111CC># Q: Why not use this?  socket.gethostbyname_ex(socket.gethostname())[2]</FONT>
+        <FONT COLOR=#1111CC># A: Because some machines have more than one IP (think "VPN", etc.) and</FONT>
+        <FONT COLOR=#1111CC>#    there is no easy way to tell which one is the externally visible IP.</FONT>
+
+        <FONT COLOR=black><B>try</B></FONT>:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.connect(remote)
+            ip, port = s.getsockname()
+            s.close()
+            _localIP = ip
+            <FONT COLOR=black><B>return</B></FONT> _localIP
+        <FONT COLOR=black><B>except</B></FONT> socket.error:
+            <FONT COLOR=#1111CC># oh, well. we'll use the local method</FONT>
+            <FONT COLOR=black><B>pass</B></FONT>
+
+    addresses = socket.gethostbyname_ex(socket.gethostname())[2]
+    <FONT COLOR=black><B>for</B></FONT> address <FONT COLOR=black><B>in</B></FONT> addresses:
+        <FONT COLOR=black><B>if</B></FONT> address!=<FONT COLOR=#FF0000>'127.0.0.1'</FONT>:
+            <FONT COLOR=black><B>if</B></FONT> useCache:
+                _localIP = address
+            <FONT COLOR=black><B>return</B></FONT> address
+    <FONT COLOR=black><B>if</B></FONT> useCache:
+        _localIP = addresses[0]
+    <FONT COLOR=black><B>return</B></FONT> _localIP
+
+
+<FONT COLOR=black><B>def</B></FONT> timestamp(numSecs=None):
+    <FONT COLOR=#FF0000>"""
+    Returns a dictionary whose keys give different versions of the timestamp:
+        'numSecs': the number of seconds
+        'tuple': (year, month, day, hour, min, sec)
+        'pretty': 'YYYY-MM-DD HH:MM:SS'
+        'condensed': 'YYYYMMDDHHMMSS'
+        'dashed': 'YYYY-MM-DD-HH-MM-SS'
+    The focus is on the year, month, day, hour and second, with no additional information such as timezone or day of year. This form of timestamp is often ideal for print statements, logs and filenames.
+    If the current number of seconds is not passed, then the current time is taken.
+    The 'pretty' format is ideal for print statements, while the 'condensed' and 'dashed' formats are generally more appropriate for filenames.
+    """</FONT>
+    <FONT COLOR=black><B>if</B></FONT> numSecs <FONT COLOR=black><B>is</B></FONT> None:
+        numSecs = time.time()
+    tuple     = time.localtime(numSecs)[:6]
+    pretty    = <FONT COLOR=#FF0000>'%4i-%02i-%02i %02i:%02i:%02i'</FONT> % tuple
+    condensed = <FONT COLOR=#FF0000>'%4i%02i%02i%02i%02i%02i'</FONT> % tuple
+    dashed    = <FONT COLOR=#FF0000>'%4i-%02i-%02i-%02i-%02i-%02i'</FONT> % tuple
+    <FONT COLOR=black><B>return</B></FONT> locals()
+
+
+<FONT COLOR=black><B>def</B></FONT> uniqueId(forObject=None):
+    <FONT COLOR=#FF0000>"""
+    Generates an opaque, identifier string that is practically guaranteed to be unique.
+    If an object is passed, then its id() is incorporated into the generation.
+    Relies on md5 and returns a 32 character long string.
+    """</FONT>
+    r = [time.time(), random.random(), os.times()]
+    <FONT COLOR=black><B>if</B></FONT> forObject <FONT COLOR=black><B>is</B></FONT> <FONT COLOR=black><B>not</B></FONT> None:
+        r.append(id(forObject))
+    md5object = md5.new(str(r))
+    <FONT COLOR=black><B>try</B></FONT>:
+        <FONT COLOR=black><B>return</B></FONT> md5object.hexdigest()
+    <FONT COLOR=black><B>except</B></FONT> AttributeError:
+        <FONT COLOR=#1111CC># Older versions of Python didn't have hexdigest, so we'll do it manually</FONT>
+        hexdigest = []
+        <FONT COLOR=black><B>for</B></FONT> char <FONT COLOR=black><B>in</B></FONT> md5object.digest():
+            hexdigest.append(<FONT COLOR=#FF0000>'%02x'</FONT> % ord(char))
+        <FONT COLOR=black><B>return</B></FONT> string.join(hexdigest, <FONT COLOR=#FF0000>''</FONT>)
+
+
+<FONT COLOR=black><B>def</B></FONT> valueForString(s):
+    <FONT COLOR=#FF0000>"""
+    For a given string, returns the most appropriate Pythonic value
+    such as None, a long, an int, a list, etc. If none of those
+    make sense, then returns the string as-is.
+
+    "None", "True" and "False" are case-insensitive because there is
+    already too much case sensitivity in computing, damn it!
+    """</FONT>
+    <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> s:
+        <FONT COLOR=black><B>return</B></FONT> s
+    <FONT COLOR=black><B>try</B></FONT>:
+        <FONT COLOR=black><B>return</B></FONT> int(s)
+    <FONT COLOR=black><B>except</B></FONT> ValueError:
+        <FONT COLOR=black><B>pass</B></FONT>
+    <FONT COLOR=black><B>try</B></FONT>:
+        <FONT COLOR=black><B>return</B></FONT> long(s)
+    <FONT COLOR=black><B>except</B></FONT> ValueError:
+        <FONT COLOR=black><B>pass</B></FONT>
+    <FONT COLOR=black><B>try</B></FONT>:
+        <FONT COLOR=black><B>return</B></FONT> float(s)
+    <FONT COLOR=black><B>except</B></FONT> ValueError:
+        <FONT COLOR=black><B>pass</B></FONT>
+    t = s.lower()
+    <FONT COLOR=black><B>if</B></FONT> t==<FONT COLOR=#FF0000>'none'</FONT>:
+        <FONT COLOR=black><B>return</B></FONT> None
+    <FONT COLOR=black><B>if</B></FONT> t==<FONT COLOR=#FF0000>'true'</FONT>:
+        <FONT COLOR=black><B>return</B></FONT> True
+    <FONT COLOR=black><B>if</B></FONT> t==<FONT COLOR=#FF0000>'false'</FONT>:
+        <FONT COLOR=black><B>return</B></FONT> False
+    <FONT COLOR=black><B>if</B></FONT> s[0] <FONT COLOR=black><B>in</B></FONT> <FONT COLOR=#FF0000>'[({"\'</FONT>':
+        <FONT COLOR=black><B>return</B></FONT> eval(s)
+    <FONT COLOR=black><B>return</B></FONT> s
+
+
+<FONT COLOR=#1111CC>### Deprecated</FONT>
+
+<FONT COLOR=black><B>def</B></FONT> Commas(number):
+    <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>'DEPRECATED: MiscUtils.Funcs.Commas() on 02/23/01 in ver 0.5. Use commas() instead.'</FONT>
+    <FONT COLOR=black><B>return</B></FONT> commas(number)
+
+<FONT COLOR=black><B>def</B></FONT> CharWrap(s, width, hanging=0):
+    <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>'DEPRECATED: MiscUtils.Funcs.CharWrap() on 02/23/01 in ver 0.5. Use charWrap() instead.'</FONT>
+    <FONT COLOR=black><B>return</B></FONT> charWrap(s, width, hanging)
+</PRE>
+                  <!--footer-->
+                  </BODY>

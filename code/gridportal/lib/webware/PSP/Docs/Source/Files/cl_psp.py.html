@@ -1,0 +1,52 @@
+<HTML><HEAD><TITLE>PSP/cl_psp.py</TITLE></HEAD>
+                  <BODY BGCOLOR=#EEEEEE>
+                  <!--header-->
+                  <!--script--><PRE>
+
+<FONT COLOR=black><B>from</B></FONT> ServletWriter <FONT COLOR=black><B>import</B></FONT> ServletWriter
+<FONT COLOR=#1111CC>#from </FONT>PSPReader <FONT COLOR=black><B>import</B></FONT> PSPReader
+<FONT COLOR=black><B>from</B></FONT> Context <FONT COLOR=black><B>import</B></FONT> *
+<FONT COLOR=black><B>from</B></FONT> PSPCompiler <FONT COLOR=black><B>import</B></FONT> *
+
+<FONT COLOR=black><B>import</B></FONT> os
+<FONT COLOR=black><B>import</B></FONT> string
+<FONT COLOR=black><B>import</B></FONT> sys
+
+
+<FONT COLOR=#1111CC>#move this to a class like JPS?</FONT>
+
+<FONT COLOR=black><B>def</B></FONT> PSPCompile(*args):
+    pspfilename=args[0]
+
+    
+    fil,ext=string.split(os.path.basename(pspfilename),<FONT COLOR=#FF0000>'.'</FONT>)
+    classname = fil + <FONT COLOR=#FF0000>'_'</FONT> + ext
+    pythonfilename = classname + <FONT COLOR=#FF0000>'.py'</FONT>
+
+    context = PSPCLContext(pspfilename)
+    context.setClassName(classname)
+    context.setPythonFileName(pythonfilename)
+
+    clc = Compiler(context)
+
+    clc.compile()
+
+<FONT COLOR=black><B>if</B></FONT> __name__ == <FONT COLOR=#FF0000>'__main__'</FONT>:
+    PSPCompile(sys.argv[1])
+
+    
+
+    
+    
+    
+
+    
+
+    
+
+    
+
+    
+</PRE>
+                  <!--footer-->
+                  </BODY>

@@ -1,0 +1,174 @@
+<HTML><HEAD><TITLE>WebKit/PickleRPCServlet.py</TITLE></HEAD>
+                  <BODY BGCOLOR=#EEEEEE>
+                  <!--header-->
+                  <!--script--><PRE><FONT COLOR=black><B>from</B></FONT> RPCServlet <FONT COLOR=black><B>import</B></FONT> RPCServlet
+<FONT COLOR=black><B>import</B></FONT> sys, traceback, types
+<FONT COLOR=black><B>from</B></FONT> time <FONT COLOR=black><B>import</B></FONT> time
+<FONT COLOR=black><B>from</B></FONT> MiscUtils.PickleRPC <FONT COLOR=black><B>import</B></FONT> RequestError, SafeUnpickler
+<FONT COLOR=black><B>try</B></FONT>:
+    <FONT COLOR=black><B>from</B></FONT> cPickle <FONT COLOR=black><B>import</B></FONT> dumps, PickleError
+<FONT COLOR=black><B>except</B></FONT> ImportError:
+    <FONT COLOR=black><B>from</B></FONT> pickle <FONT COLOR=black><B>import</B></FONT> dumps, PickleError
+<FONT COLOR=black><B>try</B></FONT>:
+    <FONT COLOR=black><B>import</B></FONT> zlib
+<FONT COLOR=black><B>except</B></FONT> ImportError:
+    zlib = None
+
+<FONT COLOR=black><B>class</B></FONT> PickleRPCServlet(RPCServlet, SafeUnpickler):
+    <FONT COLOR=#FF0000>"""
+    PickleRPCServlet is a base class for Dict-RPC servlets.
+
+    The "Pickle" refers to Python's pickle module. This class is
+    similar to XMLRPCServlet. By using Python pickles you get their
+    convenience (assuming the client is Pythonic), but lose
+    language independence. Some of us don't mind that last one.  ;-)
+
+    Conveniences over XML-RPC include the use of all of the following:
+      * Any pickle-able Python type (mx.DateTime for example)
+      * Python instances (aka objects)
+      * None
+      * Longs that are outside the 32-bit int boundaries
+      * Keyword arguments
+
+    Pickles should also be faster than XML, especially now that
+    we support binary pickling and compression.
+
+    To make your own PickleRPCServlet, create a subclass and implement a
+    method which is then named in exposedMethods():
+
+        from WebKit.PickleRPCServlet import PickleRPCServlet
+        class Math(PickleRPCServlet):
+            def multiply(self, x, y):
+                return x * y
+            def exposedMethods(self):
+                return ['multiply']
+
+    To make a PickleRPC call from another Python program, do this:
+        from MiscUtils.PickleRPC import Server
+        server = Server('http://localhost/WebKit.cgi/Context/Math')
+        print server.multiply(3, 4)    # 12
+        print server.multiply('-', 10) # ----------
+
+    If a request error is raised by the server, then
+    MiscUtils.PickleRPC.RequestError is raised. If an unhandled
+    exception is raised by the server, or the server response is
+    malformed, then MiscUtils.PickleRPC.ResponseError (or one of
+    it's subclasses) is raised.
+
+    Tip: If you want callers of the RPC servlets to be able to
+    introspect what methods are available, then include
+    'exposedMethods' in exposedMethods().
+
+    If you wanted the actual response dictionary for some reason:
+        print server._request('multiply', 3, 4)
+            # { 'value': 12, 'timeReceived': ... }
+
+    In which case, an exception is not purposefully raised if the
+    dictionary contains one. Instead, examine the dictionary.
+
+    For the dictionary formats and more information see the docs
+    for MiscUtils.PickleRPC.
+    """</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> respondToPost(self, trans):
+        <FONT COLOR=black><B>try</B></FONT>:
+            request = trans.request()
+            data = request.rawInput(rewind=1)
+            response = {
+                <FONT COLOR=#FF0000>'timeReceived'</FONT>: trans.request().time(),
+            }
+            <FONT COLOR=black><B>try</B></FONT>:
+                <FONT COLOR=black><B>try</B></FONT>:
+                    encoding = request.environ().get(<FONT COLOR=#FF0000>'HTTP_CONTENT_ENCODING'</FONT>, None)
+                    <FONT COLOR=black><B>if</B></FONT> encoding == <FONT COLOR=#FF0000>'x-gzip'</FONT>:
+                        <FONT COLOR=black><B>if</B></FONT> zlib <FONT COLOR=black><B>is</B></FONT> <FONT COLOR=black><B>not</B></FONT> None:
+                            <FONT COLOR=black><B>try</B></FONT>:
+                                rawstring = data.read()
+                                req = self.loads(zlib.decompress(rawstring))
+                            <FONT COLOR=black><B>except</B></FONT> zlib.error:
+                                <FONT COLOR=black><B>raise</B></FONT> RequestError, <FONT COLOR=#FF0000>'Cannot uncompress compressed dict-rpc request'</FONT>
+                        <FONT COLOR=black><B>else</B></FONT>:
+                            <FONT COLOR=black><B>raise</B></FONT> RequestError, <FONT COLOR=#FF0000>'Cannot handle compressed dict-rpc request'</FONT>
+                    <FONT COLOR=black><B>elif</B></FONT> encoding:
+                        <FONT COLOR=black><B>raise</B></FONT> RequestError, <FONT COLOR=#FF0000>'Cannot handle Content-Encoding of %s'</FONT> % encoding
+                    <FONT COLOR=black><B>else</B></FONT>:
+                        req = self.load(data)
+                <FONT COLOR=black><B>except</B></FONT> PickleError:
+                    <FONT COLOR=black><B>raise</B></FONT> RequestError, <FONT COLOR=#FF0000>'Cannot unpickle dict-rpc request.'</FONT>
+                <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> isinstance(req, types.DictType):
+                    <FONT COLOR=black><B>raise</B></FONT> RequestError, <FONT COLOR=#FF0000>'Expecting a dictionary for dict-rpc requests, but got %s instead.'</FONT> % type(dict)
+                <FONT COLOR=black><B>if</B></FONT> req.get(<FONT COLOR=#FF0000>'version'</FONT>, 1)!=1:
+                    <FONT COLOR=black><B>raise</B></FONT> RequestError, <FONT COLOR=#FF0000>'Cannot handle version %s requests.'</FONT> % req[<FONT COLOR=#FF0000>'version'</FONT>]
+                <FONT COLOR=black><B>if</B></FONT> req.get(<FONT COLOR=#FF0000>'action'</FONT>, <FONT COLOR=#FF0000>'call'</FONT>)!=<FONT COLOR=#FF0000>'call'</FONT>:
+                    <FONT COLOR=black><B>raise</B></FONT> RequestError, <FONT COLOR=#FF0000>'Cannot handle the request action, %r.'</FONT> % req[<FONT COLOR=#FF0000>'action'</FONT>]
+                <FONT COLOR=black><B>try</B></FONT>:
+                    methodName = req[<FONT COLOR=#FF0000>'methodName'</FONT>]
+                <FONT COLOR=black><B>except</B></FONT> KeyError:
+                    <FONT COLOR=black><B>raise</B></FONT> RequestError, <FONT COLOR=#FF0000>'Missing method in request'</FONT>
+                args = req.get(<FONT COLOR=#FF0000>'args'</FONT>, ())
+                <FONT COLOR=black><B>if</B></FONT> methodName==<FONT COLOR=#FF0000>'__methods__.__getitem__'</FONT>:
+                    <FONT COLOR=#1111CC># support PythonWin autoname completion</FONT>
+                    response[<FONT COLOR=#FF0000>'value'</FONT>] = self.exposedMethods()[args[0]]
+                <FONT COLOR=black><B>else</B></FONT>:
+                    response[<FONT COLOR=#FF0000>'value'</FONT>] = self.call(methodName, *args, **req.get(<FONT COLOR=#FF0000>'keywords'</FONT>, {}))
+            <FONT COLOR=black><B>except</B></FONT> RequestError, e:
+                response[<FONT COLOR=#FF0000>'requestError'</FONT>] = str(e)
+                self.sendResponse(trans, response)
+                self.handleException(trans)
+            <FONT COLOR=black><B>except</B></FONT> Exception, e:
+                response[<FONT COLOR=#FF0000>'exception'</FONT>] = self.resultForException(e, trans)
+                self.sendResponse(trans, response)
+                self.handleException(trans)
+            <FONT COLOR=black><B>except</B></FONT>:  <FONT COLOR=#1111CC># if it's a string exception, this gets triggered</FONT>
+                response[<FONT COLOR=#FF0000>'exception'</FONT>] = self.resultForException(sys.exc_info()[0], trans)
+                self.sendResponse(trans, response)
+                self.handleException(trans)
+            <FONT COLOR=black><B>else</B></FONT>:
+                self.sendResponse(trans, response)
+        <FONT COLOR=black><B>except</B></FONT>:
+            <FONT COLOR=#1111CC># internal error, report as HTTP server error</FONT>
+            <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>'PickleRPCServlet internal error'</FONT>
+            <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>''</FONT>.join(traceback.format_exception(*sys.exc_info()))
+            trans.response().setStatus(500, <FONT COLOR=#FF0000>'Server Error'</FONT>)
+            self.handleException(trans)
+
+    <FONT COLOR=black><B>def</B></FONT> sendResponse(self, trans, response):
+        <FONT COLOR=#FF0000>"""
+        Timestamp the response dict and send it.
+        """</FONT>
+        <FONT COLOR=#1111CC># Generated a pickle string</FONT>
+        response[<FONT COLOR=#FF0000>'timeResponded'</FONT>] = time()
+        <FONT COLOR=black><B>if</B></FONT> self.useBinaryPickle():
+            contentType = <FONT COLOR=#FF0000>'application/x-python-binary-pickled-dict'</FONT>
+            response = dumps(response, 1)
+        <FONT COLOR=black><B>else</B></FONT>:
+            contentType = <FONT COLOR=#FF0000>'text/x-python-pickled-dict'</FONT>
+            response = dumps(response)
+        
+        <FONT COLOR=#1111CC># Get list of accepted encodings</FONT>
+        <FONT COLOR=black><B>try</B></FONT>:
+            accept_encoding = trans.request().environ()[<FONT COLOR=#FF0000>"HTTP_ACCEPT_ENCODING"</FONT>]
+            <FONT COLOR=black><B>if</B></FONT> accept_encoding:
+                accept_encoding = [enc.strip() <FONT COLOR=black><B>for</B></FONT> enc <FONT COLOR=black><B>in</B></FONT> accept_encoding.split(<FONT COLOR=#FF0000>','</FONT>)]
+            <FONT COLOR=black><B>else</B></FONT>:
+                accept_encoding = []
+        <FONT COLOR=black><B>except</B></FONT> KeyError:
+            accept_encoding = []
+
+        <FONT COLOR=#1111CC># Compress the output if we are allowed to.  We'll avoid compressing short responses and</FONT>
+        <FONT COLOR=#1111CC># we'll use the fastest possible compression -- level 1.</FONT>
+        <FONT COLOR=black><B>if</B></FONT> zlib <FONT COLOR=black><B>is</B></FONT> <FONT COLOR=black><B>not</B></FONT> None <FONT COLOR=black><B>and</B></FONT> <FONT COLOR=#FF0000>"gzip"</FONT> <FONT COLOR=black><B>in</B></FONT> accept_encoding <FONT COLOR=black><B>and</B></FONT> len(response) &gt; 1000:
+            contentEncoding = <FONT COLOR=#FF0000>'x-gzip'</FONT>
+            response = zlib.compress(response, 1)
+        <FONT COLOR=black><B>else</B></FONT>:
+            contentEncoding = None
+        self.sendOK(contentType, response, trans, contentEncoding)
+
+    <FONT COLOR=black><B>def</B></FONT> useBinaryPickle(self):
+        <FONT COLOR=#FF0000>"""
+        Override this to return 0 to use the less-efficient text pickling format
+        """</FONT>
+        <FONT COLOR=black><B>return</B></FONT> 1
+</PRE>
+                  <!--footer-->
+                  </BODY>

@@ -1,0 +1,126 @@
+<HTML><HEAD><TITLE>WebKit/ImportSpy.py</TITLE></HEAD>
+                  <BODY BGCOLOR=#EEEEEE>
+                  <!--header-->
+                  <!--script--><PRE><FONT COLOR=black><B>import</B></FONT> ihooks
+<FONT COLOR=black><B>import</B></FONT> os
+<FONT COLOR=black><B>import</B></FONT> sys
+
+<FONT COLOR=#FF0000>"""
+ImportSpy.py
+
+The purpose of this module is to record the filepath of every module which 
+is imported.  This is used by the AutoReloadingAppServer (see doc strings 
+for more information) to restart the server if any source files change.
+
+Other than keeping track of the filepaths, the behaviour of this module
+loader is identical to Python's default behaviour.
+"""</FONT>
+
+True, False = 1==1, 0==1
+
+<FONT COLOR=black><B>class</B></FONT> ModuleLoader(ihooks.ModuleLoader):
+
+    <FONT COLOR=black><B>def</B></FONT> __init__(self):
+        <FONT COLOR=black><B>assert</B></FONT> modloader <FONT COLOR=black><B>is</B></FONT> None, \
+               <FONT COLOR=#FF0000>"ModuleLoader can only be instantiated once"</FONT>
+        ihooks.ModuleLoader.__init__(self)
+        self._fileList = {}
+        self._notifyHook = None
+        self._installed = False
+
+    <FONT COLOR=black><B>def</B></FONT> load_module(self,name,stuff):
+        <FONT COLOR=black><B>try</B></FONT>:
+            mod = ihooks.ModuleLoader.load_module(self, name, stuff)
+            self.recordFileName(stuff, mod)
+        <FONT COLOR=black><B>except</B></FONT>:
+            self.recordFileName(stuff, None)
+            <FONT COLOR=black><B>raise</B></FONT>
+        <FONT COLOR=black><B>return</B></FONT> mod
+
+    <FONT COLOR=black><B>def</B></FONT> recordModules(self, moduleNames):
+        <FONT COLOR=black><B>for</B></FONT> name <FONT COLOR=black><B>in</B></FONT> moduleNames:
+            mod = sys.modules[name]
+            <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> hasattr(mod, <FONT COLOR=#FF0000>'__file__'</FONT>):
+                <FONT COLOR=#1111CC># If we can't find it, we can't monitor it</FONT>
+                <FONT COLOR=black><B>continue</B></FONT>
+            file = mod.__file__
+            pathname = os.path.dirname(file)
+            desc = None
+            self.recordFileName((file, pathname, desc),
+                        sys.modules[name])
+
+    <FONT COLOR=black><B>def</B></FONT> fileList(self):
+        <FONT COLOR=black><B>return</B></FONT> self._fileList
+
+    <FONT COLOR=black><B>def</B></FONT> notifyOfNewFiles(self, hook):
+        <FONT COLOR=#FF0000>""" Called by someone else to register that they'd like to 
+        be know when a new file is imported """</FONT>
+        self._notifyHook = hook
+
+    <FONT COLOR=black><B>def</B></FONT> watchFile(self, filepath, getmtime=os.path.getmtime):
+        modtime = getmtime(filepath)
+        self._fileList[filepath] = modtime
+        <FONT COLOR=#1111CC># send notification that this file was imported </FONT>
+        <FONT COLOR=black><B>if</B></FONT> self._notifyHook:
+            self._notifyHook(filepath,modtime)
+
+    <FONT COLOR=black><B>def</B></FONT> recordFileName(self, stuff, mod, isfile=os.path.isfile):
+        file, pathname, desc = stuff
+
+        fileList = self._fileList
+        <FONT COLOR=black><B>if</B></FONT> mod:
+            <FONT COLOR=#1111CC># __orig_file__ is used for cheetah and psp mods; we want </FONT>
+            <FONT COLOR=#1111CC># to record the source filenames, not the auto-generated modules</FONT>
+            f2 = getattr(mod, <FONT COLOR=#FF0000>'__orig_file__'</FONT>, 0) 
+            f = getattr(mod, <FONT COLOR=#FF0000>'__file__'</FONT>, 0)
+
+            <FONT COLOR=black><B>if</B></FONT> f2 <FONT COLOR=black><B>and</B></FONT> f2 <FONT COLOR=black><B>not</B></FONT> <FONT COLOR=black><B>in</B></FONT> fileList.keys():
+                <FONT COLOR=black><B>try</B></FONT>:
+                    <FONT COLOR=black><B>if</B></FONT> isfile(f2):
+                        self.watchFile(f2)
+                <FONT COLOR=black><B>except</B></FONT> OSError:
+                    <FONT COLOR=black><B>pass</B></FONT>
+            <FONT COLOR=black><B>elif</B></FONT> f <FONT COLOR=black><B>and</B></FONT> f <FONT COLOR=black><B>not</B></FONT> <FONT COLOR=black><B>in</B></FONT> fileList.keys():
+                <FONT COLOR=#1111CC># record the .py file corresponding to each '.pyc'</FONT>
+                <FONT COLOR=black><B>if</B></FONT> f[-4:] == <FONT COLOR=#FF0000>'.pyc'</FONT>:
+                    f = f[:-1]
+                <FONT COLOR=black><B>try</B></FONT>:
+                    <FONT COLOR=black><B>if</B></FONT> isfile(f):
+                        self.watchFile(f)
+                    <FONT COLOR=black><B>else</B></FONT>:
+                        self.watchFile(os.path.join(f, <FONT COLOR=#FF0000>'__init__.py'</FONT>))
+                <FONT COLOR=black><B>except</B></FONT> OSError:
+                    <FONT COLOR=black><B>pass</B></FONT>
+
+        <FONT COLOR=#1111CC># also record filepaths which weren't successfully</FONT>
+        <FONT COLOR=#1111CC># loaded, which may happen due to a syntax error in a</FONT>
+        <FONT COLOR=#1111CC># servlet, because we also want to know when such a</FONT>
+        <FONT COLOR=#1111CC># file is modified</FONT>
+        <FONT COLOR=black><B>elif</B></FONT> pathname:
+            <FONT COLOR=black><B>if</B></FONT> isfile(pathname):
+                self.watchFile(pathname)
+
+    <FONT COLOR=black><B>def</B></FONT> activate(self):
+        imp = ihooks.ModuleImporter(loader=modloader)
+        ihooks.install(imp)
+        self.recordModules(sys.modules.keys())
+        self._installed = True
+
+<FONT COLOR=#1111CC># We do this little double-assignment trick to make sure ModuleLoader</FONT>
+<FONT COLOR=#1111CC># is only instantiated once.</FONT>
+modloader = None
+modloader = ModuleLoader()
+
+<FONT COLOR=#FF0000>""" These two methods are compatible with the 'imp' module (and can
+therefore be useds as drop-in replacements), but will use the
+above ModuleLoader to record the pathnames of imported modules.
+"""</FONT>
+
+<FONT COLOR=black><B>def</B></FONT> load_module(name, file, filename, description):
+    <FONT COLOR=black><B>return</B></FONT> modloader.load_module(name,(file,filename,description))
+
+<FONT COLOR=black><B>def</B></FONT> find_module(name,path=None):
+    <FONT COLOR=black><B>return</B></FONT> modloader.find_module(name,path)
+</PRE>
+                  <!--footer-->
+                  </BODY>

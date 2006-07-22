@@ -1,0 +1,52 @@
+
+<html>
+    <head>
+        <title>MiscUtils/CSVParser.py</title>
+        <style type="text/css">
+            .Line_class {
+            }
+
+            .Line_category {
+                color: 11B;
+            }
+
+            .Line_def {
+            }
+
+            .Name_class {
+                color: 909;
+                font-weight: bold;
+            }
+
+            .Name_def {
+                color: 909;
+                font-weight: bold;
+            }
+        </style>
+    </head>
+<body>
+<pre>
+
+<span class=Line_class>class <span class=Name_class>ParseError(Exception)</span>:</span>
+
+
+<span class=Line_class>class <span class=Name_class>CSVParser</span>:</span>
+<span class=Line_def>    def <span class=Name_class>__init__</span>(self, allowComments=1, stripWhitespace=1, fieldSep=',', autoReset=1, doubleQuote=1):</span>
+
+<span class=Line_category>    ## Parse ##</span>
+<span class=Line_def>    def <span class=Name_class>parse</span>(self, line):</span>
+
+<span class=Line_category>    ## Reset ##</span>
+<span class=Line_def>    def <span class=Name_class>reset</span>(self):</span>
+
+<span class=Line_category>    ## State Handlers ##</span>
+<span class=Line_def>    def <span class=Name_class>startRecord</span>(self, c):</span>
+<span class=Line_def>    def <span class=Name_class>startField</span>(self, c):</span>
+<span class=Line_def>    def <span class=Name_class>inField</span>(self, c):</span>
+<span class=Line_def>    def <span class=Name_class>quoteInField</span>(self, c):</span>
+<span class=Line_def>    def <span class=Name_class>inQuotedField</span>(self, c):</span>
+<span class=Line_def>    def <span class=Name_class>quoteInQuotedField</span>(self, c):</span>
+<span class=Line_def>    def <span class=Name_class>endQuotedField</span>(self, c):</span>
+<span class=Line_def>    def <span class=Name_class>saveField</span>(self):</span>
+<span class=Line_def>def <span class=Name_class>joinCSVFields</span>(fields):</span>
+</pre> </body> </html>

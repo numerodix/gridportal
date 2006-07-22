@@ -1,0 +1,25 @@
+<HTML><HEAD><TITLE>MiddleKit/__init__.py</TITLE></HEAD>
+                  <BODY BGCOLOR=#EEEEEE>
+                  <!--header-->
+                  <!--script--><PRE><FONT COLOR=#1111CC># MiddleKit</FONT>
+
+__version__ = <FONT COLOR=#FF0000>'0.2'</FONT>
+
+__all__ = [<FONT COLOR=#FF0000>'Core'</FONT>, <FONT COLOR=#FF0000>'Design'</FONT>, <FONT COLOR=#FF0000>'Run'</FONT>]
+
+<FONT COLOR=black><B>import</B></FONT> os
+
+<FONT COLOR=black><B>def</B></FONT> InstallInWebKit(appServer):
+    app = appServer.application()
+    mkPathVia__file__ = os.path.join(os.getcwd(), os.path.dirname(__file__))
+    <FONT COLOR=#1111CC>#mkPathViaApp = app.serverSidePath(os.path.join(os.pardir, 'MiddleKit'))</FONT>
+    <FONT COLOR=#1111CC>#assert </FONT>mkPathVia__file__==mkPathViaApp, <FONT COLOR=#FF0000>'\nmkPathVia__file__=%r\nmkPathViaApp=%r\n'</FONT> % (
+    <FONT COLOR=#1111CC>#   mkPathVia__file__, mkPathViaApp)</FONT>
+    path = os.path.join(mkPathVia__file__, <FONT COLOR=#FF0000>'WebBrowser'</FONT>)
+    <FONT COLOR=black><B>if</B></FONT> os.path.exists(path):
+        app.addContext(<FONT COLOR=#FF0000>'MKBrowser'</FONT>, path)
+    <FONT COLOR=black><B>else</B></FONT>:
+        <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>'WARNING: Cannot locate %s.'</FONT> % path
+</PRE>
+                  <!--footer-->
+                  </BODY>

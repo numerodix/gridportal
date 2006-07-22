@@ -1,0 +1,22 @@
+20 October 2005, Martin Matusiak:
+
++++ bugfix
+
+Disabled setting look and feel to gtk on linux, apparently it breaks on exotic
+configurations.
+
+
+4 October 2005, Martin Matusiak:
+
++++ v1.0.0 bugfix
+
+A tiny but crucial bug had snuck into the certificate creation code, causing
+the private key password to be set incorrectly. Now fixed for release 1.0.0.
+
+
+26 September 2005, Martin Matusiak:
+
++++ Release 1.0.0 ready
+
+All the planned features have been implemented and the code is released in 
+version 1.0.0.

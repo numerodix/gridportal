@@ -1,0 +1,62 @@
+<HTML><HEAD><TITLE>COMKit/__init__.py</TITLE></HEAD>
+                  <BODY BGCOLOR=#EEEEEE>
+                  <!--header-->
+                  <!--script--><PRE><FONT COLOR=#1111CC># COMKit</FONT>
+<FONT COLOR=#1111CC>#</FONT>
+<FONT COLOR=#1111CC># This plug-in for WebKit for Python allows COM objects such as ADO to be</FONT>
+<FONT COLOR=#1111CC># used in free-threading mode in a threaded app server.  See Appendix D of</FONT>
+<FONT COLOR=#1111CC># the fine book Python Programming on Win32 by Mark Hammond and Andy</FONT>
+<FONT COLOR=#1111CC># Robinson for details.</FONT>
+<FONT COLOR=#1111CC>#</FONT>
+<FONT COLOR=#1111CC># To use COM, simply set EnableCOM to 1 in your AppServer.config file.</FONT>
+<FONT COLOR=#1111CC># This causes the app server threads to be configured properly for</FONT>
+<FONT COLOR=#1111CC># COM free-threading.  Then go ahead and use win32com inside your servlets.</FONT>
+
+__all__ = []
+
+
+<FONT COLOR=#1111CC># This function gets called by the app server during initialization</FONT>
+<FONT COLOR=black><B>def</B></FONT> InstallInWebKit(appServer):
+    <FONT COLOR=#1111CC># See if enabling COM was requested</FONT>
+    <FONT COLOR=black><B>if</B></FONT> appServer.setting(<FONT COLOR=#FF0000>'EnableCOM'</FONT>, 0):
+
+        <FONT COLOR=#1111CC># This must be done BEFORE pythoncom is imported -- see the book mentioned above.</FONT>
+        <FONT COLOR=black><B>import</B></FONT> sys
+        sys.coinit_flags = 0
+
+        <FONT COLOR=#1111CC># See if the win32 extensions are available</FONT>
+        <FONT COLOR=black><B>import</B></FONT> pythoncom
+        <FONT COLOR=#1111CC># Create a base class for a COM-enabled app server.</FONT>
+        <FONT COLOR=black><B>class</B></FONT> COMEnabledAppServer:
+            <FONT COLOR=black><B>def</B></FONT> initThread(self):
+                <FONT COLOR=#1111CC># This must be called at the beginning of any thread that uses COM</FONT>
+                <FONT COLOR=black><B>import</B></FONT> pythoncom
+                pythoncom.CoInitializeEx(pythoncom.COINIT_MULTITHREADED)
+                
+                <FONT COLOR=#1111CC># Invoke superclass's initThread.  This enables multiple plug-ins</FONT>
+                <FONT COLOR=#1111CC># to each have their own initThread get called.</FONT>
+                self.__class__.__bases__[0].initThread(self)
+
+            <FONT COLOR=black><B>def</B></FONT> delThread(self):
+                <FONT COLOR=#1111CC># Invoke superclass's delThread.  This enables multiple plug-ins</FONT>
+                <FONT COLOR=#1111CC># to each have their own delThread get called.</FONT>
+                self.__class__.__bases__[0].delThread(self)
+
+                <FONT COLOR=#1111CC># This must be called at the end of any thread that uses COM</FONT>
+                <FONT COLOR=black><B>import</B></FONT> pythoncom
+                pythoncom.CoUninitialize()
+
+        <FONT COLOR=#1111CC># We mix-in the COMEnabledAppServer, but it's a reverse mix-in:</FONT>
+
+        <FONT COLOR=#1111CC># Make COMEnabledAppServer inherit the current app server's class</FONT>
+        COMEnabledAppServer.__bases__ = (appServer.__class__,)
+
+        <FONT COLOR=#1111CC># Make the current app server point to COMEnabledAppServer</FONT>
+        appServer.__class__ = COMEnabledAppServer
+
+        <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>'COM has been enabled.'</FONT>
+
+        <FONT COLOR=#1111CC># Note: Python makes "plugging in" possible.</FONT>
+</PRE>
+                  <!--footer-->
+                  </BODY>

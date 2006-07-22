@@ -1,0 +1,58 @@
+<HTML><HEAD><TITLE>WebKit/HTTPServlet.py</TITLE></HEAD>
+                  <BODY BGCOLOR=#EEEEEE>
+                  <!--header-->
+                  <!--script--><PRE><FONT COLOR=black><B>from</B></FONT> Common <FONT COLOR=black><B>import</B></FONT> *
+<FONT COLOR=black><B>from</B></FONT> Servlet <FONT COLOR=black><B>import</B></FONT> Servlet
+<FONT COLOR=black><B>import</B></FONT> string
+
+
+<FONT COLOR=black><B>class</B></FONT> HTTPServlet(Servlet):
+    <FONT COLOR=#FF0000>"""
+    HTTPServlet implements the respond() method to invoke methods such as respondToGet() and respondToPut() depending on the type of HTTP request.
+    Example HTTP request methods are GET, POST, HEAD, etc.
+    Subclasses implement HTTP method FOO in the Python method respondToFoo.
+    Unsupported methods return a "501 Not Implemented" status.
+
+    Note that HTTPServlet inherits awake() and respond() methods from Servlet and that subclasses may make use of these.
+
+    See also: Servlet
+
+    FUTURE
+        * Document methods (take hints from Java HTTPServlet documentation)
+    """</FONT>
+
+    <FONT COLOR=#1111CC>## Init ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> __init__(self):
+        Servlet.__init__(self)
+        self._methodForRequestType = {}  <FONT COLOR=#1111CC># a cache; see respond()</FONT>
+
+
+    <FONT COLOR=#1111CC>## Transactions ##</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> respond(self, trans):
+        <FONT COLOR=#FF0000>""" Invokes the appropriate respondToSomething() method depending on the type of request (e.g., GET, POST, PUT, ...). """</FONT>
+        httpMethodName = trans.request().method()
+        method = self._methodForRequestType.get(httpMethodName, None)
+        <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> method:
+            methName = <FONT COLOR=#FF0000>'respondTo'</FONT> + string.capitalize(httpMethodName)
+            method = getattr(self, methName, self.notImplemented)
+            self._methodForRequestType[httpMethodName] = method
+        method(trans)
+
+    <FONT COLOR=black><B>def</B></FONT> notImplemented(self, trans):
+        trans.response().setHeader(<FONT COLOR=#FF0000>'Status'</FONT>, <FONT COLOR=#FF0000>'501 Not Implemented'</FONT>)
+
+    <FONT COLOR=black><B>def</B></FONT> respondToHead(self, trans):
+        <FONT COLOR=#FF0000>"""
+        A correct but inefficient implementation.
+        Should at least provide Last-Modified and Content-Length.
+        """</FONT>
+        res = trans.response()
+        w = res.write
+        res.write = <FONT COLOR=black><B>lambda</B></FONT> *args: None
+        self.respondToGet(trans)
+        res.write = w
+</PRE>
+                  <!--footer-->
+                  </BODY>

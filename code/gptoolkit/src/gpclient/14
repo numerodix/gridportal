@@ -1,0 +1,6 @@
+export PATH=/opt/j2sdk1.4.2_09/bin:$PATH
+
+java-config -s sun-jdk-1.4.2.09
+source /home/alex/.gentoo/java
+./clean
+./mjar

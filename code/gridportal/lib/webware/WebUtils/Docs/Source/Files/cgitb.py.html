@@ -1,0 +1,221 @@
+<HTML><HEAD><TITLE>WebUtils/cgitb.py</TITLE></HEAD>
+                  <BODY BGCOLOR=#EEEEEE>
+                  <!--header-->
+                  <!--script--><PRE><FONT COLOR=#FF0000>"""
+cgitb.py
+  By Ka-Ping Yee &lt;ping@lfw.org&gt; http://web.lfw.org/python/
+  Modified for Webware by Ian Bicking &lt;ianb@colorstudy.com&gt;
+"""</FONT>
+
+<FONT COLOR=black><B>import</B></FONT> sys, os, types, string, keyword, linecache, tokenize
+<FONT COLOR=#1111CC># We include a copy of pydoc but since it's in the Python 2.1</FONT>
+<FONT COLOR=#1111CC># standard library, we'll try to import it there first.</FONT>
+<FONT COLOR=black><B>try</B></FONT>:
+    <FONT COLOR=black><B>import</B></FONT> pydoc
+<FONT COLOR=black><B>except</B></FONT> ImportError:
+    <FONT COLOR=black><B>from</B></FONT> MiscUtils <FONT COLOR=black><B>import</B></FONT> pydoc
+<FONT COLOR=#1111CC># But we need to use a fixed version of inspect, so we won't use the one that comes with Python 2.1.</FONT>
+<FONT COLOR=black><B>from</B></FONT> MiscUtils <FONT COLOR=black><B>import</B></FONT> inspect
+
+DefaultOptions = {
+    <FONT COLOR=#FF0000>'table.bgcolor'</FONT>:        <FONT COLOR=#FF0000>'#F0F0F0'</FONT>,
+    <FONT COLOR=#FF0000>'default.fgcolor'</FONT>:      <FONT COLOR=#FF0000>'#000000'</FONT>,
+    <FONT COLOR=#FF0000>'row.location.fgcolor'</FONT>: <FONT COLOR=#FF0000>'#0000AA'</FONT>,
+    <FONT COLOR=#FF0000>'row.code.fgcolor'</FONT>:     <FONT COLOR=#FF0000>'#FF0000'</FONT>,
+    <FONT COLOR=#FF0000>'header.fgcolor'</FONT>:       <FONT COLOR=#FF0000>'#ffffff'</FONT>,
+    <FONT COLOR=#FF0000>'header.bgcolor'</FONT>:       <FONT COLOR=#FF0000>'#a00000'</FONT>,
+    <FONT COLOR=#FF0000>'subheader.fgcolor'</FONT>:    <FONT COLOR=#FF0000>'#000000'</FONT>,
+    <FONT COLOR=#FF0000>'subheader.bgcolor'</FONT>:    <FONT COLOR=#FF0000>'#ccccff'</FONT>,
+    <FONT COLOR=#FF0000>'code.accent.bgcolor'</FONT>:  <FONT COLOR=#FF0000>'#ddeeff'</FONT>,
+    <FONT COLOR=#FF0000>'code.unaccent.fgcolor'</FONT>:<FONT COLOR=#FF0000>'#909090'</FONT>,
+}
+
+<FONT COLOR=black><B>def</B></FONT> breaker():
+    <FONT COLOR=black><B>return</B></FONT> (<FONT COLOR=#FF0000>'&lt;body bgcolor="#f0f0ff"&gt;'</FONT> +
+            <FONT COLOR=#FF0000>'&lt;font color="#f0f0ff" size="-5"&gt; &gt; &lt;/font&gt; '</FONT> +
+            <FONT COLOR=#FF0000>'&lt;/table&gt;'</FONT> * 5)
+
+<FONT COLOR=black><B>def</B></FONT> html(context=5, options = None):
+    <FONT COLOR=black><B>if</B></FONT> options:
+        opt = DefaultOptions.copy()
+        opt.update(options)
+    <FONT COLOR=black><B>else</B></FONT>:
+        opt = DefaultOptions
+
+    etype, evalue = sys.exc_info()[:2]
+    <FONT COLOR=black><B>if</B></FONT> type(etype) <FONT COLOR=black><B>is</B></FONT> types.ClassType:
+        etype = etype.__name__
+    inspect_trace = inspect.trace(context)
+    inspect_trace.reverse()
+
+    pyver = <FONT COLOR=#FF0000>'Python '</FONT> + string.split(sys.version)[0] + <FONT COLOR=#FF0000>'&lt;br&gt;'</FONT> + sys.executable
+    javascript = <FONT COLOR=#FF0000>"""
+    &lt;script language="JavaScript"&gt;&lt;!--
+    function popup_repr(title, value) {
+        var w = window.open('', '_blank',
+                        'directories=no,height=200,width=400,location=no,menubar=yes,scrollbars=yes,status=no,toolbar=no');
+        w.document.write('&lt;html&gt;&lt;head&gt;&lt;title&gt;' + title + '&lt;/title&gt;&lt;/head&gt;&lt;body bgcolor="#ffffff"&gt;');
+        w.document.write(value);
+        w.document.write('&lt;form&gt;&lt;input type="button" onClick="window.close()" value="close window"&gt;&lt;/form&gt;&lt;/body&gt;&lt;/html&gt;');
+    }
+    // --&gt;&lt;/script&gt;"""</FONT>
+        
+    traceback_summary = []
+    <FONT COLOR=black><B>for</B></FONT> frame, file, lnum, func, lines, index <FONT COLOR=black><B>in</B></FONT> inspect_trace:
+        traceback_summary.append(<FONT COLOR=#FF0000>'&lt;a href="#%s%i"&gt;&lt;font color="%s"&gt;%s&lt;/font&gt;&lt;/a&gt;&lt;font color="%s"&gt;:&lt;tt style="font-family: Courier, sans-serif"&gt;%s&lt;/tt&gt;&lt;/font&gt;'</FONT> %
+                                 (string.replace(file, <FONT COLOR=#FF0000>"/"</FONT>, <FONT COLOR=#FF0000>"_"</FONT>),
+                                  lnum,
+                                  opt[<FONT COLOR=#FF0000>"header.fgcolor"</FONT>],
+                                  os.path.splitext(os.path.basename(file))[0],
+                                  opt[<FONT COLOR=#FF0000>"header.fgcolor"</FONT>],
+                                  string.replace(<FONT COLOR=#FF0000>"%5i"</FONT> % lnum, <FONT COLOR=#FF0000>" "</FONT>, <FONT COLOR=#FF0000>"&nbsp;"</FONT>)))
+    head = <FONT COLOR=#FF0000>'&lt;table bgcolor="%s" cellspacing=0 border=0&gt;&lt;tr&gt;&lt;td valign=top align=left&gt;&lt;font color="%s"&gt;&lt;big&gt;&lt;big&gt;&lt;strong&gt;%s&lt;/strong&gt;&lt;/big&gt;&lt;/big&gt;: %s&lt;/font&gt;&lt;/td&gt;&lt;td rowspan=2 valign=top align=right&gt;%s&lt;/td&gt;&lt;/tr&gt;'</FONT> % \
+        (opt[<FONT COLOR=#FF0000>'header.bgcolor'</FONT>], opt[<FONT COLOR=#FF0000>'header.fgcolor'</FONT>], str(etype),
+         pydoc.html.escape(str(evalue)),
+         string.join(traceback_summary, <FONT COLOR=#FF0000>"&lt;br&gt;\n"</FONT>))
+
+    head = head + <FONT COLOR=#FF0000>'&lt;tr&gt;&lt;td valign=top bgcolor="#ffffff"&gt;&lt;br&gt;\n'</FONT>
+    head = head + (<FONT COLOR=#FF0000>'&lt;p&gt;A problem occurred while running a Python script. '</FONT>
+                   <FONT COLOR=#FF0000>'Here is the sequence of function calls leading up to '</FONT>
+                   <FONT COLOR=#FF0000>'the error, with the most recent (innermost) call first.'</FONT>)
+    head = head + <FONT COLOR=#FF0000>'&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;\n'</FONT>
+
+    indent = <FONT COLOR=#FF0000>'&lt;tt&gt;&lt;small&gt;%s&lt;/small&gt;&nbsp;&lt;/tt&gt;'</FONT> % (<FONT COLOR=#FF0000>'&nbsp;'</FONT> * 5)
+    traceback = []
+    <FONT COLOR=black><B>for</B></FONT> frame, file, lnum, func, lines, index <FONT COLOR=black><B>in</B></FONT> inspect_trace:
+        <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=black><B>not</B></FONT> file: file = <FONT COLOR=#FF0000>"not found"</FONT>
+        file = os.path.abspath(file)
+        <FONT COLOR=black><B>try</B></FONT>:
+            file_list = string.split(file, <FONT COLOR=#FF0000>"/"</FONT>)
+            display_file = string.join(file_list[file_list.index(<FONT COLOR=#FF0000>"Webware"</FONT>) + 1:], <FONT COLOR=#FF0000>"/"</FONT>)
+        <FONT COLOR=black><B>except</B></FONT> ValueError:
+            display_file = file
+        <FONT COLOR=black><B>if</B></FONT> display_file[-3:] == <FONT COLOR=#FF0000>".py"</FONT>:
+            display_file = display_file[:-3]
+        link = <FONT COLOR=#FF0000>'&lt;a name="%s%i"&gt;&lt;/a&gt;&lt;a href="file:%s"&gt;%s&lt;/a&gt;'</FONT> % (string.replace(file, <FONT COLOR=#FF0000>"/"</FONT>, <FONT COLOR=#FF0000>"_"</FONT>), lnum, file, pydoc.html.escape(display_file))
+        args, varargs, varkw, locals = inspect.getargvalues(frame)
+        <FONT COLOR=black><B>if</B></FONT> func == <FONT COLOR=#FF0000>'?'</FONT>:
+            call = <FONT COLOR=#FF0000>''</FONT>
+        <FONT COLOR=black><B>else</B></FONT>:
+            call = <FONT COLOR=#FF0000>'in &lt;strong&gt;%s&lt;/strong&gt;'</FONT> % func + inspect.formatargvalues(
+                    args, varargs, varkw, locals,
+                    formatvalue=<FONT COLOR=black><B>lambda</B></FONT> value: <FONT COLOR=#FF0000>'='</FONT> + html_repr(value))
+
+        names = []
+        dotted = [0, []]
+        <FONT COLOR=black><B>def</B></FONT> tokeneater(type, token, start, end, line, names=names, dotted=dotted):
+            <FONT COLOR=black><B>if</B></FONT> type == tokenize.OP <FONT COLOR=black><B>and</B></FONT> token == <FONT COLOR=#FF0000>"."</FONT>:
+                dotted[0] = 1
+            <FONT COLOR=black><B>if</B></FONT> type == tokenize.NAME <FONT COLOR=black><B>and</B></FONT> token <FONT COLOR=black><B>not</B></FONT> <FONT COLOR=black><B>in</B></FONT> keyword.kwlist:
+                <FONT COLOR=black><B>if</B></FONT> dotted[0]:
+                    dotted[0] = 0
+                    dotted[1].append(token)
+                    <FONT COLOR=black><B>if</B></FONT> token <FONT COLOR=black><B>not</B></FONT> <FONT COLOR=black><B>in</B></FONT> names:
+                        names.append(dotted[1][:])
+                <FONT COLOR=black><B>elif</B></FONT> token <FONT COLOR=black><B>not</B></FONT> <FONT COLOR=black><B>in</B></FONT> names:
+                    <FONT COLOR=black><B>if</B></FONT> token != <FONT COLOR=#FF0000>"self"</FONT>: names.append(token)
+                    dotted[1] = [token]
+            <FONT COLOR=black><B>if</B></FONT> type == tokenize.NEWLINE: <FONT COLOR=black><B>raise</B></FONT> IndexError
+        <FONT COLOR=black><B>def</B></FONT> linereader(file=file, lnum=[lnum]):
+            line = linecache.getline(file, lnum[0])
+            lnum[0] = lnum[0] + 1
+            <FONT COLOR=black><B>return</B></FONT> line
+
+        <FONT COLOR=black><B>try</B></FONT>:
+            tokenize.tokenize(linereader, tokeneater)
+        <FONT COLOR=black><B>except</B></FONT> IndexError: <FONT COLOR=black><B>pass</B></FONT>
+        lvals = []
+        <FONT COLOR=black><B>for</B></FONT> name <FONT COLOR=black><B>in</B></FONT> names:
+            <FONT COLOR=black><B>if</B></FONT> type(name) <FONT COLOR=black><B>is</B></FONT> type([]):
+                <FONT COLOR=black><B>if</B></FONT> locals.has_key(name[0]) <FONT COLOR=black><B>or</B></FONT> frame.f_globals.has_key(name[0]):
+                    name_list, name = name, name[0]
+                    <FONT COLOR=black><B>if</B></FONT> locals.has_key(name_list[0]):
+                        value = locals[name_list[0]]
+                    <FONT COLOR=black><B>else</B></FONT>:
+                        value = frame.f_globals[name_list[0]]
+                        name = <FONT COLOR=#FF0000>"&lt;em&gt;global&lt;/em&gt; %s"</FONT> % name
+                    <FONT COLOR=black><B>for</B></FONT> subname <FONT COLOR=black><B>in</B></FONT> name_list[1:]:
+                        <FONT COLOR=black><B>if</B></FONT> hasattr(value, subname):
+                            value = getattr(value, subname)
+                            name = name + <FONT COLOR=#FF0000>"."</FONT> + subname
+                        <FONT COLOR=black><B>else</B></FONT>:
+                            name = name + <FONT COLOR=#FF0000>"."</FONT> + <FONT COLOR=#FF0000>"(unknown: %s)"</FONT> % subname
+                            <FONT COLOR=black><B>break</B></FONT>
+                    name = <FONT COLOR=#FF0000>'&lt;strong&gt;%s&lt;/strong&gt;'</FONT> % name
+                    <FONT COLOR=black><B>if</B></FONT> type(value) <FONT COLOR=black><B>is</B></FONT> types.MethodType <FONT COLOR=black><B>and</B></FONT> 1:
+                        value = None
+                    <FONT COLOR=black><B>else</B></FONT>:
+                        value = html_repr(value)
+            <FONT COLOR=black><B>elif</B></FONT> name <FONT COLOR=black><B>in</B></FONT> frame.f_code.co_varnames:
+                <FONT COLOR=black><B>if</B></FONT> locals.has_key(name):
+                    value = html_repr(locals[name])
+                <FONT COLOR=black><B>else</B></FONT>:
+                    value = <FONT COLOR=#FF0000>'&lt;em&gt;undefined&lt;/em&gt;'</FONT>
+                name = <FONT COLOR=#FF0000>'&lt;strong&gt;%s&lt;/strong&gt;'</FONT> % name
+            <FONT COLOR=black><B>else</B></FONT>:
+                <FONT COLOR=black><B>if</B></FONT> frame.f_globals.has_key(name):
+                    value = html_repr(frame.f_globals[name])
+                <FONT COLOR=black><B>else</B></FONT>:
+                    value = <FONT COLOR=#FF0000>'&lt;em&gt;undefined&lt;/em&gt;'</FONT>
+                name = <FONT COLOR=#FF0000>'&lt;em&gt;global&lt;/em&gt; &lt;strong&gt;%s&lt;/strong&gt;'</FONT> % name
+            <FONT COLOR=black><B>if</B></FONT> value <FONT COLOR=black><B>is</B></FONT> <FONT COLOR=black><B>not</B></FONT> None:
+                lvals.append(<FONT COLOR=#FF0000>'%s&nbsp;= %s'</FONT> % (name, value))
+        <FONT COLOR=black><B>if</B></FONT> lvals:
+            lvals = string.join(lvals, <FONT COLOR=#FF0000>', '</FONT>)
+            lvals = indent + <FONT COLOR=#FF0000>'''
+&lt;small&gt;&lt;font color="%s"&gt;%s&lt;/font&gt;&lt;/small&gt;&lt;br&gt;'''</FONT> % (opt[<FONT COLOR=#FF0000>'code.unaccent.fgcolor'</FONT>], lvals)
+        <FONT COLOR=black><B>else</B></FONT>:
+            lvals = <FONT COLOR=#FF0000>''</FONT>
+
+        level = <FONT COLOR=#FF0000>'''
+&lt;table width="100%%" bgcolor="%s" cellspacing=0 cellpadding=2 border=0&gt;
+&lt;tr&gt;&lt;td&gt;&lt;font color="%s"&gt;%s %s&lt;/font&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;'''</FONT> % (opt[<FONT COLOR=#FF0000>'subheader.bgcolor'</FONT>], opt[<FONT COLOR=#FF0000>'subheader.fgcolor'</FONT>], link, call)
+        excerpt = []
+        <FONT COLOR=black><B>try</B></FONT>:
+            i = lnum - index
+        <FONT COLOR=black><B>except</B></FONT> TypeError:
+            i = lnum
+        lines = lines <FONT COLOR=black><B>or</B></FONT> [<FONT COLOR=#FF0000>'file not found'</FONT>]
+        <FONT COLOR=black><B>for</B></FONT> line <FONT COLOR=black><B>in</B></FONT> lines:
+            number = <FONT COLOR=#FF0000>'&nbsp;'</FONT> * (5-len(str(i))) + str(i)
+            number = <FONT COLOR=#FF0000>'&lt;small&gt;&lt;font color="%s"&gt;%s&lt;/font&gt;&lt;/small&gt;'</FONT> % (opt[<FONT COLOR=#FF0000>'code.unaccent.fgcolor'</FONT>], number)
+            line = <FONT COLOR=#FF0000>'&lt;tt&gt;%s&nbsp;%s&lt;/tt&gt;'</FONT> % (number, pydoc.html.preformat(line))
+            <FONT COLOR=black><B>if</B></FONT> i == lnum:
+                line = <FONT COLOR=#FF0000>'''
+&lt;table width="100%%" bgcolor="%s" cellspacing=0 cellpadding=0 border=0&gt;
+&lt;tr&gt;&lt;td&gt;%s&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;'''</FONT> % (opt[<FONT COLOR=#FF0000>'code.accent.bgcolor'</FONT>], line)
+            excerpt.append(<FONT COLOR=#FF0000>'\n'</FONT> + line)
+            <FONT COLOR=black><B>if</B></FONT> i == lnum:
+                excerpt.append(lvals)
+            i = i + 1
+        traceback.append(<FONT COLOR=#FF0000>'&lt;p&gt;'</FONT> + level + string.join(excerpt, <FONT COLOR=#FF0000>'\n'</FONT>))
+
+    exception = <FONT COLOR=#FF0000>'&lt;p&gt;&lt;strong&gt;%s&lt;/strong&gt;: %s'</FONT> % (str(etype), str(evalue))
+    attribs = []
+    <FONT COLOR=black><B>if</B></FONT> type(evalue) <FONT COLOR=black><B>is</B></FONT> types.InstanceType:
+        <FONT COLOR=black><B>for</B></FONT> name <FONT COLOR=black><B>in</B></FONT> dir(evalue):
+            value = html_repr(getattr(evalue, name))
+            attribs.append(<FONT COLOR=#FF0000>'&lt;br&gt;%s%s&nbsp;= %s'</FONT> % (indent, name, value))
+
+    <FONT COLOR=black><B>return</B></FONT> javascript + head + string.join(traceback) + exception + string.join(attribs)
+
+<FONT COLOR=black><B>def</B></FONT> handler():
+    <FONT COLOR=black><B>print</B></FONT> breaker()
+    <FONT COLOR=black><B>print</B></FONT> html()
+
+<FONT COLOR=black><B>def</B></FONT> html_repr(value):
+    html_repr_instance = pydoc.html._repr_instance
+    enc_value = pydoc.html.repr(value)
+    <FONT COLOR=black><B>if</B></FONT> len(enc_value) &gt; html_repr_instance.maxstring:
+        plain_value = pydoc.html.escape(repr(value))
+        <FONT COLOR=black><B>return</B></FONT> <FONT COLOR=#FF0000>'%s &lt;a href="#" onClick="popup_repr(\'</FONT>Long repr\<FONT COLOR=#FF0000>', \'</FONT>Full representation:&lt;br&gt;\\n%s\<FONT COLOR=#FF0000>'); return false"&gt;(complete)&lt;/a&gt;'</FONT> \
+               % (enc_value, string.replace(string.replace(pydoc.html.escape(plain_value), <FONT COLOR=#FF0000>"'"</FONT>, <FONT COLOR=#FF0000>"\\'"</FONT>), <FONT COLOR=#FF0000>'"'</FONT>, <FONT COLOR=#FF0000>'&quot;'</FONT>))
+    <FONT COLOR=black><B>else</B></FONT>:
+        <FONT COLOR=black><B>return</B></FONT> enc_value
+
+<FONT COLOR=black><B>if</B></FONT> __name__ == <FONT COLOR=#FF0000>'__main__'</FONT>:
+    <FONT COLOR=black><B>try</B></FONT>: <FONT COLOR=black><B>import</B></FONT> tester
+    <FONT COLOR=black><B>except</B></FONT>: handler()
+</PRE>
+                  <!--footer-->
+                  </BODY>

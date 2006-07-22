@@ -1,0 +1,132 @@
+<HTML><HEAD><TITLE>WebKit/ThreadedAppServerService.py</TITLE></HEAD>
+                  <BODY BGCOLOR=#EEEEEE>
+                  <!--header-->
+                  <!--script--><PRE><FONT COLOR=#1111CC>#!/usr/bin/env python</FONT>
+<FONT COLOR=#FF0000>"""
+ThreadedAppServerService
+
+For general notes, see ThreadedAppServer.py.
+
+This version of the app server is a threaded app server that runs as
+a Windows NT Service.  This means it can be started and stopped from
+the Control Panel or from the command line using "net start" and
+"net stop", and it can be configured in the Control Panel to
+auto-start when the machine boots.
+
+This requires the win32all package to have been installed.
+
+To see the options for installing, removing, starting, and stopping
+the service, just run this program with no arguments.  Typical usage is
+to install the service to run under a particular user account and startup
+automatically on reboot with
+
+python ThreadedAppServerService.py --username mydomain\myusername --password mypassword --startup auto install
+
+Then, you can start the service from the Services applet in the Control Panel,
+where it will be listed as "WebKit Threaded Application Server".  Or, from
+the command line, it can be started with either of the following commands:
+
+net start WebKit
+python ThreadedAppServerService.py start
+
+The service can be stopped from the Control Panel or with:
+
+net stop WebKit
+python ThreadedAppServerService.py stop
+
+And finally, to uninstall the service, stop it and then run:
+
+python ThreadedAppServerService.py remove
+
+FUTURE
+    * This shares a lot of code with ThreadedAppServer.py --
+      instead it should inherit from ThreadedAppServer and have
+      very little code of its own.
+    * Have an option for sys.stdout and sys.stderr to go to a logfile instead
+      of going nowhere.
+    * Optional NT event log messages on start, stop, and errors.
+    * Allow the option of installing multiple copies of WebKit with
+      different configurations and different service names.
+    * Figure out why I need the Python service hacks marked with ### below.
+    * Allow it to work with wkMonitor, or some other fault tolerance
+      mechanism.
+"""</FONT>
+
+<FONT COLOR=black><B>import</B></FONT> time
+startTime = time.time()
+<FONT COLOR=black><B>import</B></FONT> win32serviceutil
+<FONT COLOR=black><B>import</B></FONT> win32service
+<FONT COLOR=black><B>import</B></FONT> os, sys, cStringIO
+
+<FONT COLOR=black><B>class</B></FONT> ThreadedAppServerService(win32serviceutil.ServiceFramework):
+    _svc_name_ = <FONT COLOR=#FF0000>'WebKit'</FONT>
+    _svc_display_name_ = <FONT COLOR=#FF0000>'WebKit Threaded Application Server'</FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> __init__(self, args):
+        win32serviceutil.ServiceFramework.__init__(self, args)
+        self.server = None
+        <FONT COLOR=#1111CC># Fix the current working directory -- this gets initialized incorrectly</FONT>
+        <FONT COLOR=#1111CC># for some reason when run as an NT service.</FONT>
+        <FONT COLOR=black><B>try</B></FONT>:
+            os.chdir(os.path.abspath(os.path.dirname(__file__)))
+        <FONT COLOR=black><B>except</B></FONT>:
+            <FONT COLOR=black><B>pass</B></FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> SvcStop(self):
+        <FONT COLOR=#1111CC># Before we do anything, tell the SCM we are starting the stop process</FONT>
+        self.ReportServiceStatus(win32service.SERVICE_STOP_PENDING)
+        <FONT COLOR=#1111CC># And set running to 0 in the server.  If it hasn't started yet, we'll</FONT>
+        <FONT COLOR=#1111CC># have to wait until it does.</FONT>
+        <FONT COLOR=black><B>while</B></FONT> self.server <FONT COLOR=black><B>is</B></FONT> None:
+            time.sleep(1.0)
+        self.server.initiateShutdown()
+
+    <FONT COLOR=black><B>def</B></FONT> SvcDoRun(self):
+        <FONT COLOR=black><B>try</B></FONT>:
+            <FONT COLOR=#1111CC># Temporarily suck up stdout and stderr into a cStringIO</FONT>
+            stdoutAndStderr = cStringIO.StringIO()
+            sys.stdout = sys.stderr = stdoutAndStderr
+            <FONT COLOR=#1111CC># Import the ThreadedAppServer</FONT>
+            <FONT COLOR=black><B>if</B></FONT> <FONT COLOR=#FF0000>''</FONT> <FONT COLOR=black><B>not</B></FONT> <FONT COLOR=black><B>in</B></FONT> sys.path:
+                sys.path = [<FONT COLOR=#FF0000>''</FONT>] + sys.path
+            os.chdir(os.pardir)
+            <FONT COLOR=black><B>from</B></FONT> WebKit <FONT COLOR=black><B>import</B></FONT> Profiler
+            Profiler.startTime = startTime
+            <FONT COLOR=black><B>from</B></FONT> WebKit.ThreadedAppServer <FONT COLOR=black><B>import</B></FONT> ThreadedAppServer
+            self.server = ThreadedAppServer(self.workDir())
+            <FONT COLOR=#1111CC># Now switch the output to the logfile specified in the appserver's config</FONT>
+            <FONT COLOR=#1111CC># setting "NTServiceLogFilename"</FONT>
+            <FONT COLOR=black><B>if</B></FONT> self.server.hasSetting(<FONT COLOR=#FF0000>'NTServiceLogFilename'</FONT>):
+                sys.stdout = sys.stderr = open(self.server.setting(<FONT COLOR=#FF0000>'NTServiceLogFilename'</FONT>), <FONT COLOR=#FF0000>'a+'</FONT>)
+                sys.stdout.write(<FONT COLOR=#FF0000>'-'</FONT> * 68 + <FONT COLOR=#FF0000>'\n'</FONT>)
+                sys.stdout.write(stdoutAndStderr.getvalue())
+            <FONT COLOR=black><B>else</B></FONT>:
+                <FONT COLOR=#1111CC># Make all output go nowhere.  Otherwise, print statements cause</FONT>
+                <FONT COLOR=#1111CC># the service to crash, believe it or not.</FONT>
+                sys.stdout = sys.stderr = open(<FONT COLOR=#FF0000>'nul'</FONT>, <FONT COLOR=#FF0000>'w'</FONT>)
+            <FONT COLOR=black><B>del</B></FONT> stdoutAndStderr
+            self.server.mainloop()
+            self.server._closeThread.join()
+        <FONT COLOR=black><B>except</B></FONT> Exception, e: <FONT COLOR=#1111CC>#Need to kill the Sweeper thread somehow</FONT>
+            <FONT COLOR=black><B>print</B></FONT> e
+            <FONT COLOR=black><B>print</B></FONT> <FONT COLOR=#FF0000>"Exiting AppServer"</FONT>
+            <FONT COLOR=black><B>if</B></FONT> 0: <FONT COLOR=#1111CC>#See the traceback from an exception</FONT>
+                tb = sys.exc_info()
+                <FONT COLOR=black><B>print</B></FONT> tb[0]
+                <FONT COLOR=black><B>print</B></FONT> tb[1]
+                <FONT COLOR=black><B>import</B></FONT> traceback
+                traceback.print_tb(tb[2])
+            <FONT COLOR=black><B>if</B></FONT> self.server:
+                self.server.running=0
+                self.server.shutDown()
+            <FONT COLOR=black><B>raise</B></FONT>
+
+    <FONT COLOR=black><B>def</B></FONT> workDir(self):
+        <FONT COLOR=black><B>return</B></FONT> None
+
+<FONT COLOR=black><B>if</B></FONT> __name__==<FONT COLOR=#FF0000>'__main__'</FONT>:
+    win32serviceutil.HandleCommandLine(ThreadedAppServerService)
+    
+</PRE>
+                  <!--footer-->
+                  </BODY>

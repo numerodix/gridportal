@@ -1,0 +1,9 @@
+#!/bin/bash -l
+#PBS -N mpiblast_update
+#PBS -l nodes=1
+#PBS -j oe
+#PBS -q express
+#
+
+cd $PBS_O_WORKDIR
+python mdu.py --start --debug --keep-downloaded --use-downloaded --no-color --skip-reorder >mdu.log 2>&1

@@ -1,0 +1,32 @@
+# $File: src/gptoolkit/INSTALL
+
+Installation guide for GridPortalToolkit 
+(http://gridportal.dynalias.org/gptoolkit/www/)
+
+
++++ Requirements to run
+- java jre 1.4.2+
+
+
++++ Requirements to build
+- java jdk 1.4.2+
+- apache ant (http://ant.apache.org/)
+
+
++++ Install
+
+For standard distribution in dist/ directory.
+$ ant
+
+To build classes only
+$ ant compile
+
+To remove all build files (not javadoc)
+$ ant clean
+
+
++++ Running
+
+$ cd dist && ./run.sh
+(toolkit.jar must be run from its directory, otherwise required
+

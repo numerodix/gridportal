@@ -1,0 +1,58 @@
+<HTML><HEAD><TITLE>WebUtils/HTMLForException.py</TITLE></HEAD>
+                  <BODY BGCOLOR=#EEEEEE>
+                  <!--header-->
+                  <!--script--><PRE><FONT COLOR=black><B>import</B></FONT> string, sys, traceback
+<FONT COLOR=black><B>from</B></FONT> Funcs <FONT COLOR=black><B>import</B></FONT> htmlEncode
+
+
+<FONT COLOR=#1111CC># @@ 2000-04-10 ce: change these so they're general args to the tags rather than just the colors</FONT>
+HTMLForExceptionOptions = {
+    <FONT COLOR=#FF0000>'table.bgcolor'</FONT>:        <FONT COLOR=#FF0000>'#F0F0F0'</FONT>,
+    <FONT COLOR=#FF0000>'default.fgcolor'</FONT>:      <FONT COLOR=#FF0000>'#000000'</FONT>,
+    <FONT COLOR=#FF0000>'row.location.fgcolor'</FONT>: <FONT COLOR=#FF0000>'#0000AA'</FONT>,
+    <FONT COLOR=#FF0000>'row.code.fgcolor'</FONT>:     <FONT COLOR=#FF0000>'#FF0000'</FONT>
+}
+
+
+<FONT COLOR=black><B>def</B></FONT> HTMLForException(excInfo=None, options=None):
+    <FONT COLOR=#FF0000>""" Returns an HTML string that presents useful information to the developer about the exception. The first argument is a tuple such as returned by sys.exc_info() which is in fact, invoked if the tuple isn't provided. """</FONT>
+    <FONT COLOR=#1111CC># @@ 2000-04-17 ce: Maybe excInfo should default to None and get set to sys.excInfo() if not specified. If so, then clean up other code.</FONT>
+
+    <FONT COLOR=#1111CC># Get the excInfo if needed</FONT>
+    <FONT COLOR=black><B>if</B></FONT> excInfo <FONT COLOR=black><B>is</B></FONT> None:
+        excInfo = sys.exc_info()
+
+    <FONT COLOR=#1111CC># Set up the options</FONT>
+    <FONT COLOR=black><B>if</B></FONT> options:
+        opt = HTMLForExceptionOptions.copy()
+        opt.update(options)
+    <FONT COLOR=black><B>else</B></FONT>:
+        opt = HTMLForExceptionOptions
+
+    <FONT COLOR=#1111CC># Create the HTML</FONT>
+    res = [
+        <FONT COLOR=#FF0000>'&lt;table bgcolor=%s width=100%% cellpadding=4&gt;&lt;tr&gt;&lt;td&gt;\n'</FONT> % opt[<FONT COLOR=#FF0000>'table.bgcolor'</FONT>],
+        <FONT COLOR=#FF0000>'&lt;pre&gt;&lt;font color=%s&gt;'</FONT> % opt[<FONT COLOR=#FF0000>'default.fgcolor'</FONT>]
+        ]
+    out = apply(traceback.format_exception, excInfo)
+    <FONT COLOR=black><B>for</B></FONT> line <FONT COLOR=black><B>in</B></FONT> out:
+        <FONT COLOR=black><B>if</B></FONT> string.find(line, <FONT COLOR=#FF0000>'File '</FONT>)!=-1:
+            parts = string.split(line, <FONT COLOR=#FF0000>'\n'</FONT>)
+            parts = map(<FONT COLOR=black><B>lambda</B></FONT> s: htmlEncode(s), parts)
+            parts[0] = <FONT COLOR=#FF0000>'&lt;font color=%s&gt;%s&lt;/font&gt;'</FONT> % (opt[<FONT COLOR=#FF0000>'row.location.fgcolor'</FONT>], parts[0])
+            parts[1] = <FONT COLOR=#FF0000>'&lt;font color=%s&gt;%s&lt;/font&gt;'</FONT> % (opt[<FONT COLOR=#FF0000>'row.code.fgcolor'</FONT>], parts[1])
+            line = string.join(parts, <FONT COLOR=#FF0000>'\n'</FONT>)
+            res.append(line)
+        <FONT COLOR=black><B>else</B></FONT>:
+            res.append(htmlEncode(line))
+    <FONT COLOR=black><B>if</B></FONT> out:
+        <FONT COLOR=black><B>if</B></FONT> res[-1][-1]==<FONT COLOR=#FF0000>'\n'</FONT>:
+            res[-1] = string.rstrip(res[-1])
+    res.extend([
+        <FONT COLOR=#FF0000>'&lt;/font&gt;&lt;/pre&gt;'</FONT>,
+        <FONT COLOR=#FF0000>'&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;\n'</FONT>
+        ])
+    <FONT COLOR=black><B>return</B></FONT> string.join(res, <FONT COLOR=#FF0000>''</FONT>)
+</PRE>
+                  <!--footer-->
+                  </BODY>

@@ -1,0 +1,51 @@
+The classes contained within this directory and the tools directory below it 
+will not compile by default.  In order to compile them, you must:
+
+1.) Download the pkcs11 wrappers from IBM at
+    http://www.alphaworks.ibm.com/tech/pkcs and place the
+    zip file (jpkcs11.zip) in the lib directory of the cog base directory 
+
+2.) Make sure that you have the proper drivers/shared libraries for your
+    pkcs11 device installed and your environment setup appropriately (see
+    "NATIVE LIBRARY ENVIRONMENT SETUP" below). For the Java iButton on Windows,
+    this is ftp://ftp.dalsemi.com/pub/crypto/pkcs11/release1.01/WinPKCS.exe.
+
+3.) Use ant to compile. Ant will automatically try to compile the pkcs11
+    package once it detects the jpkcs11.zip file is present in the lib/
+    directory.
+
+Note: only ant is supported at this time -- the makefile in this directory
+      is a dummy makefile
+
+
+NATIVE LIBRARY ENVIRONMENT SETUP:
+
+Which native library will be used when running programs using these classes can
+be specified in two ways: 
+
+1. add the following line to cog.properties:
+   pkcs11lib = nameofyourlib 
+
+   example:
+	#Use the iButton Windows drivers
+   	pkcs11lib=dspkcs
+
+2. if this is not specified, the code will check for the system property
+   PKCS11_LIB
+
+The default if neither is specified is "dspkcs" which is the name of
+the ibutton library.
+
+To make sure Java can find your native library, you must point your environment
+to the directory that holds it.  You can achieve this in several ways, some
+of which are dependant on your OS:
+
+A. Include the native library directory in the java.library.path.
+   example:
+   	java ... -Djava.library.path=C:\WINNT\system32\drivers ...
+
+B. If you are using Windows, you can make sure the native library is in a
+   directory which is listed in your PATH variable.
+
+C. If you are using Unix/Linux you can set the LD_LIBRARY_PATH variable
+   to include the the required directory.

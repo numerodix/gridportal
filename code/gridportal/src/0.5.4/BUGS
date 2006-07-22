@@ -1,0 +1,2 @@
+BlastJobPage.py, LapBlast.py
+Job editing form allows empty both empty query sequence *and* empty sequences file. Fairly non-critical, the user is unlikely to produce this scenario often and even when it does happen, the error is not critical.
