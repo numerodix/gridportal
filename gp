@@ -38,8 +38,7 @@ CO_PATH=
 
 install() {
 	# check if I'm being run from outside my directory
-	if [[ `dirname $0` != "." ]]
-	then
+	if [[ `dirname $0` != "." ]]; then
 		echo "Please run me from my directory when installing."
 		exit 1
 	else
@@ -55,8 +54,7 @@ remove() {
 
 
 pathcheck() {
-	if [[ $CO_PATH == "" ]] 
-	then
+	if [[ $CO_PATH == "" ]]; then
 		echo "\$CO_PATH [ie. install path] not set, run install function."
 		exit 1
 	else
