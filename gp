@@ -101,11 +101,22 @@ svnci() {
 
 ### web functions
 
+
+webdocsync() {
+        pathcheck
+	cd $CO_PATH/$LWEBPATH
+	if [[ ! -f $1/docs/$2 ]]; then
+		cp $CO_PATH/$SRCPATH/$1/src/$1/$2 $1/docs
+	fi
+}
+
 webup() {
 	pathcheck
 	clean
-	cd $LWEBPATH
-	cp $CO_PATH/$MDUPATH/src/mdu/README mdu/docs
+	webdocsync gridportal ChangeLog
+	webdocsync gptoolkit ChangeLog
+	webdocsync mdu README
+	cd $CO_PATH/$LWEBPATH
 #	scp * $SHELLUSER@$SHELLHOST:$WEBPATH
 	nice -n 10 \
 	rsync --archive --verbose --stats --progress \

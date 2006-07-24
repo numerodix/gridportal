@@ -3,7 +3,7 @@
 	<property name="version" value="1.0.1"/>
 	
 	<property name="release" value="src/${version}"/>
-	<property name="head" value="src/gpclient"/>
+	<property name="head" value="src/gptoolkit"/>
 	
 	<property name="srcroot" location="${release}"/>
 	<property name="distroot" location="dist"/>
