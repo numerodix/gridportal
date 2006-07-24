@@ -5,6 +5,8 @@
 
 PROJECT=grid-portal
 
+LWEBPATH=web
+
 SRCPATH=code
 
 MDUPATH=code/mdu
@@ -102,7 +104,14 @@ svnci() {
 webup() {
 	pathcheck
 	clean
-	scp * $SHELLUSER@$SHELLHOST:$WEBPATH
+	cd $LWEBPATH
+	cp $CO_PATH/$MDUPATH/src/mdu/README mdu/docs
+#	scp * $SHELLUSER@$SHELLHOST:$WEBPATH
+	nice -n 10 \
+	rsync --archive --verbose --stats --progress \
+	--rsh="ssh -l $SHELLUSER" \
+	--exclude='.svn' --delete-excluded \
+	`pwd`/* $SHELLUSER@$SHELLHOST:$WEBPATH
 }
 
 
