@@ -36,7 +36,7 @@ class DocGettingStarted(LunarcPage):
 		In order to get started with GRIDportal, you will need to use the GridPortalToolkit. Follow these steps to install the toolkit:
 		<ol>
 		<li>Install <span id="accs"><a href="http://www.java.com/en/download/">Java Runtime Environment (JRE) 1.4.2</a></span> (or later)
-		<li>Download the <span id="accs"><a href="http://gridportal.dynalias.org/gptoolkit/www/files/gptoolkit.zip">GridPortalToolkit</a></span> and unzip the file.
+		<li>Download the <span id="accs"><a href="https://sourceforge.net/project/showfiles.php?group_id=171912&package_id=198107">GridPortalToolkit</a></span> and unzip the file.
 		</ol>
 		
 		The toolkit is now ready for use. To start it:

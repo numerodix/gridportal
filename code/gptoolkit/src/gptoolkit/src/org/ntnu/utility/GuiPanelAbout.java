@@ -83,7 +83,7 @@ class GuiPanelAbout extends JPanel implements ActionListener {
 		copy.setLayout(new BorderLayout());
 		copy.add(GuiToolbox.getMultilineJLabel(
 			"\n \nCopyright (c) 2005 Norwegian University of Science and Technology" +
-			"\nWritten for use with GRIDportal (http://gridportal.dynalias.org/)" +
+			"\nWritten for use with GRIDportal (http://grid-portal.sourceforge.net/)" +
 			"\nVisit the project site for source or binary distribution." +
 			"\n \nNOTE: Source code used on licence from other projects."
 		), BorderLayout.NORTH);

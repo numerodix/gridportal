@@ -13,7 +13,7 @@ import java.lang.*;
 
 /**<pre>
  * GridPortalToolkit client side application in support of GRIDportal 
- * (http://gridportal.dynalias.org/)
+ * (http://grid-portal.sourceforge.net)
  *
  * This client offers the following basic functions:
  * + certificate request generation

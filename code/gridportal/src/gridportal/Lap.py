@@ -14,7 +14,7 @@ releaseVersion = 4
 textVersion    = ""
 
 description    = "GRIDportal, the NTNU Application Portal"
-website				= "(<a href='http://gridportal.dynalias.org/'>http://gridportal.dynalias.org/</a>)"
+website				= "(<a href='http://grid-portal.sourceforge.net/'>http://grid-portal.sourceforge.net/</a>)"
 fork					= "A fork of Jonas Lindemann's \"LUNARC Application Portal\""
 copyright      = "Copyright &#169 2005 High Performance Computing Project, NTNU"
 license	       = "GNU Public License version 2 or later"

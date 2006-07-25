@@ -113,8 +113,8 @@ dodoc_gptoolkit() {
 	pathcheck
 	cd $SRCPATH/gptoolkit
 	ant doc
-	rm -rf $LWEBPATH/gptoolkit/docs
-	mv docs $LWEBPATH/gptoolkit
+	cp -a docs $LWEBPATH/gptoolkit
+	ant docclean
 }
 
 webup() {

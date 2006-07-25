@@ -1,8 +1,8 @@
 export PYTHONPATH=$GP_PATH/lib/webware:$GP_PATH/lib/webware/WebKit/Examples:.
 cd $GP_PATH/src/gridportal
-nice -n5 epydoc --html -o ../../www/docs/api/html -c blue -v -n GRIDportal -u http://gridportal.dynalias.org *.py
-#nice -n5 epydoc --latex -o ../../www/docs/api/pdf -c blue -v -n GRIDportal -u http://gridportal.dynalias.org *.py
-#nice -n5 epydoc --pdf -o ../../www/docs/api/pdf -c blue -v -n GRIDportal -u http://gridportal.dynalias.org *.py
+nice -n5 epydoc --html -o ../../www/docs/api/html -c blue -v -n GRIDportal -u http://grid-portal.sourceforge.net/ *.py
+#nice -n5 epydoc --latex -o ../../www/docs/api/pdf -c blue -v -n GRIDportal -u http://grid-portal.sourceforge.net/ *.py
+#nice -n5 epydoc --pdf -o ../../www/docs/api/pdf -c blue -v -n GRIDportal -u http://grid-portal.sourceforge.net/ *.py
 #cd $GP_PATH/www/docs/api/pdf
 #nice -n5 pdflatex api.tex
 #nice -n5 pdflatex api.tex

@@ -60,7 +60,7 @@ class DocUsingToolkit(LunarcPage):
 		<p><b>Installing GridPortalToolkit</b>
 		</p>
 		
-		<p>First, <span id="accs"><a href="http://gridportal.dynalias.org/gptoolkit/www/files/gptoolkit.zip">download GridPortalToolkit</a></span>, the file is called <span id="accs">gptoolkit.zip</span>.
+		<p>First, <span id="accs"><a href="https://sourceforge.net/project/showfiles.php?group_id=171912&package_id=198107">download GridPortalToolkit</a></span>, the file is called <span id="accs">gptoolkit.zip</span>.
 		</p>
 		
 		<p>Unzip file file with <span id="accs"><a href="DocTar">7-zip</a></span>.
