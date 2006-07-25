@@ -1,0 +1,13 @@
+cd $GP_PATH/www/docs
+for i in $(ls --color=none | egrep "\-tex$" --colour=never)
+do
+#  f=${i/\/}
+	cd $i/_lyx
+	cp -p ../*.html .
+	cp -p ../*.pdf .
+	cp -p ../*.png .	
+	nice -n10 make -f $GP_PATH/www/_compile/Makefile all clean
+#	gphtml
+#	gppdf
+	cd $GP_PATH/www/docs
+done

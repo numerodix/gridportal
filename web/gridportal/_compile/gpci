@@ -1,0 +1,4 @@
+gpclean
+cd $GP_PATH && \
+svn ci && \
+ssh matusiak.homeip.net sudo /root/cron/svnco

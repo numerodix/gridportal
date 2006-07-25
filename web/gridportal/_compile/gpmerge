@@ -1,0 +1,25 @@
+cd $GP_PATH/www/docs/fprint
+
+pdftk \
+\
+00a_splash.pdf \
+00b_aitel_header.pdf blankone.pdf \
+00c_index.pdf blanktwo.pdf blankone.pdf \
+\
+01a_preliminary_study.pdf blanktwo.pdf blankone.pdf \
+01b_projectnotebook.pdf blanktwo.pdf blankone.pdf \
+01c_projsshots.pdf blanktwo.pdf \
+01d_presentation.pdf blanktwo.pdf \
+01e_final_report.pdf blanktwo.pdf \
+\
+02a_gpuserguide.pdf blanktwo.pdf blankone.pdf \
+02b_gpsshots.pdf blanktwo.pdf \
+02c_white_paper.pdf blanktwo.pdf \
+02d_requirements_specification.pdf blanktwo.pdf blankone.pdf \
+02e_test_report.pdf blanktwo.pdf \
+02f_api.pdf blanktwo.pdf \
+\
+03a_poster_abstract.pdf blanktwo.pdf blankone.pdf \
+03b_notur-a4.pdf blanktwo.pdf \
+\
+cat output complete.pdf

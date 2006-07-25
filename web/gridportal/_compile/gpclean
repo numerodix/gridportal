@@ -1,0 +1,8 @@
+cd $GP_PATH
+find . -name '*.pyc' -print -exec rm {} \;
+find . -name '*~' -print -exec rm {} \;
+find . -name '*autosave' -print -exec rm {} \;
+#find www/docs -name '*.pdf.r*' -print -exec rm -rf {} \;
+#find www/docs -name '*.pdf' -print -exec rm {} \;
+#find www/docs -name '*.html.r*' -print -exec rm -rf {} \;
+#find www/docs -name '*.html' -print -exec rm {} \;

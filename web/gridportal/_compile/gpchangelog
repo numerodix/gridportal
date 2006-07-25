@@ -1,0 +1,4 @@
+cd $GPAC_PATH
+svn log -r HEAD:1 --xml --verbose \
+	| xsltproc $GPAC_PATH/www/_scripts/svn2cl.xsl - \
+	> $GPAC_PATH/src/gridportal/ChangeLog.svn

@@ -1,0 +1,28 @@
+for i in $(ls *.eps)
+do
+	f=${i/.eps}
+	convert $f.eps $f.png
+done
+
+for i in $(ls *.lyx)
+do 
+	lyx -e latex $i
+	f=${i/.lyx}
+  #latex $f.tex
+  #latex $f.tex  
+	latex2html -split 0 -no_navigation -info 0 -no_subdir \
+		-html_version 4.0,unicode -address 0 \
+		-antialias -antialias_text -white \
+		-init_file ../../../_scripts/latex2html-init \
+		$f.tex         
+	sed "s/$f.css/..\/..\/_scripts\/web.css/g" $f.html > $f.htmla
+	mv $f.htmla $f.html
+	rm $f.tex
+done
+rm index.html labels.pl images.pl WARNINGS *.css \
+	*.tex *.log *.aux *.txt *.dvi *.ps *~ *.sgml *.toc *.lot *.lof *.out
+mv *.html ..
+mv *.png ..
+mv *.jpg ..
+rm *.html *.pdf
+

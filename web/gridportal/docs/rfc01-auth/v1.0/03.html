@@ -1,0 +1,67 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<link rel="stylesheet" href="styles.css" type="text/css">
+</head>
+
+<body>
+
+<div="wrapper">
+
+	<div class="title">
+		<h1>GRIDportal RFC01 : authentication mechanism</h1>
+		pages: <a href="index.html">01</a> | 
+					<a href="02.html">02</a> | 
+					<a href="03.html">03</a> |
+					<a href="04.html">04</a>
+	</div>
+
+	<div class="ui">
+		<div class="subtitle">User interface</div>
+	
+		<h2>Activate account</h2>
+			Your account now has to be activated before use. In order to do this, upload your signed certificate (you should have received it by email) to store it permanently on the server.
+	
+		<table style="margin: 0px auto;">
+			<tr>
+				<th>username:</th>
+				<td><input value="jdoe"></td>
+			</tr>
+			<tr>
+				<th>password:</th>
+				<td><input type="password" value="jimmy"></td>
+			</tr>	
+			<tr>
+				<th>certificate:</th>
+				<td><input type="file"></td>
+			</tr>
+			<tr>
+				<th><input type="submit" value="send"></th>
+				<td><input type="reset" value="reset"></td>
+			</tr>
+		</table>
+	</div>
+	
+	<div class="design">
+		<div class="subtitle">Design</div>
+		
+		The signed certificate is uploaded, along with the username and password with which the user registered at GRIDportal.
+		<br><br>
+		The certificate is now stored with myProxy. myProxy requires a username/password combo for any given credential stored there, so we use the username/password we already have.
+	</div>
+	
+	<div class="implementation">
+		<div class="subtitle">Implementation</div>
+		
+		The myProxy client utility used to store credentials with myProxy, <i>myproxy-init</i> is an interactive program. Instead, we can use the  <i>Authentication.pm</i> perl module from <a href="http://gridport.net">gridport</a> and write a simple client to do this.
+		
+		<div class="security">
+			<h3>The security angle</h3>
+			Once again, the certificate is transferred to GRIDportal. It is then stored in myProxy and removed from GRIDportal. To secure the transfer we can use https.
+		</div>
+	</div>
+
+</div>
+
+</body>
+</html>

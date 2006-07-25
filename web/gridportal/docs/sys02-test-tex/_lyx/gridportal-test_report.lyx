@@ -1,0 +1,694 @@
+#LyX 1.3 created this file. For more info see http://www.lyx.org/
+\lyxformat 221
+\textclass scrreprt
+\begin_preamble
+\usepackage{epstopdf}
+\usepackage{html}
+\usepackage{color}\pagecolor{white}
+
+\usepackage[section]{placeins}
+\usepackage[subsection]{placeinssubsection}
+
+\usepackage{moreverb}
+\end_preamble
+\language english
+\inputencoding auto
+\fontscheme bookman
+\graphics default
+\paperfontsize 10
+\spacing single 
+\papersize a4paper
+\paperpackage widemarginsa4
+\use_geometry 0
+\use_amsmath 0
+\use_natbib 1
+\use_numerical_citations 0
+\paperorientation portrait
+\secnumdepth 3
+\tocdepth 4
+\paragraph_separation skip
+\defskip smallskip
+\quotes_language swedish
+\quotes_times 2
+\papercolumns 1
+\papersides 2
+\paperpagestyle fancy
+
+\layout Title
+
+GRIDportal Test Report
+\layout Author
+
+Martin Matusiak
+\layout Publishers
+
+
+\begin_inset Graphics
+	filename logo.eps
+	display none
+	width 40page%
+	keepAspectRatio
+
+\end_inset 
+
+
+\layout Standard
+
+
+\begin_inset LatexCommand \tableofcontents{}
+
+\end_inset 
+
+
+\layout Section
+\pagebreak_top 
+Preface
+\layout Standard
+
+This document is intended for the reader who is familiar with GRIDportal.
+ For an explanation of concepts and the system itself, please see the White
+ Paper.
+\layout Chapter
+
+What to test?
+\layout Section
+
+The frontend perspective
+\layout Standard
+
+In the frontend perspective, GRIDportal interacts with WebKit, Webware and
+ Apache.
+ The level of complexity in this construct, as regards GRIDportal, is rather
+ low.
+ It is a question of correct configuration of the http server and the consequenc
+e is that either it works or it does not.
+ Thus testing the frontend is fairly trivial, once the http server has been
+ configured, one can tell whether GRIDportal operates correctly.
+\layout Standard
+
+Consequently, no testing was done of the frontend beyond verifying that
+ it does serve pages correctly.
+\layout Section
+
+The backend perspective
+\layout Standard
+
+Given that GRIDportal is a component of a greater whole, it would make sense
+ to consider how it should be tested and exactly what should undergo testing.
+ GRIDportal is closely linked to the NorduGrid/ARC middleware, it depends
+ entirely on services supplied by the middleware.
+ Thus there are two apparent perspectives to testing.
+\layout Itemize
+
+Integration test to determine how well GRIDportal works as part of the software
+ stack.
+\layout Itemize
+
+Isolation test where the deployment environment is largely disregarded to
+ test the functionality of GRIDportal alone.
+\layout Standard
+
+An integration test makes a lot of sense, because the purpose of the project
+ is to integrated GRIDportal into the runtime environment and verify that
+ it is functional.
+ An integration test will also uncover stability issues with the middleware
+ and possibly other components further down the software stack.
+ This can be considered beneficial, as it brings out faults in the entire
+ system and not just GRIDportal.
+ However, it can also be seen to hamper the testing, as stability issues
+ in the middleware or elsewhere could conceal problems with GRIDportal.
+\layout Standard
+
+To get around that issue, an isolation test could be used to determine GRIDporta
+l's stability and performance without relying on the middleware or other
+ software.
+ However, such a test would have to be far more complicated and probably
+ would not uncover many serious errors which were not already discovered
+ in the integration test.
+ Fine grained isolation testing could be accomplished with unit testing,
+ but the way GRIDportal was designed, it simply does not lend itself to
+ unit testing very well, and choosing that avenue would imply simulating
+ parts of the middleware.
+ The reason why this is so is that GRIDportal does not contain much business
+ logic, it is a gateway between the user and the middleware.
+ So it consists mostly of functions which either
+\layout Itemize
+
+interact with the middleware, or
+\layout Itemize
+
+return html code,
+\layout Standard
+
+thus writing unit tests would soon become very obscure and tedious.
+ Consequently, it was decided to scrap the isolation test entirely and only
+ undertake integration testing.
+\layout Chapter
+
+Test procedures
+\layout Section
+
+Integration test
+\layout Subsection
+
+Automated testing
+\layout Standard
+
+No facility was created to automate the integration test.
+ Such a system could be constructed, it would have to contain a web browser
+ and logic to verify that navigating the GRIDportal web site a certain way
+ returns expected results.
+ But this kind of system would most likely take a long time to build, it
+ would also be terribly inconvenient to maintain as GRIDportal evolves and
+ the html pages retrieved by the test system change slightly in appearance.
+\layout Subsection
+
+Manual testing
+\layout Standard
+
+So in the absence of automated testing, the apparent alternative is to do
+ manual testing.
+ The manual testing follows familiar use cases and experiences GRIDportal
+ just as a typical user would.
+ It first sets certain criteria for input data or outcome, and then proceeds
+ to test the full functionality of GRIDportal.
+ (As navigation in GRIDportal is handled through buttons tied to html forms,
+ it simply means testing all of the functions operated by these buttons.)
+\layout Standard
+
+Since GRIDportal is a small website (judging by the number of pages), we
+ have the luxury of testing all of its functionality in this test.
+\layout Subsubsection
+
+Limitations
+\layout Standard
+
+Special scenarios geared at unveiling uncommon errors which the user is
+ unlikely to encounter are not tested (such as trying inconceivably extreme
+ input values or purposely trying to provoke unexpected situations).
+ This should be tested in the context of an isolation test instead, since
+ an isolation test is more suited to yield a thorough run down of the bugs
+ in each function.
+\layout Chapter
+
+Tests results
+\layout Section
+
+Integration test
+\layout Subsection
+
+Typical use cases
+\layout Standard
+
+BLAST testing was impaired by the lack of installed BLAST databases on the
+ grid, so only blastp and blastn jobs were possible to run.
+ On top of that, only data sets for blastp were available.
+ But given that all blast* variants are very similar in how jobs are executed
+ and all jobs are launched by the same binary, testing one BLAST variant
+ is highly significant to the whole.
+\layout Standard
+
+In testing Matlab, only a trivial data set was available.
+\layout Standard
+
+Where no outcome is stated, the test finished without error.
+\layout Standard
+
+
+\begin_inset  Tabular
+<lyxtabular version="3" rows="7" columns="3">
+<features islongtable="true">
+<column alignment="block" valignment="top" rightline="true" width="50text%">
+<column alignment="block" valignment="top" rightline="true" width="28text%">
+<column alignment="block" valignment="top" width="12text%">
+<row topline="true" bottomline="true">
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+
+\series bold 
+Scenario > Outcome
+\end_inset 
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+
+\series bold 
+Criteria
+\end_inset 
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+
+\series bold 
+Verdict
+\end_inset 
+</cell>
+</row>
+<row topline="true" bottomline="true">
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+Run Matlab job (implies: create & edit, submit & monitor & get & view files
+ & delete)
+\end_inset 
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+trivial data set
+\end_inset 
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+PASSED
+\end_inset 
+</cell>
+</row>
+<row bottomline="true">
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+Run blastp job (implies: create & edit, submit & monitor & get & view files
+ & delete)
+\end_inset 
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+typical data set
+\end_inset 
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+PASSED
+\end_inset 
+</cell>
+</row>
+<row bottomline="true">
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+Run blastp job (as above) > job was terminated by grid for exceeding max
+ time limit of 12h
+\end_inset 
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+huge data set
+\end_inset 
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+PASSED
+\end_inset 
+</cell>
+</row>
+<row bottomline="true">
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+Run a job > job was deleted by grid
+\end_inset 
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+job not retrieved within 24h
+\end_inset 
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+PASSED
+\end_inset 
+</cell>
+</row>
+<row bottomline="true">
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+Kill a job
+\end_inset 
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+\end_inset 
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+PASSED
+\end_inset 
+</cell>
+</row>
+<row bottomline="true">
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+Clean a deleted job
+\end_inset 
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+\end_inset 
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+PASSED
+\end_inset 
+</cell>
+</row>
+</lyxtabular>
+
+\end_inset 
+
+
+\layout Subsection
+
+Session handling
+\layout Standard
+
+A few tests were run to verify that session handling is functional.
+\layout Standard
+
+While it was stated that the testing would not deliberately provoke unexpected
+ results, a user who mistakenly chooses the wrong file to upload as a proxy
+ will receive a surprising outcome.
+\layout Standard
+
+
+\begin_inset  Tabular
+<lyxtabular version="3" rows="5" columns="3">
+<features islongtable="true">
+<column alignment="block" valignment="top" width="50text%">
+<column alignment="block" valignment="top" leftline="true" rightline="true" width="28text%">
+<column alignment="block" valignment="top" width="12text%">
+<row topline="true" bottomline="true">
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+
+\series bold 
+Scenario > Outcome
+\end_inset 
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+
+\series bold 
+Criteria
+\end_inset 
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+
+\series bold 
+Verdict
+\end_inset 
+</cell>
+</row>
+<row topline="true" bottomline="true">
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+User logs in > login accepted
+\end_inset 
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+valid proxy
+\end_inset 
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+PASSED
+\end_inset 
+</cell>
+</row>
+<row bottomline="true">
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+User logs in > denied access
+\end_inset 
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+expired proxy
+\end_inset 
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+PASSED
+\end_inset 
+</cell>
+</row>
+<row bottomline="true">
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+User logs in > WebKit returned unhandled exception
+\end_inset 
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+random file uploaded as proxy
+\end_inset 
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+FAILED
+\end_inset 
+</cell>
+</row>
+<row bottomline="true">
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+User inactive > WebKit session times out, user must log in anew
+\end_inset 
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+inactivity exceeds 60 minutes
+\end_inset 
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+PASSED
+\end_inset 
+</cell>
+</row>
+</lyxtabular>
+
+\end_inset 
+
+
+\layout Subsection
+
+HTTP transfer constraints
+\layout Standard
+
+An inherent weakness of GRIDportal is handling of big input/output files.
+ All file transfers are done over HTTP, thus network speed and congestion
+ can easily disrupt an ongoing transfer and there is no function to resume
+ a transfer so the user is forced to start over and try again.
+\layout Standard
+
+Connection speeds are given as top extremes, so any transfer is very unlikely
+ to reach the speed indicated.
+\layout Standard
+
+
+\begin_inset  Tabular
+<lyxtabular version="3" rows="3" columns="3">
+<features islongtable="true">
+<column alignment="block" valignment="top" width="50text%">
+<column alignment="block" valignment="top" leftline="true" rightline="true" width="28text%">
+<column alignment="block" valignment="top" width="12text%">
+<row topline="true" bottomline="true">
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+
+\series bold 
+Scenario > Outcome
+\end_inset 
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+
+\series bold 
+Criteria
+\end_inset 
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+
+\series bold 
+Verdict
+\end_inset 
+</cell>
+</row>
+<row topline="true" bottomline="true">
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+Create blastp job > transfer failed to complete
+\end_inset 
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+input file is 75MB,
+\newline 
+connection is 96KB/s
+\end_inset 
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+FAILED
+\end_inset 
+</cell>
+</row>
+<row bottomline="true">
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+Download job results > transfer completed
+\end_inset 
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+.tar.gz is 150MB,
+\newline 
+connection is 660KB/s
+\end_inset 
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+PASSED
+\end_inset 
+</cell>
+</row>
+</lyxtabular>
+
+\end_inset 
+
+
+\the_end

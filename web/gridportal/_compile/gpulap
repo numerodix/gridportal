@@ -1,0 +1,5 @@
+gpclean
+nice -n 10 \
+rsync --recursive --links --safe-links --perms --times --compress --force \
+--whole-file --delete --stats --verbose --progress --cvs-exclude \
+$GP_PATH/src/gridportal/* marmat@norgrid:~/gridportal

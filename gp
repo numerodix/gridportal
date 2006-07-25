@@ -1,15 +1,15 @@
 #!/bin/sh
 
+CO_PATH=
+
 
 ### project/package info
 
 PROJECT=grid-portal
 
-LWEBPATH=web
+LWEBPATH=$CO_PATH/web
 
-SRCPATH=code
-
-MDUPATH=code/mdu
+SRCPATH=$CO_PATH/code
 
 
 ### where to install this script
@@ -34,8 +34,6 @@ WEBPATH=/home/groups/g/gr/$PROJECT/htdocs
 
 
 ### do not edit below this line
-
-CO_PATH=
 
 
 install() {
@@ -103,11 +101,20 @@ svnci() {
 
 
 webdocsync() {
+	# usage: gp webdocsync <package> <file>
         pathcheck
-	cd $CO_PATH/$LWEBPATH
-	if [[ ! -f $1/docs/$2 ]]; then
-		cp $CO_PATH/$SRCPATH/$1/src/$1/$2 $1/docs
-	fi
+	cd $LWEBPATH
+#	if [[ ! -f $1/docs/$2 ]]; then
+		cp $SRCPATH/$1/src/$1/$2 $1/docs
+#	fi
+}
+
+dodoc_gptoolkit() {
+	pathcheck
+	cd $SRCPATH/gptoolkit
+	ant doc
+	rm -rf $LWEBPATH/gptoolkit/docs
+	mv docs $LWEBPATH/gptoolkit
 }
 
 webup() {
@@ -116,8 +123,7 @@ webup() {
 	webdocsync gridportal ChangeLog
 	webdocsync gptoolkit ChangeLog
 	webdocsync mdu README
-	cd $CO_PATH/$LWEBPATH
-#	scp * $SHELLUSER@$SHELLHOST:$WEBPATH
+	cd $LWEBPATH
 	nice -n 10 \
 	rsync --archive --verbose --stats --progress \
 	--rsh="ssh -l $SHELLUSER" \

@@ -1,0 +1,2377 @@
+#LyX 1.3 created this file. For more info see http://www.lyx.org/
+\lyxformat 221
+\textclass scrreprt
+\begin_preamble
+\usepackage{epstopdf}
+\usepackage{html}
+\usepackage{color}\pagecolor{white}
+
+\usepackage[section]{placeins}
+\usepackage[subsection]{placeinssubsection}
+
+\usepackage{moreverb}
+\end_preamble
+\language english
+\inputencoding auto
+\fontscheme bookman
+\graphics default
+\paperfontsize 10
+\spacing single 
+\papersize a4paper
+\paperpackage widemarginsa4
+\use_geometry 0
+\use_amsmath 0
+\use_natbib 1
+\use_numerical_citations 0
+\paperorientation portrait
+\secnumdepth 3
+\tocdepth 4
+\paragraph_separation skip
+\defskip smallskip
+\quotes_language swedish
+\quotes_times 2
+\papercolumns 1
+\papersides 2
+\paperpagestyle fancy
+
+\layout Title
+
+GRIDportal White Paper
+\layout Subject
+
+Revision 0.5.4
+\layout Author
+
+Martin Matusiak
+\layout Publishers
+
+
+\begin_inset Graphics
+	filename logo.eps
+	display none
+	width 40page%
+	keepAspectRatio
+
+\end_inset 
+
+
+\layout Uppertitleback
+
+GRIDportal source code and full documentation available at the project site.
+ 
+\newline 
+
+\begin_inset LatexCommand \htmlurl{http://gridportal.dynalias.org/}
+
+\end_inset 
+
+ 
+\layout Lowertitleback
+
+This work is licensed under the Creative Commons Attribution-NonCommercial-Share
+Alike License.
+ To view a copy of this license, visit 
+\begin_inset LatexCommand \htmlurl{http://creativecommons.org/licenses/by-nc-sa/2.0/}
+
+\end_inset 
+
+ or send a letter to Creative Commons, 559 Nathan Abbott Way, Stanford,
+ California 94305, USA.
+\layout Standard
+
+
+\begin_inset LatexCommand \tableofcontents{}
+
+\end_inset 
+
+
+\layout Standard
+
+
+\begin_inset FloatList figure
+
+\end_inset 
+
+
+\layout Addchap
+
+Preface
+\layout Standard
+
+This documented aims to describe GRIDportal in some level of detail, focusing
+ not on its internals but rather its positioning in the software stack and
+ how it interacts with other software components.
+ 
+\layout Standard
+
+The way this document is laid out, it lends itself to sequential reading
+ so you will probably find it most beneficial to read the chapters in the
+ order they are presented.
+\layout Section
+
+Intended audience
+\layout Standard
+
+This documented is intended for system engineers/administrators who are
+ evaluating GRIDportal for their needs or indeed deploying GRIDportal on
+ their grid sites.
+ If you are reading this, it is understood that you are familiar with NorduGrid/
+ARC middleware and thus I make no effort to explain what it is and what
+ services it provides.
+ The NorduGrid documentation
+\begin_inset Foot
+collapsed false
+
+\layout Standard
+
+NorduGrid documentation 
+\begin_inset LatexCommand \htmlurl{http://www.nordugrid.org/papers.html}
+
+\end_inset 
+
+
+\end_inset 
+
+ does a much better job of that and I refer you to it.
+\layout Standard
+
+After reading this white paper you should understand
+\layout Itemize
+
+what GRIDportal is and how it relates to grid middleware and the http server.
+\layout Itemize
+
+whether or not GRIDportal is a good choice for your grid site.
+\layout Section
+
+Chapter guide
+\layout Paragraph*
+
+Chapter 1 - Introduction
+\layout Standard
+
+aims to give you a high level introduction to GRIDportal, what its purpose
+ is and what needs have brought it into existence.
+\layout Paragraph*
+
+Chapter 2 - Installation
+\layout Standard
+
+aims to explain what is needed to install GRIDportal and walk you through
+ the installation procedure.
+\layout Paragraph*
+
+Chapter 3 - Architecture
+\layout Standard
+
+aims to give a fairly comprehensive explanation of how GRIDportal interacts
+ with all the software components which surround it.
+\layout Paragraph*
+
+Chapter 4 - NorduGrid
+\layout Standard
+
+aims to give a brief introduction to NorduGrid as a basis for an explanation
+ of how GRIDportal is affected by NorduGrid, both the NorduGrid network
+ and the middleware.
+ The crucial point here is the authentication mechanism NorduGrid provides.
+\layout Paragraph*
+
+Chapter 5 - Design
+\layout Standard
+
+aims to give a quick overview of how GRIDportal is designed internally and
+ how it operates.
+\layout Chapter
+
+Introduction - the bird's eye view
+\layout Section
+
+The problem
+\layout Standard
+
+Grid resources offer plenty of processing power and many common scientific
+ applications have been written to operate on grids.
+ But there exists a certain gap in usability when using these applications
+ on a workstation on the one hand and accessing them on a grid resource
+ on the other.
+ Widely used scientific software, such as Matlab and Abaqus, is commonly
+ targeted at the Windows platform, where the user interacts with the software
+ through a graphical user interface (GUI).
+ Many software packages also offer a backend module, without a GUI, for
+ heavier computations than a workstation can process in a reasonable amount
+ of time.
+ These backend modules can be installed on a grid resource and offered to
+ users, but there is an inherent drawback to this approach.
+ 
+\layout Standard
+
+In the most common scenario, software running on a grid resource does not
+ offer a graphical user interface.
+ Instead, the user must utilize a command shell through a Unix account on
+ the grid resource in order to make use of the software.
+ Since the bulk of the potential user base for grid-enabled applications
+ comes from a Windows background, the transition to the Unix environment
+ is not entirely trivial.
+ In most cases, the facilitator of a grid resource will have to provide
+ an introductory course to Unix, in order to bring the user up to speed
+ on how to make use of the grid.
+\layout Standard
+
+While a Unix course does solve the problem, it has several drawbacks:
+\layout Enumerate
+
+The grid administrator would rather focus on managing the grid without being
+ held up in user support.
+\layout Enumerate
+
+Every new user must take the course to be able to use the grid resource.
+\layout Enumerate
+
+There is no prospect of resolving the above two issues long term.
+\layout Standard
+
+Users also do not know anything about grids to begin with, so additional
+ schooling in the operation of a grid would be necessary.
+\layout Section
+
+The solution
+\layout Standard
+
+A solution to the usability gap problem was devised by Jonas Lindemann from
+ the Division of Structural Mechanics at Lund University, Sweden.
+ He proposed a web based application portal which would serve as an intermediary
+ between the user and the grid.
+ His project, entitled Lunarc Application Portal, was forked into GRIDportal.
+ The objectives of the portal are:
+\layout Itemize
+
+To provide an easy-to-use interface to the applications on the grid.
+\layout Itemize
+
+To set focus on the applications and hide the specifics of grid computing
+ from the user to the extent possible.
+\layout Itemize
+
+Not to compromise existing security policies of grid computing.
+\layout Standard
+
+
+\begin_inset ERT
+status Collapsed
+
+\layout Standard
+%begin{latexonly}
+\layout Standard
+ 
+\backslash 
+begin{figure}[!h]
+\layout Standard
+  
+\backslash 
+includegraphics[width=
+\backslash 
+textwidth]{conseptual.eps}
+\layout Standard
+ 
+\backslash 
+caption{Conceptual model}
+\layout Standard
+ 
+\backslash 
+end{figure}
+\layout Standard
+%end{latexonly}
+\layout Standard
+
+\backslash 
+begin{htmlonly}
+\layout Standard
+  
+\backslash 
+htmladdimg{conseptual.png}
+\layout Standard
+
+\backslash 
+end{htmlonly}
+\layout Standard
+
+\end_inset 
+
+
+\layout Standard
+
+As shown in the Conceptual model, the portal fills the usability gap between
+ the user and the grid resource.
+ The portal provides a simple interface to the user, where he/she can define
+ the job they wish to execute on the specific application.
+ The job is then written to a job description file and sent to the grid
+ scheduler.
+ The scheduler decides where and when the job is executed, depending on
+ resource availability.
+ While the job is running, the user will receive status updates via email.
+ Once it is finished, the user can retrieve the results through the portal.
+\layout Chapter
+
+Installation
+\layout Section
+
+System requirements
+\layout Standard
+
+GRIDportal depends on the following software.
+\layout Subsection
+
+A *nix operating system
+\layout Standard
+
+GRIDportal was designed and tested on Linux but should work just as well
+ on other Unices, perhaps with some minor changes.
+\layout Subsection
+
+Apache HTTP server 1.3.x/2.0.x
+\layout Standard
+
+The most commonly used HTTP server worldwide.
+ Other web servers can probably be used as well, with some effort.
+\layout Subsection
+
+Webware for Python
+\layout Standard
+
+Webware for Python is a suite of software components for developing object-orien
+ted, web-based applications.
+ The suite uses well known design patterns and includes popular features
+ such as a fast application server (WebKit), Python Server Pages (PSP),
+ and a CGI wrapper.
+\layout Standard
+
+Note: WebKit must run as a Unix daemon to serve GRIDportal web pages.
+\layout Standard
+
+Note: Webware requires Python.
+\layout Standard
+
+GRIDportal is written specifically for Webware.
+\layout Subsection
+
+HyperText HTML code generation library (bundled)
+\layout Standard
+
+Although Webware is meant to serve as a server side scripting platform,
+ building html pages is more convenient when using John Dustman's HyperText
+ HTML library.
+ The library is contained within the GRIDportal source code.
+\layout Subsection
+
+NorduGrid/ARC middleware
+\layout Standard
+
+The NorduGrid middleware (or Advanced Resource Connector, ARC) is an open
+ source software solution distributed under the GPL license, enabling production
+ quality computational and data Grids.
+\layout Standard
+
+GRIDportal functions are mapped to NorduGrid/ARC commands.
+ The portal essentially translates user input through a web page into commands
+ invoked on the command prompt.
+\layout Subsection
+
+Command shell
+\layout Standard
+
+The command shell is the gateway between the portal and the middleware.
+ In most cases it will be bash, but other shells should work just as well.
+\layout Section
+
+Install procedure
+\layout Standard
+
+
+\begin_inset ERT
+status Collapsed
+
+\layout Standard
+
+\backslash 
+verbatimtabinput{../../../../src/gridportal/INSTALL}
+\layout Standard
+
+\end_inset 
+
+
+\layout Chapter
+
+Architecture
+\layout Section
+
+What is GRIDportal?
+\layout Standard
+
+In order to understand how GRIDportal functions (and how it should function),
+ it is important to understand exactly what it is and what it isn't.
+\layout Subsection
+
+What it is
+\layout Standard
+
+GRIDportal is a collection of server side scripts, written in Python, which
+ run on an HTTP server and make up a web site.
+ The portal fills a gap between the user, expecting a web interface to the
+ grid, and the grid, designed to be accessed through a command line interface.
+ In order to function, the portal depends on a series of other software.
+ Considering that the complete set of interconnected software makes a fairly
+ complex construct, it is helpful to consider the portal seen from different
+ perspectives, discussed in the following sections.
+\layout Standard
+
+GRIDportal is distributed under the General Public Licence (GPL).
+\layout Subsection
+
+What it isn't
+\layout Standard
+
+GRIDportal is not a replacement for any of the following.
+\layout Itemize
+
+An HTTP server.
+\layout Itemize
+
+A server side scripting framework.
+\layout Itemize
+
+A grid scheduler and/or management system.
+\layout Section
+
+The HTTP perspective
+\layout Standard
+
+
+\begin_inset ERT
+status Collapsed
+
+\layout Standard
+%begin{latexonly}
+\layout Standard
+ 
+\backslash 
+begin{figure}[!h]
+\layout Standard
+  
+\backslash 
+includegraphics[width=
+\backslash 
+textwidth]{http.eps}
+\layout Standard
+ 
+\backslash 
+caption{HTTP request model}
+\layout Standard
+ 
+\backslash 
+end{figure}
+\layout Standard
+%end{latexonly}
+\layout Standard
+
+\backslash 
+begin{htmlonly}
+\layout Standard
+  
+\backslash 
+htmladdimg{http.png}
+\layout Standard
+
+\backslash 
+end{htmlonly}
+\layout Standard
+
+\end_inset 
+
+
+\layout Standard
+
+The HTTP perspective strives to explain how an HTTP request is passed onto
+ the portal and handled by the portal.
+ It could be said to be the top-most perspective of the portal, as it is
+ the part that the user is immediately in contact with.
+ The process can be divided into a series of steps:
+\layout Enumerate
+
+The user requests a page of the portal through a web browser.
+\layout Enumerate
+
+The request is sent to the grid's Apache web server, listening on port 80.
+\layout Enumerate
+
+Apache interprets the request and decides that it is meant for GRIDportal.
+ This translations process is handled by the special mod_webkit plug-in
+ to Apache, which is part of WebKit.
+\layout Enumerate
+
+The request is forwarded to the WebKit server listening on port 8086 (but
+ only visible from the machine running Apache).
+\layout Enumerate
+
+WebKit identifies that the page requested is part of the GRIDportal application.
+\layout Enumerate
+
+WebKit runs the script file which was requested.
+ The result of the run is a web page produced by GRIDportal.
+\layout Enumerate
+
+The web page is sent back to Apache.
+\layout Enumerate
+
+Apache forwards the response to the user's web browser.
+\layout Section
+
+The WebKit perspective
+\layout Subsection
+
+Webware, WebKit and GRIDportal
+\layout Standard
+
+In order to understand how WebKit operates, it may be helpful to understand
+ how WebKit relates to Webware and GRIDportal.
+\layout Subsubsection
+
+Webware
+\layout Standard
+
+
+\emph on 
+Webware
+\emph default 
+ is a framework which allows building web-based, object-oriented applications
+ in Python.
+ In other words, it's a collection of software components which combined
+ offer this capability.
+\layout Subsubsection
+
+WebKit
+\layout Standard
+
+One of those components is 
+\emph on 
+WebKit
+\emph default 
+, an application server, that is the part which runs the applications.
+ WebKit works with 
+\emph on 
+servlets
+\emph default 
+.
+ Any Python module (a Python module is a Python source code file) invoked
+ through WebKit (that is through a web page) is a servlet.
+ WebKit uses Python's Just-In-Time compiler, which compiles a module into
+ byte code the first time it is run and then caches the byte code file for
+ future runs.
+ (This effectively means that if a module in GRIDportal is changed, WebKit
+ must be restarted to know about this change.)
+\layout Subsubsection
+
+Others
+\layout Standard
+
+Other components of Webware include CGIWrapper, a CGI interface to Webware,
+ Python Server Pages, for writing pages where Python code is mixed with
+ html (like the php scripting language) and several others.
+\layout Subsubsection
+
+GRIDportal
+\layout Standard
+
+
+\emph on 
+GRIDportal
+\emph default 
+ is an application running on the WebKit application server.
+ Which makes all Python modules within GRIDportal servlets.
+\layout Standard
+
+Because GRIDportal runs within Webware, it can access all the components
+ which Webware provides.
+ Consider GRIDportal to be the application and Webware to be the library
+ of classes and functions it relies on.
+\layout Subsection
+
+WebKit page serving
+\layout Standard
+
+
+\begin_inset ERT
+status Collapsed
+
+\layout Standard
+%begin{latexonly}
+\layout Standard
+ 
+\backslash 
+begin{figure}[!h]
+\layout Standard
+  
+\backslash 
+begin{center}
+\layout Standard
+  
+\backslash 
+includegraphics[width=0.6
+\backslash 
+textwidth]{webkit.eps}
+\layout Standard
+  
+\backslash 
+end{center}
+\layout Standard
+ 
+\backslash 
+caption{WebKit model}
+\layout Standard
+ 
+\backslash 
+end{figure}
+\layout Standard
+%end{latexonly}
+\layout Standard
+
+\backslash 
+begin{htmlonly}
+\layout Standard
+  
+\backslash 
+htmladdimg{webkit.png}
+\layout Standard
+
+\backslash 
+end{htmlonly}
+\layout Standard
+
+\end_inset 
+
+
+\layout Standard
+
+As a request comes in for a web page, WebKit's interaction with GRIDportal
+ is illustrated by the full arrows.
+ A description is given below.
+\layout Enumerate
+
+An HTTP request comes in for a URL.
+\layout Enumerate
+
+WebKit finds the Python module (file with .py extension) corresponding to
+ the URL.
+\layout Enumerate
+
+If the module depends on Webware, required modules from Webware are used
+ when running the module.
+\layout Enumerate
+
+WebKit runs the module.
+\layout Enumerate
+
+The result of the run is a web page, which is returned as a response to
+ the HTTP request.
+\layout Standard
+
+What happens behind the scenes is shown with the dotted arrows.
+ A description is given below.
+\layout Enumerate
+
+An HTTP request comes in for a URL.
+\layout Enumerate
+
+WebKit finds the Python module (file with .py extension) corresponding to
+ the URL.
+\begin_deeper 
+\layout Enumerate
+
+If the module exists in compiled form (file with .pyc extension), this file
+ is used.
+\layout Enumerate
+
+Otherwise the module is compiled into byte code.
+\end_deeper 
+\layout Enumerate
+
+If the module depends on Webware, required modules from Webware are used
+ when running the module.
+ For each of these, the following applies:
+\begin_deeper 
+\layout Enumerate
+
+If the module exists in compiled form (file with .pyc extension), this file
+ is used.
+\layout Enumerate
+
+Otherwise the module is compiled into byte code.
+\end_deeper 
+\layout Enumerate
+
+WebKit runs the compiled module.
+\layout Enumerate
+
+The result of the run is a web page, which is returned as a response to
+ the HTTP request.
+\layout Section
+
+The frontend perspective
+\layout Standard
+
+The frontend perspective strives to explain in simple terms how the portal
+ interacts with the user.
+ I have included three common scenarios to explain what the user does and
+ what the outcome is.
+ 
+\layout Standard
+
+Please note that the model is a simplified one and does not aspire to illustrate
+ the entire communication stream between the user and the portal.
+\layout Standard
+
+
+\begin_inset ERT
+status Collapsed
+
+\layout Standard
+%begin{latexonly}
+\layout Standard
+ 
+\backslash 
+begin{figure}[!h]
+\layout Standard
+  
+\backslash 
+begin{center}
+\layout Standard
+  
+\backslash 
+includegraphics[width=1.0
+\backslash 
+textwidth]{frontend.eps}
+\layout Standard
+  
+\backslash 
+end{center}
+\layout Standard
+ 
+\backslash 
+caption{Frontend model}
+\layout Standard
+ 
+\backslash 
+end{figure}
+\layout Standard
+%end{latexonly}
+\layout Standard
+
+\backslash 
+begin{htmlonly}
+\layout Standard
+  
+\backslash 
+htmladdimg{frontend.png}
+\layout Standard
+
+\backslash 
+end{htmlonly}
+\layout Standard
+
+\end_inset 
+
+
+\layout Standard
+
+First the user will want to create a job for submission to the grid.
+\layout Enumerate
+
+The user invokes the create job function.
+\layout Enumerate
+
+The portal returns an html form to the user which lists all the required
+ job parameters and attributes.
+\layout Enumerate
+
+The user fills in the form, including any input files necessary to the job.
+ (The input files are transferred through HTTP.)
+\layout Enumerate
+
+The portal validates the input of the form and returns a message saying
+ the job has been created successfully.
+\layout Standard
+
+Now the job has been created, validated and is eligible for submission.
+\layout Enumerate
+
+The user invokes the submit job function and selects the job for submission.
+\layout Enumerate
+
+The portal submits the job and returns a status report for the job.
+ (Depending on the state of the job queue and the job itself, no job is
+ guaranteed to be accepted by the grid.)
+\layout Standard
+
+A job which has been submitted and has completed can then be retrieved by
+ the user.
+\layout Enumerate
+
+The user invokes the get job function and selects the job to get.
+\layout Enumerate
+
+The job files are presented to the user in an html form.
+ The user can select files individually and view them on-line or download
+ them.
+ The user may also choose to download all the files in a .tar.gz archive for
+ offline use.
+\layout Section
+
+The backend perspective
+\layout Standard
+
+
+\begin_inset ERT
+status Collapsed
+
+\layout Standard
+%begin{latexonly}
+\layout Standard
+ 
+\backslash 
+begin{figure}[!lh]
+\layout Standard
+  
+\backslash 
+begin{center}
+\layout Standard
+  
+\backslash 
+includegraphics[width=0.7
+\backslash 
+textwidth]{backend.eps}
+\layout Standard
+  
+\backslash 
+end{center}
+\layout Standard
+ 
+\backslash 
+caption{Backend model}
+\layout Standard
+ 
+\backslash 
+end{figure}
+\layout Standard
+%end{latexonly}
+\layout Standard
+
+\backslash 
+begin{htmlonly}
+\layout Standard
+  
+\backslash 
+htmladdimg{backend.png}
+\layout Standard
+
+\backslash 
+end{htmlonly}
+\layout Standard
+
+\end_inset 
+
+
+\layout Standard
+
+The backend perspective strives to show how the portal interacts with the
+ grid middleware.
+ It must be stressed that all interaction with the grid itself, that is
+ job submission, monitoring, queue management and the like, is handled on
+ a level beneath that which the portal operates.
+ The portal interfaces the NorduGrid/ARC middleware, which provides all
+ these services.
+\layout Standard
+
+A user request to the portal happens in the form of a web page being processed.
+ The resulting information is translated by the portal into middleware language
+ (that is a middleware command with arguments).
+ As the portal runs in a Python environment, it can access the command shell
+ and execute commands directly through it.
+ The requested command is now passed onto the middleware.
+\layout Standard
+
+For example, let's consider a hypothetical job submission.
+\layout Enumerate
+
+The user describes the type of job to be submitted through the portal, including
+ all relevant parameters, such as the application it is to use, the job
+ input file(s), the job parameters etc.
+\layout Enumerate
+
+The portal retrieves all information about the job, captures the input file(s)
+ and generates a job description file in middleware format.
+\layout Enumerate
+
+All of the files comprising the job are passed onto NorduGrid/ARC via the
+ command shell.
+ The middleware adds the job to the job queue.
+\layout Standard
+
+The user may now wish to monitor the job.
+\layout Enumerate
+
+The user issues a job status check request through the portal.
+\layout Enumerate
+
+The portal passes the job status request to the middleware via the command
+ shell and reads the response.
+\layout Enumerate
+
+The response is parsed by the portal and reported to the user.
+\layout Standard
+
+Once a job completes, the user wishes to retrieve the results.
+\layout Enumerate
+
+The user issues a job retrieval request through the portal.
+\layout Enumerate
+
+The portal passes the request to the middleware via the command shell.
+ All the files from the job are downloaded to a location on the file system.
+\layout Enumerate
+
+The portal lists the files to the user for download.
+\layout Standard
+
+The job may now be changed, submitted again or removed.
+\layout Section
+
+The physical perspective
+\layout Standard
+
+Given that the portal is a means of bringing the user in touch with the
+ grid, to the reader it may seem that any mention of a grid is conspicuously
+ absent so far in this chapter.
+ That is so for a reason.
+ As mentioned, the portal does not interface the grid directly, it does
+ so only through middleware.
+\layout Standard
+
+But because the grid presents the ultimate goal in this chain, I have included
+ this model as an attempt to illustrate how the portal is positioned in
+ the larger perspective.
+ As an example of a possible deployment environment, I present Norgrid Cluster
+ at the Norwegian University of Science and Technology, Trondheim, Norway.
+\layout Subsection
+
+Case study: Norgrid Cluster, NTNU
+\layout Standard
+
+
+\begin_inset ERT
+status Open
+
+\layout Standard
+%begin{latexonly}
+\layout Standard
+ 
+\backslash 
+begin{figure}[!th]
+\layout Standard
+  
+\backslash 
+begin{center}
+\layout Standard
+  
+\backslash 
+includegraphics[width=1.0
+\backslash 
+textwidth]{physical.eps}
+\layout Standard
+  
+\backslash 
+end{center}
+\layout Standard
+ 
+\backslash 
+caption{Physical model: Norgrid Cluser}
+\layout Standard
+ 
+\backslash 
+end{figure}
+\layout Standard
+%end{latexonly}
+\layout Standard
+
+\backslash 
+begin{htmlonly}
+\layout Standard
+  
+\backslash 
+htmladdimg{physical.png}
+\layout Standard
+
+\backslash 
+end{htmlonly}
+\layout Standard
+
+\end_inset 
+
+
+\layout Standard
+
+Norgrid is a cluster of 64 nodes, located at the Norwegian University of
+ Science and Technology.
+ A node can only be reached through the cluster frontend machine, which
+ serves as an intermediary between the user and the cluster.
+ All jobs to the cluster are scheduled on the frontend.
+\layout Standard
+
+The cluster runs on the Rocks Cluster Distribution and deploys the Torque
+ PBS (Portable Batch System), which is a cluster resource management system.
+\layout Standard
+
+NorduGrid/ARC is positioned above Torque, that is the Torque queue has one
+ queue specifically for NorduGrid/ARC.
+ All jobs submitted through NorduGrid/ARC use this queue.
+\layout Standard
+
+As shown in the diagram, a user request to the portal in logical terms happens
+ as shown by the full arrows.
+ The user communicates with the portal and can access well known applications
+ through the portal.
+\layout Standard
+
+What actually happens is shown with the dotted arrows.
+ A request sent from the user's browser reaches Apache and is then passed
+ on down the software chain.
+ Finally, the job is executed by NorduGrid/ARC inside a Torque queue.
+\layout Chapter
+
+NorduGrid
+\layout Section
+
+Network and middleware
+\layout Standard
+
+Because GRIDportal is closely tied to NorduGrid, it is fairly important
+ to understand the relationship.
+ From NorduGrid's own definition:
+\layout Quote
+
+NorduGrid is a Grid Research and Development collaboration aiming at development
+, maintenance and support of the free Grid middleware, known as the Advance
+ Resource Connector (ARC).
+\layout Standard
+
+Simply put, NorduGrid produces ARC middleware, which is deployed at a wide
+ range of grid sites, primarily in Scandinavia.
+ All of these sites make up the NorduGrid network of grid resources, which
+ can be accessed from any one of the deployment sites.
+\layout Standard
+
+The NorduGrid/ARC middleware is the software layer which facilitates access
+ to the NorduGrid network.
+ In practice this means that through the middleware a grid user can access
+ any grid resource in the network, provided he/she has the required credentials,
+ rather than being limited to the local grid.
+\layout Standard
+
+Because grid usage in this manner no longer is confined to a local grid
+ site, in fact it can span organizational and even national borders, a sound
+ mechanism for authentication is required.
+\layout Standard
+
+GRIDportal requires NorduGrid/ARC to function, it inherits its features
+ and offers them through a web interface, but it is also bound by its restrictio
+ns and limitations.
+ One such restriction is the authentication mechanism.
+\layout Section
+
+Authentication
+\layout Standard
+
+Access to the NorduGrid network is controlled through a series of steps,
+ described in the sub sections which follow.
+ All of the steps must be completed in order to access a specific grid resource.
+ The absence of one or more steps gives no access whatsoever.
+\layout Subsection
+
+User certificates
+\layout Standard
+
+
+\emph on 
+Authentication
+\emph default 
+ to NorduGrid, that is verification of identity, is handled through user
+ certificates.
+ A user certificate identifies a user uniquely on the NorduGrid network,
+ by name and organization.
+ A sample certificate identifier can look like this: 
+\layout Quote
+
+/O=Grid/O=NorduGrid/OU=ntnu.no/CN=Martin Matusiak
+\layout Standard
+
+A user wishing to access a grid resource within the NorduGrid network (or
+ simply a user wishing to use GRIDportal) must apply for a user certificate
+ to a certificate authority.
+ The authority will verify that the user is legitimate and validate the
+ certificate.
+ A certificate is password protected.
+\layout Standard
+
+In practice this means generating a certificate request by using the middleware
+ and emailing the request to the certificate authority.
+ The certificate identifier (the information about who the user is and which
+ organization the user belongs to) is contained within the certificate itself.
+\layout Standard
+
+A certificate consists of two files, called a 
+\emph on 
+key pair
+\emph default 
+.
+ One key is private, the other is public.
+ Upon generating a certificate request, a certificate is created.
+ But it is not 
+\emph on 
+valid
+\emph default 
+, ie.
+ it will not be accepted in use, until it has been 
+\emph on 
+signed
+\emph default 
+ by a certificate authority, which is why the public key has to be emailed
+ to the certificate authority for signing.
+ Once the authority has processed the request and signed the certificate,
+ it is returned to the user and can now be used for authentication.
+\layout Standard
+
+Upon obtaining a signed user certificate, the user still has no access to
+ the NorduGrid network.
+\layout Subsection
+
+User proxies
+\layout Standard
+
+Since NorduGrid is a network designed to comprise thousands of grid resources
+ worldwide, it becomes problematic to keep track of individual users as
+ they access many different grid resources.
+ To the local administrators, this would mean managing user accounts for
+ both local and remote users.
+ 
+\layout Standard
+
+Another concern is uniformity of user accounts, that is ideally a user accessing
+ different grid resources should have the same access priviliges to each
+ grid, otherwise the work flow is interrupted and the question of securing
+ the grid from abuse is raised.
+\layout Standard
+
+A final consideration is that regardless of how many layers of abstraction
+ the grid middleware may have, the user commands accessing the application
+ ultimately have to be executed by a user on the system, at the operating
+ system level.
+\layout Standard
+
+For all of these reason, NorduGrid/ARC handles 
+\emph on 
+authorization
+\emph default 
+, that is access control, to the NorduGrid network through user proxies.
+ A proxy is an intermediary between the user and the NorduGrid network.
+ A valid proxy gives access to the NorduGrid network.
+\layout Standard
+
+A proxy is a file generated by the user and valid for a limited period of
+ time (typically 24 hours).
+ Then the proxy is submitted to the NorduGrid as authentication key.
+ Once a proxy expires, a new one must be generated to access the NorduGrid
+ network.
+\layout Standard
+
+Proxy generation is handled by the middleware and requires a signed user
+ certificate.
+ The user is asked for his/her password (the password corresponding to the
+ user certificate) along the way.
+\layout Standard
+
+With a valid proxy, a user can access the NorduGrid network, which in practice
+ means being able to submit jobs, check status on jobs etc.
+ But without completing the final step (described in 
+\begin_inset LatexCommand \ref{sub:Virtual-organizations}
+
+\end_inset 
+
+), all of these requests will be denied because no grid will accept them.
+\layout Subsection
+
+
+\begin_inset LatexCommand \label{sub:Virtual-organizations}
+
+\end_inset 
+
+Virtual organizations
+\layout Standard
+
+A user in possession of a valid user proxy will be authorized to use the
+ NorduGrid network but without completing this last step, the user will
+ not be authorized locally by any grid within the network, so actual grid
+ resources are still off limits.
+\layout Standard
+
+As mentioned in the previous step, when using a grid resource, there is
+ a mapping from the grid user to the local user.
+ This mapping is facilitated by the system of Virtual Organizations.
+ A user wishing to access grid resources on the NorduGrid network (or simply
+ a user wishing to use GRIDportal) is required to join a Virtual Organization.
+ This membership then grants priviliges of grid access on the network.
+\layout Section
+
+Implications for GRIDportal
+\layout Subsection
+
+Network and middleware
+\layout Standard
+
+
+\begin_inset ERT
+status Collapsed
+
+\layout Standard
+%begin{latexonly}
+\layout Standard
+ 
+\backslash 
+begin{figure}[!h]
+\layout Standard
+  
+\backslash 
+begin{center}
+\layout Standard
+  
+\backslash 
+includegraphics[width=1.0
+\backslash 
+textwidth]{nordugrid.eps}
+\layout Standard
+  
+\backslash 
+end{center}
+\layout Standard
+ 
+\backslash 
+caption{GRIDportal a gateway to the NorduGrid network}
+\layout Standard
+ 
+\backslash 
+end{figure}
+\layout Standard
+%end{latexonly}
+\layout Standard
+
+\backslash 
+begin{htmlonly}
+\layout Standard
+  
+\backslash 
+htmladdimg{nordugrid.png}
+\layout Standard
+
+\backslash 
+end{htmlonly}
+\layout Standard
+
+\end_inset 
+
+
+\layout Standard
+
+GRIDportal is an interface built on top of the NorduGrid/ARC middleware,
+ which allows user friendly access to NorduGrid/ARC services.
+ It does not replace or overlap any part of NorduGrid/ARC, it simply co-exists
+ with it.
+ The advantage of building on top of NorduGrid/ARC (as opposed to building
+ directly on top of a grid resource) is that GRIDportal can offer the full
+ repertoire of NorduGrid/ARC services instead of being confined to a single
+ local grid.
+ Jobs submitted through GRIDportal can be assigned to any grid within NorduGrid,
+ provided the user has been authorized to use that particular grid resource.
+\layout Subsection
+
+Authentication
+\layout Standard
+
+As mentioned, GRIDportal is tied to NorduGrid/ARC and inherits both its
+ benefits and restrictions.
+ One such restriction is the authentication mechanism, which is fairly complex,
+ mixing user interaction with manual intervention from certificate authorities
+ and grid administrators.
+ Since the primary goal of GRIDportal is to make grid usage simpler to the
+ users, this barrier is very inconvenient.
+\layout Standard
+
+For the moment, GRIDportal does 
+\emph on 
+not
+\emph default 
+ provide a way around this.
+ It is the philosophy of NorduGrid to generate both the certificate and
+ the proxy on the client side and GRIDportal does not challenge this point
+ of view.
+ But even though there are tools to handle this on the client side, none
+ of them are very convenient for new users.
+\layout Standard
+
+It should be the aim of GRIDportal in future development to solve this problem
+ and provide a user friendly authentication method, without compromising
+ security.
+\layout Chapter
+
+Design
+\layout Section
+
+Project status
+\layout Standard
+
+As mentioned, GRIDportal is a fork off Jonas Lindemann's 
+\begin_inset Quotes sld
+\end_inset 
+
+LUNARC Application Portal
+\begin_inset Quotes srd
+\end_inset 
+
+ (LAP).
+ The bulk of the code base in GRIDportal originates from LAP and is Jonas'
+ work.
+\layout Subsection
+
+GRIDportal changes/additions
+\layout Subsubsection
+
+Source code
+\layout Standard
+
+This section lists the major changes (source code only) since the project
+ was forked.
+\layout Paragraph
+
+conf_main.py
+\layout Standard
+
+New configuration module to keep common config settings out of source code.
+\layout Paragraph
+
+conf_blast.py
+\layout Standard
+
+New configuration module specifically for BLAST.
+\layout Paragraph
+
+BlastJobPage
+\layout Standard
+
+Class added to process Blast jobs.
+\layout Paragraph
+
+BlastTask
+\layout Standard
+
+Class added to process Blast jobs.
+ 
+\layout Paragraph
+
+DocUserGuide, DocCreateJob, DocEditJob, DocDeleteJob, DocSubmitJob, DocKillJob,
+ DocCleanJob, DocGetJob, DocTar
+\layout Standard
+
+Classes added to provide user documentation.
+\layout Paragraph
+
+MatlabJobPage
+\layout Standard
+
+Class added to process Matlab jobs.
+\layout Paragraph
+
+MatlabTask
+\layout Standard
+
+Class added to process Matlab jobs.
+\layout Paragraph
+
+FormDescPage
+\layout Standard
+
+Class added to display help for html forms.
+\layout Paragraph
+
+Form
+\layout Standard
+
+Added function for select tag and input field label descriptions (URLs for
+ labels).
+\layout Paragraph
+
+LunarcPage
+\layout Standard
+
+Changes in the menu.
+\layout Paragraph
+
+ManageJobPage
+\layout Standard
+
+Function deleteJobYes() implemented.
+\layout Paragraph
+
+Ui
+\layout Standard
+
+Hacked the source to include more parameters.
+\layout Subsubsection
+
+Documentation
+\layout Standard
+
+LUNARC Application Portal was inherited by GRIDportal with no documentation
+ whatsoever.
+ In the course of the GRIDportal project, the following documentation has
+ been produced.
+\layout Itemize
+
+the User's Guide (integrated into GRIDportal)
+\layout Itemize
+
+GRIDportal White Paper (this document)
+\layout Itemize
+
+GRIDportal API reference
+\layout Itemize
+
+GRIDportal Specification
+\layout Itemize
+
+GRIDportal Test Document
+\layout Section
+
+Schematics
+\layout Standard
+
+This section explains the significance of the most important classes which
+ make up GRIDportal.
+\layout Subsection
+
+Page
+\layout Standard
+
+
+\begin_inset ERT
+status Collapsed
+
+\layout Standard
+%begin{latexonly}
+\layout Standard
+ 
+\backslash 
+begin{figure}[!th]
+\layout Standard
+  
+\backslash 
+begin{center}
+\layout Standard
+  
+\backslash 
+includegraphics[width=1.0
+\backslash 
+textwidth]{uml_page.eps}
+\layout Standard
+  
+\backslash 
+end{center}
+\layout Standard
+ 
+\backslash 
+caption{UML diagram: Page}
+\layout Standard
+ 
+\backslash 
+end{figure}
+\layout Standard
+%end{latexonly}
+\layout Standard
+
+\backslash 
+begin{htmlonly}
+\layout Standard
+  
+\backslash 
+htmladdimg{uml_page.png}
+\layout Standard
+
+\backslash 
+end{htmlonly}
+\layout Standard
+
+\end_inset 
+
+
+\layout Standard
+
+This diagram illustrates two of the key classes in GRIDportal - 
+\emph on 
+LunarcPage
+\emph default 
+ and 
+\emph on 
+SecurePage
+\emph default 
+.
+ Both are derived from the base class 
+\emph on 
+Page
+\emph default 
+, supplied by WebKit.
+ 
+\emph on 
+SecurePage
+\emph default 
+ also inherits from 
+\emph on 
+Configurable
+\emph default 
+ (from Webware/MiscUtils).
+\layout Standard
+
+
+\emph on 
+LunarcPage
+\emph default 
+ draws the main page template common to [almost] all the pages on the portal
+ website, including the menu.
+ It also writes the stylesheet.
+\layout Standard
+
+
+\emph on 
+SecurePage
+\emph default 
+ implements an authentication routine, so all classes derived from 
+\emph on 
+SecurePage
+\emph default 
+ require a valid session.
+\layout Standard
+
+Most classes in GRIDportal which deal with displaying pages derive from
+ either 
+\emph on 
+LunarcPage
+\emph default 
+ or 
+\emph on 
+SecurePage
+\emph default 
+.
+\layout Subsection
+
+Task
+\layout Standard
+
+
+\begin_inset ERT
+status Collapsed
+
+\layout Standard
+%begin{latexonly}
+\layout Standard
+ 
+\backslash 
+begin{figure}[!th]
+\layout Standard
+  
+\backslash 
+begin{center}
+\layout Standard
+  
+\backslash 
+includegraphics[width=1.0
+\backslash 
+textwidth]{uml_task.eps}
+\layout Standard
+  
+\backslash 
+end{center}
+\layout Standard
+ 
+\backslash 
+caption{UML diagram: Task}
+\layout Standard
+ 
+\backslash 
+end{figure}
+\layout Standard
+%end{latexonly}
+\layout Standard
+
+\backslash 
+begin{htmlonly}
+\layout Standard
+  
+\backslash 
+htmladdimg{uml_task.png}
+\layout Standard
+
+\backslash 
+end{htmlonly}
+\layout Standard
+
+\end_inset 
+
+
+\layout Standard
+
+In GRIDportal, a 
+\begin_inset Quotes sld
+\end_inset 
+
+job
+\begin_inset Quotes srd
+\end_inset 
+
+ is implemented by the class Task.
+ Jobs for different applications require different implementations and are
+ sub-classed from Task.
+\layout Subsection
+
+JobPage
+\layout Standard
+
+
+\begin_inset ERT
+status Collapsed
+
+\layout Standard
+%begin{latexonly}
+\layout Standard
+ 
+\backslash 
+begin{figure}[!th]
+\layout Standard
+  
+\backslash 
+begin{center}
+\layout Standard
+  
+\backslash 
+includegraphics[width=1.0
+\backslash 
+textwidth]{uml_jobpage.eps}
+\layout Standard
+  
+\backslash 
+end{center}
+\layout Standard
+ 
+\backslash 
+caption{UML diagram: JobPage}
+\layout Standard
+ 
+\backslash 
+end{figure}
+\layout Standard
+%end{latexonly}
+\layout Standard
+
+\backslash 
+begin{htmlonly}
+\layout Standard
+  
+\backslash 
+htmladdimg{uml_jobpage.png}
+\layout Standard
+
+\backslash 
+end{htmlonly}
+\layout Standard
+
+\end_inset 
+
+
+\layout Standard
+
+Similarly, JobPage is the common denominator for the processing of all pages
+ - create/edit job forms as well as processing of html forms.
+ Then there are derived classes for jobs for specific applications.
+\layout Subsection
+
+BlastJobPage
+\layout Standard
+
+
+\begin_inset ERT
+status Collapsed
+
+\layout Standard
+%begin{latexonly}
+\layout Standard
+ 
+\backslash 
+begin{figure}[!th]
+\layout Standard
+  
+\backslash 
+begin{center}
+\layout Standard
+  
+\backslash 
+includegraphics[width=1.0
+\backslash 
+textwidth]{uml_blastjobpage.eps}
+\layout Standard
+  
+\backslash 
+end{center}
+\layout Standard
+ 
+\backslash 
+caption{UML diagram: BlastJobPage}
+\layout Standard
+ 
+\backslash 
+end{figure}
+\layout Standard
+%end{latexonly}
+\layout Standard
+
+\backslash 
+begin{htmlonly}
+\layout Standard
+  
+\backslash 
+htmladdimg{uml_blastjobpage.png}
+\layout Standard
+
+\backslash 
+end{htmlonly}
+\layout Standard
+
+\end_inset 
+
+
+\layout Standard
+
+The BLAST application has several variants, each of which requires slightly
+ different input parameters.
+ Efforts at packing all the code into one class failed and thus subclasses
+ were written for the separate cases.
+\layout Subsection
+
+Ui
+\layout Standard
+
+
+\begin_inset ERT
+status Collapsed
+
+\layout Standard
+%begin{latexonly}
+\layout Standard
+ 
+\backslash 
+begin{figure}[!th]
+\layout Standard
+  
+\backslash 
+begin{center}
+\layout Standard
+  
+\backslash 
+includegraphics[width=1.0
+\backslash 
+textwidth]{uml_arc.eps}
+\layout Standard
+  
+\backslash 
+end{center}
+\layout Standard
+ 
+\backslash 
+caption{UML diagram: Ui}
+\layout Standard
+ 
+\backslash 
+end{figure}
+\layout Standard
+%end{latexonly}
+\layout Standard
+
+\backslash 
+begin{htmlonly}
+\layout Standard
+  
+\backslash 
+htmladdimg{uml_arc.png}
+\layout Standard
+
+\backslash 
+end{htmlonly}
+\layout Standard
+
+\end_inset 
+
+
+\layout Standard
+
+Here are the classes from pyARC.py, which supply the interface to the NorduGrid/A
+RC middleware.
+\layout Standard
+
+The 
+\emph on 
+DN
+\emph default 
+ class parses the distinguished name (ldap terminology).
+\layout Standard
+
+The 
+\emph on 
+Proxy
+\emph default 
+ class handles proxy validation, it uses commands from the Globus Toolkit
+ package (part of NorduGrid/ARC).
+\layout Standard
+
+The 
+\emph on 
+Ui
+\emph default 
+ class handles all job related functions - job submission, status check,
+ syncing job list, killing job, getting jobs etc.
+ It uses native NorduGrid/ARC commands.
+\layout Standard
+
+I have also included the 
+\emph on 
+User
+\emph default 
+ class, which is declared in Lap.py but is not unrelated to 
+\emph on 
+DN
+\emph default 
+.
+ The 
+\emph on 
+User
+\emph default 
+ class deals with managing data about the user (authenticated through a
+ certificate).
+ It creates the directory structure (using the DN of the user), where user
+ data is stored, and manages user preferences.
+\layout Subsection
+
+PropertyList
+\layout Standard
+
+
+\begin_inset ERT
+status Collapsed
+
+\layout Standard
+%begin{latexonly}
+\layout Standard
+ 
+\backslash 
+begin{figure}[!th]
+\layout Standard
+  
+\backslash 
+begin{center}
+\layout Standard
+  
+\backslash 
+includegraphics[width=1.0
+\backslash 
+textwidth]{uml_propertylist.eps}
+\layout Standard
+  
+\backslash 
+end{center}
+\layout Standard
+ 
+\backslash 
+caption{UML diagram: PropertyList}
+\layout Standard
+ 
+\backslash 
+end{figure}
+\layout Standard
+%end{latexonly}
+\layout Standard
+
+\backslash 
+begin{htmlonly}
+\layout Standard
+  
+\backslash 
+htmladdimg{uml_propertylist.png}
+\layout Standard
+
+\backslash 
+end{htmlonly}
+\layout Standard
+
+\end_inset 
+
+
+\layout Standard
+
+
+\emph on 
+PropertyList
+\emph default 
+ defines a common class for dealing with property lists, implemented as
+ a dictionary.
+\layout Standard
+
+
+\emph on 
+XRSLAttributes
+\emph default 
+ derives from 
+\emph on 
+PropertyList
+\emph default 
+ and declares attributes common to all NorduGrid/ARC jobs.
+\layout Standard
+
+
+\emph on 
+TaskDescriptionFile
+\emph default 
+ is a general class to describe the file where a task is described in a
+ 
+\emph on 
+PropertyList
+\emph default 
+.
+\layout Standard
+
+
+\emph on 
+XRSLFile
+\emph default 
+ is derived from 
+\emph on 
+TaskDescriptionFile
+\emph default 
+ and serves to write xrsl job file, which serve as input to NorduGrid/ARC.
+\layout Standard
+
+
+\emph on 
+Form
+\emph default 
+ and 
+\emph on 
+Table
+\emph default 
+ are included here to save space but completely unrelated.
+ Both classes handle html code generation for common tags.
+ In fact, all html code inside forms and tables passes through one of these
+ two classes.
+\layout Subsection
+
+Menu
+\layout Standard
+
+
+\begin_inset ERT
+status Collapsed
+
+\layout Standard
+%begin{latexonly}
+\layout Standard
+ 
+\backslash 
+begin{figure}[!th]
+\layout Standard
+  
+\backslash 
+begin{center}
+\layout Standard
+  
+\backslash 
+includegraphics[width=1.0
+\backslash 
+textwidth]{uml_menu.eps}
+\layout Standard
+  
+\backslash 
+end{center}
+\layout Standard
+ 
+\backslash 
+caption{UML diagram: Menu}
+\layout Standard
+ 
+\backslash 
+end{figure}
+\layout Standard
+%end{latexonly}
+\layout Standard
+
+\backslash 
+begin{htmlonly}
+\layout Standard
+  
+\backslash 
+htmladdimg{uml_menu.png}
+\layout Standard
+
+\backslash 
+end{htmlonly}
+\layout Standard
+
+\end_inset 
+
+
+\layout Standard
+
+The Menu* classes all serve to create the dhtml menu on the portal website.
+ Essentially they simply menu creation in Python source instead of writing
+ JavaScript manually.
+\layout Section
+
+Session handling
+\layout Standard
+
+Session tracking in GRIDportal is handled with the session mechanism provided
+ by WebKit.
+ All pages which require a valid session are sub-classed from 
+\emph on 
+SecurePage
+\emph default 
+, which implements a session verification procedure.
+\layout Standard
+
+A session is valid for a set period of time and renewed with every user
+ request to GRIDportal.
+ Inactivity will eventually expire the session.
+ The length of which it is valid is set in the WebKit configuration, by
+ default it is 60 minutes.
+\layout Subsection
+
+File system hierarchy
+\layout Standard
+
+A user of GRIDportal will normally log into the portal, create a job, submit
+ the job and wait for it to finish.
+ Large jobs can run for several hours so unless the user is loading pages
+ all this time, his/her session will expire.
+ But the user will return after the job has finished to collect results
+ so there must be some mechanism to store data about the user, given that
+ sessions are short lived.
+\layout Standard
+
+Instead of relying on a database solution, GRIDportal uses a file system
+ hierarchy to store information about the user and any jobs he/she may have
+ created.
+ The root path of this hierarchy depends on the WebKit configuration and
+ is defined in conf_main.py.
+ I refer to it here as 
+\emph on 
+%root_path%
+\emph default 
+.
+\layout Standard
+
+User data is stored according to user certificate identifier information.
+ A user whose certificate identifier is 
+\series bold 
+/O=Grid/O=NorduGrid/OU=ntnu.no/CN=Martin Matusiak
+\series default 
+ will have his/her information stored under 
+\emph on 
+%root_path%/NorduGrid/ntnu.no/Martin Matusiak
+\emph default 
+.
+ A more general form of this path, which I will use henceforth, is:
+\layout Standard
+
+
+\emph on 
+%root_path%/NorduGrid/<organization>/<user>.
+\layout Subsection
+
+Proxy storage
+\layout Standard
+
+A user without a valid session is logged into GRIDportal by way of a valid
+ user proxy file.
+ The proxy file is stored on the server and used by GRIDportal to access
+ NorduGrid/ARC on behalf of the user.
+\layout Standard
+
+The proxy is stored under 
+\emph on 
+%root_path%/NorduGrid/<organization>/<user>/lap_proxy
+\emph default 
+.
+\layout Subsection
+
+Job storage
+\layout Subsubsection
+
+Job specification
+\layout Standard
+
+Jobs are created by the user through GRIDportal and subsequently stored
+ on the server.
+ Jobs are stored under 
+\emph on 
+%root_path%/NorduGrid/<organization>/<user>/job_<jobname>
+\emph default 
+, where <jobname> is the name given by the user on the job creation form.
+ (In practice a new job created with the same name as an old job will overwrite
+ the old one.)
+\layout Standard
+
+Job specifics depend on the application but the most common format consists
+ of several special files.
+\layout Paragraph
+
+job.task 
+\layout Standard
+
+Common for all jobs, this is where GRIDportal stores information about the
+ job in 
+\emph on 
+pickle
+\emph default 
+ (serialized) format.
+\layout Paragraph
+
+job.xrsl
+\layout Standard
+
+Common for all jobs, this is the file GRIDportal generates from 
+\emph on 
+job.task
+\emph default 
+ as a job description used for job submission to NorduGrid/ARC.
+\layout Paragraph
+
+run.sh
+\layout Standard
+
+Application specific but considered a good way of specifying the execution
+ string to an application (as opposed of writing all of this to 
+\emph on 
+job.xrsl
+\emph default 
+, which is entirely possible).
+\layout Paragraph
+
+input files
+\layout Standard
+
+Depending on the application, there can be one or more other files in the
+ job directory.
+ These are input files from the user, required for the job.
+ In practice they are job descriptions and/or data sets in the format the
+ application requires them to be.
+\layout Subsubsection
+
+Job results
+\layout Standard
+
+Once a job has been submitted and completed, the user will want to retrieve
+ the results.
+ Every job created can be ran more than once, the results of each run will
+ be stored separately and can be accessed at any time until they are deleted
+ by the user (or the job as a whole is deleted).
+ A job retrieved from the grid is stored under:
+\layout Standard
+
+
+\emph on 
+%root_path%/NorduGrid/<organization>/<user>/job_<jobname>/<jobid>
+\layout Standard
+
+<jobid> is assigned by NorduGrid/ARC to distinguish between jobs on the
+ same grid.
+ When the results of a job are retrieved through NorduGrid/ARC, all the
+ files belonging to a job are stored under the above mentioned job path.
+ A special subdirectory 
+\emph on 
+gmlog
+\emph default 
+ contains debugging information about the job run.
+\layout Chapter
+\start_of_appendix 
+References
+\layout Section
+
+Software
+\layout Itemize
+
+
+\begin_inset LatexCommand \htmlurl[Apache HTTP server]{http://httpd.apache.org/}
+
+\end_inset 
+
+
+\layout Itemize
+
+
+\begin_inset LatexCommand \htmlurl[BLAST]{http://www.ncbi.nlm.nih.gov/BLAST/}
+
+\end_inset 
+
+
+\layout Itemize
+
+
+\begin_inset LatexCommand \htmlurl[HyperText HTML code generation library]{http://dustman.net/andy/python/HyperText}
+
+\end_inset 
+
+
+\layout Itemize
+
+
+\begin_inset LatexCommand \htmlurl[Matlab]{http://www.mathworks.com/}
+
+\end_inset 
+
+
+\layout Itemize
+
+
+\begin_inset LatexCommand \htmlurl[mpiBLAST]{http://mpiblast.lanl.gov/}
+
+\end_inset 
+
+
+\layout Itemize
+
+
+\begin_inset LatexCommand \htmlurl[NorduGrid middleware]{http://www.nordugrid.org/}
+
+\end_inset 
+
+
+\layout Itemize
+
+
+\begin_inset LatexCommand \htmlurl[Webware for Python]{http://www.webwareforpython.org/}
+
+\end_inset 
+
+
+\layout Section
+
+Documentation
+\layout Itemize
+
+
+\begin_inset LatexCommand \htmlurl[WebKit documentation]{http://www.webwareforpython.org/Webware/WebKit/Docs/index.html}
+
+\end_inset 
+
+
+\layout Itemize
+
+
+\begin_inset LatexCommand \htmlurl[Webware documentation]{http://www.webwareforpython.org/Webware/Docs/index.html}
+
+\end_inset 
+
+
+\layout Chapter
+
+Glossary
+\layout Paragraph
+
+cluster
+\layout Standard
+
+A cluster is a collection of homogeneous (ie.
+ identical) pc-computers (nodes) connected in a local area network.
+ Each node has its own, distinct memory and hard drive.
+ Clusters are fairly cheap because each node is a regular desktop computer/small
+ server in terms of computing power and is purchased mainstream at a low
+ cost.
+\layout Standard
+
+Clusters have a dedicated frontend computer which hosts the scheduler for
+ the cluster and manages user accounts, access permissions etc.
+ The cluster frontend is the only gateway to the cluster nodes.
+ Some variant of a shared file system, often nfs, is used to distribute
+ data for jobs across nodes in a cluster
+\layout Standard
+
+Most importantly, a cluster is a cheap way of obtaining a lot of processing
+ power, as compared to large shared memory machines.
+\layout Paragraph
+
+grid
+\layout Standard
+
+First of all, a grid is not a cluster.
+ A grid is a general term used to describe many connected resources which
+ combined offer great processing power.
+ A grid can be a network of clusters, it can also include shared memory
+ machines.
+ NorduGrid specifically consists of clusters.
+\layout Paragraph
+
+GRIDportal
+\layout Standard
+
+The term GRIDportal can mean one of two things.
+ It is both the 
+\emph on 
+project
+\emph default 
+ whose goal it is to produce the software product, and the 
+\emph on 
+product
+\emph default 
+ itself.
+ In most cases I refer to GRIDportal as the software product, but on occasion
+ the alternate definition is applied.
+\layout Paragraph
+
+LunARC Application Portal (LAP)
+\layout Standard
+
+The original grid application portal software written by Jonas Lindemann.
+ GRIDportal is a fork of the Lunarc Application Portal.
+ Sometimes referred to as LAP.
+\layout Paragraph
+
+NorduGrid
+\layout Standard
+
+The international collaboration which produces NorduGrid/ARC.
+ Sometimes used to mean the NorduGrid network.
+\layout Paragraph
+
+NorduGrid/ARC
+\layout Standard
+
+The middleware from NorduGrid.
+ Sometimes referred to simply as middleware.
+\layout Paragraph
+
+NorduGrid network
+\layout Standard
+
+The collection of grid sites which deploy NorduGrid/ARC and thus offer grid
+ resources to the whole network.
+\the_end

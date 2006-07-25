@@ -1,0 +1,85 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<link rel="stylesheet" href="styles.css" type="text/css">
+</head>
+
+<body>
+
+<div="wrapper">
+
+	<div class="title">
+		<h1>GRIDportal RFC01 : authentication mechanism</h1>
+		pages: <a href="index.html">01</a> | 
+					<a href="02.html">02</a> | 
+					<a href="03.html">03</a> |
+					<a href="04.html">04</a>
+	</div>
+
+	<div class="ui">
+		<div class="subtitle">User interface</div>
+	
+		<h2>Register at GRIDportal</h2>
+			Please be advised that you must enter a valid email address. You will need this address later to complete the registration procedure.
+			<br><b>NOTE:</b> Please do take great care in not forgetting the username or password you enter below. There is no possibility of looking them up for you, if you become locked out of your account, you will have to register a new one.
+	
+		<table style="margin: 0px auto;">
+			<tr>
+				<th>first name:</th>
+				<td><input value="John"></td>
+			</tr>
+			<tr>
+				<th>last name:</th>
+				<td><input value="Doe"></td>
+			</tr>
+			<tr>
+				<th>email address:</th>
+				<td><input value="john.doe@ntnu.no"></td>
+			</tr>
+			<tr>
+				<th>organization:</th>
+				<td><input value="ntnu.no"></td>
+			</tr>			
+			<tr>
+				<td>&nbsp;</td><td></td>
+			</tr>
+			<tr>
+				<th>username:</th>
+				<td><input value="jdoe"></td>
+			</tr>
+			<tr>
+				<th>password:</th>
+				<td><input type="password" value="jimmy"></td>
+			</tr>
+			<tr>
+				<th><input type="submit" value="submit"></th>
+				<td><input type="reset" value="reset"></td>
+			</tr>
+		</table>
+	</div>
+	
+	<div class="design">
+		<div class="subtitle">Design</div>
+		
+		The top fields are necessary to store in the certificate. The username is needed to keep track of the user on GRIDportal. A password is needed to create a certificate.
+		<br><br>
+		The input to the certificate is the above form, including the password. The same password is used for accessing GRIDportal. The same password will later be used to store the certificate with myProxy.		
+	</div>
+	
+	<div class="implementation">
+		<div class="subtitle">Implementation</div>
+		
+		To generate a certificate we need <i>grid-cert-request</i>, but since that is an interactive program, we can use the <i>GridCertRequest</i> java class from <a href="http://www.cogkit.org/">CoGkit</a> and write a simple client to do the same.
+		
+		<div class="security">
+			<h3>The security angle</h3>
+			A certificate is considered compromised once the private key is seen by the opposite party, which is GRIDportal. However, our goal is to build a user friendly system, so the user should not have to do anything on the workstation. The certificate is here created and subsequently sent to a certificate authority for signing. The user will also download it. It is then removed from the server.
+			
+			<br><br><b>Proposed solution:</b> Let us first ask ourselves: what is the security threat exactly of the private key being revealed to the portal? Who can abuse it? The local Unix users, correct? Then what about deploying all of GRIDportal on a dedicated box, with just the components needed by GRIDportal installed (including NordugGrid/ARC client) and seal it off from all users? Would that not solve the problem?
+		</div>
+	</div>
+
+</div>
+
+</body>
+</html>

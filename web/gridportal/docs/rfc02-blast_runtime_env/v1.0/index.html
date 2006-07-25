@@ -1,0 +1,82 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<link rel="stylesheet" href="styles.css" type="text/css">
+</head>
+
+<body>
+
+<div="wrapper">
+
+	<div class="title">
+		<h1>GRIDportal RFC02 : [mpi]BLAST runtime environment</h1>
+	</div>
+
+
+	<h2>Rationale</h2>
+
+	<p>One of the aims of GRIDportal is indeed to allow the user to submit jobs to grids other than the local one (in fact NorduGrid itself should decide to which grid the job is assigned transparently), so the use of runtime environments is a key issue and should be exploited by GRIDportal.</p>
+	
+
+	<h2>What is a runtime environment?</h2>
+
+	<p>Jobs submitted through GRIDportal are submitted to the NorduGrid network. In the most basic scenario, all jobs are executed on the local grid (if there is one). Otherwise, GRIDportal can also allow a user to submit jobs to any other grid within Nordugrid. But a job is a set of instructions meant for a specific application, so in order to keep track of which grid site has which applications, NorduGrid governs this dilemma by the use of <i>runtime environments</i>.</p>
+
+	<p>A runtime environment is quite simply a shell script written for a specific application (and its version), which sets up the necessary environmental variables (such as the path to the executable, libraries etc), allowing the execution of jobs for that particular application. When a user submits a job to NorduGrid, the job definition may include a string in the form: <pre>(runTimeEnvironment=APPS/MATH/MATLAB-7.0.0-1.0)</pre>
+	This defines a runtime environment for Matlab version 7.0, whereas the value 1.0 indicates this is version 1.0 of the runtime environment. This job will be accepted by a grid advertising this exact runtime environment and rejected by those which do not.</p>
+
+	<p>More background on runtime environments:<br/>
+	<a href="http://www.csc.fi/grid/rer/">+ Runtime Environment Registry</a>
+	</p>
+
+
+	<h2>Implications for BLAST</h2>
+
+	<p>While some applications are well suited for a runtime environment definition, BLAST is not. The rationale behind a runtime environment is to pinpoint which application is requested and which version of the application is needed. But that still does not define a BLAST deployment adequately. In order to use BLAST one needs to install not only the application but also one or more <i>databases</i> to search in. A BLAST job requesting a database which is not found on the grid where the job is executed will fail. Meanwhile, there is no logic in the current format of runtime environments to declare which databases are present on the grid.</p>
+
+	<h3>Unsolved problems:</h3>
+	<ul>
+		<li>no way to declare which databases are present</li>
+		<li>no way to declare which version of a database is present (BLAST databases are released in new versions periodically)</li>
+	</ul>
+
+	<h3>Consequences</h3>
+
+	<p>The current format of runtime environments does not enable an unambiguous definition of a BLAST runtime environment. This in fact means that BLAST jobs can only be executed on grids which are "manually" synchronized between grid administrators (that is, an agreement reached about which databases are installed).</p>
+
+
+	<h2>Implications for mpiBLAST</h2>
+
+	<p>Unfortunately, mpiBLAST offers no solution to this problem, in fact it adds to it. All of the above holds true for mpiBLAST, but in addition, mpiBLAST divides each database into a number of <i>segments</i> (with <tt>mpiformatdb</tt>), which are then distributed onto the nodes which are chosen to execute the job. This "segmentation" is considered to be static (ie. it is only done upon database installation, not on every job run), because it takes quite a long time. This effectively means that every mpiblast job should be ran with the same number of nodes as there are segments.</p>
+
+	<p>There is a loose correlation between the number of nodes selected in the job definition (the xrsl file),
+	<pre>(count=20)</pre>
+ 	and the arguments passed to mpirun, set with the count parameter,
+	<pre>mpirun -np 20 mpiblast -p blastp -d nr -i infile -o outfile</pre>
+	(to run on 20 nodes). This declaration does not directly assign a number of nodes, it simply states that the job is executed in 20 parallell sets, whether that translates into one node for each set or something completely different depends on the underlying job scheduler.</p>
+
+	<h3>Unsolved problems:</h3>
+	<ul>
+		<li>no way to declare which databases are present</li>
+		<li>no way to declare which version of a database is present (BLAST databases are released in new versions periodically)</li>
+		<li>no way to declare how many segments a database has</li>
+	</ul>
+
+	<h3>Example</h3>
+
+	<p>The local cluster has 3 databases installed, each of them is divided into segments depending on its size:</p>
+	<ul>
+		<li>database 01, size 400mb: 5 segments</li>
+		<li>database 02, size 800mb: 10 segments</li>
+		<li>database 03, size: 4gb: 25 segments</li>
+	</ul>
+	<p>It is fully possible to write logic to handle this scenario and create job definitions thereafter. But there is no way to pass this state onto the runtime environment, thus local jobs cannot be run on remote grids.</p>
+
+	<h3>Consequences</h3>
+
+	<p>Adding to the problems of BLAST, mpiBLAST introduces problems of its own. The decisions on segmentation could be streamlined but it remains a decision of the grid administrator of how to best utilize the given resources, it should not be overridden from an outside body. In effect, this leaves several issues unresolved and renders an mpiBLAST runtime environment definition impossible.</p>
+
+</div>
+
+</body>
+</html>

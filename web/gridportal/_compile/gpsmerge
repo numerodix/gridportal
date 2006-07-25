@@ -1,0 +1,23 @@
+cd $GP_PATH/www/docs/fprint
+
+cp ../d03splash/splash.pdf 00a_splash.pdf
+cp ../e02frontpage/012.pdf 00b_aitel_header.pdf
+cp ../d10index/index.pdf 00c_index.pdf
+
+cp ../d04prelim/preliminary_study.pdf 01a_preliminary_study.pdf
+cp ../d01aprojectnb/projectnotebook.pdf 01b_projectnotebook.pdf
+cp ../d13projsshots/projsshots.pdf 01c_projsshots.pdf
+cp ../e01presentation/Presentation.pdf 01d_presentation.pdf
+cp ../d08final/final_report.pdf 01e_final_report.pdf
+
+cp ../d11gpuserguide/gpuserguide.pdf 02a_gpuserguide.pdf
+cp ../d12gpsshots/gpsshots.pdf 02b_gpsshots.pdf
+cp ../d05whitepaper/white_paper.pdf 02c_white_paper.pdf
+cp ../d06spec/requirements_specification.pdf 02d_requirements_specification.pdf
+cp ../d07test/test_report.pdf 02e_test_report.pdf
+cp ../api/pdf/api.pdf 02f_api.pdf
+
+cp ../d09poster_abstract/poster_abstract.pdf 03a_poster_abstract.pdf
+cp ../e03poster/notur-a4.pdf 03b_notur-a4.pdf
+
+gpmerge

@@ -1,0 +1,842 @@
+#LyX 1.3 created this file. For more info see http://www.lyx.org/
+\lyxformat 221
+\textclass docbook
+\language english
+\inputencoding auto
+\fontscheme bookman
+\graphics default
+\paperfontsize 10
+\spacing single 
+\papersize a4paper
+\paperpackage widemarginsa4
+\use_geometry 0
+\use_amsmath 0
+\use_natbib 1
+\use_numerical_citations 0
+\paperorientation portrait
+\secnumdepth 3
+\tocdepth 4
+\paragraph_separation skip
+\defskip smallskip
+\quotes_language swedish
+\quotes_times 2
+\papercolumns 1
+\papersides 2
+\paperpagestyle fancy
+
+\layout Title
+
+Practical GRIDportal with mpiBLAST
+\layout Standard
+
+Tutorial
+\layout Author
+
+Martin Matusiak
+\layout Standard
+
+
+\begin_inset Graphics
+	filename logo.eps
+	display none
+	width 40page%
+	keepAspectRatio
+
+\end_inset 
+
+
+\layout Standard
+
+
+\begin_inset LatexCommand \tableofcontents{}
+
+\end_inset 
+
+
+\layout Standard
+
+Preface
+\layout Standard
+
+Firstly, a note on GRID access is in order.
+ This tutorial does not discuss obtaining access to GRIDportal, it assumes
+ access has been granted beforehand.
+ This implies that either you already have an account with GRIDportal, or
+ you will be using a temporary account granted for the purpose of this tutorial.
+\layout Standard
+
+If you wish to apply for an account on GRIDportal, please consult the 
+\emph on 
+Getting Started
+\emph default 
+ guide at 
+\begin_inset LatexCommand \htmlurl{https://norgrid.ntnu.no/gridportal/DocGettingStarted}
+
+\end_inset 
+
+.
+\layout Standard
+
+Logging into GRIDportal
+\layout Standard
+
+Open the GRIDportal website at 
+\begin_inset LatexCommand \htmlurl{https://norgrid.ntnu.no/gridportal/}
+
+\end_inset 
+
+.
+ From the menu, select 
+\emph on 
+Session > Log in...
+\emph default 
+.
+\layout Standard
+
+
+\begin_inset Graphics
+	filename session_login01.png
+	display none
+	width 100line%
+	keepAspectRatio
+
+\end_inset 
+
+
+\layout Standard
+
+Now, enter the username and password for your GRIDportal account and click
+ 
+\emph on 
+Login
+\emph default 
+.
+\layout Standard
+
+You are now logged into GRIDportal.
+ 
+\emph on 
+Choose Session > Information...
+
+\emph default 
+ from the menu to view some information about your session.
+\layout Standard
+
+This page displays information about your session.
+ The 
+\emph on 
+DN
+\emph default 
+ (Distinguished Name) field shows your unique identifier on the grid.
+ 
+\layout Standard
+
+A note on sessions is in order.
+ GRIDportal deals with two different types of sessions.
+ One is your session on GRIDportal, which is valid for 60 minutes.
+ This means that after 60 minutes of inactivity, the session expires and
+ you will have to login anew.
+ As long as you keep loading pages, the session will remain active.
+ The status of this session is not shown on this page.
+\layout Standard
+
+The other type of session is your GRID session, granted through a grid proxy.
+ GRIDportal handles this for you, but the proxy is valid for a limited period
+ of time, specifically 12 hours.
+ 
+\emph on 
+Proxy remaining
+\emph default 
+ shows how much longer your GRIDportal session is valid in HH:MM:SS (hours,
+ minutes, seconds).
+ Although you can maintain your GRIDportal session indefinitely (as mentioned
+ in the previous paragraph), your grid session will expire without fail.
+ You will still be able to access GRIDportal, but not submit jobs or monitor
+ them.
+\layout Standard
+
+
+\series bold 
+NOTE: If you receive an error saying 
+\begin_inset Quotes sld
+\end_inset 
+
+proxy expired
+\begin_inset Quotes srd
+\end_inset 
+
+, simply re-login (log out, then log in) to GRIDportal and a new proxy will
+ be created in your name for another 12 hours.
+ Your jobs will never be lost over an expired proxy.
+\layout Standard
+
+Creating a BLAST job
+\layout Standard
+
+To get started with mpiBLAST, choose 
+\emph on 
+Create > mpiBLAST > blastp...
+
+\emph default 
+ from the menu.
+ mpiBLAST offers all BLAST variants except for megablast.
+ This section discusses the use of blastp, but all BLAST types are very
+ similar in use, so the material is easily transferrable to blastn, blastx
+ etc.
+\layout Standard
+
+As such, there is no difference between BLAST and mpiBLAST jobs, except
+ that mpiBLAST was developed to run on several machines at once.
+ The results from mpiBLAST jobs match those of BLAST.
+\layout Standard
+
+Now fill in this form to set the options for your job.
+ The fields marked with an asterisk (*) are mandatory.
+ 
+\series bold 
+NOTE: you may either enter query sequences into the field 
+\emph on 
+Enter query sequences
+\emph default 
+ or provide an input file with sequences using the field 
+\emph on 
+Sequences input file
+\emph default 
+.
+\layout Standard
+
+Download the file 
+\begin_inset LatexCommand \htmlurl{https://norgrid.ntnu.no/gridportal/testjob_blastp.txt}
+
+\end_inset 
+
+ and select it as 
+\emph on 
+Sequences input file
+\emph default 
+.
+\layout Standard
+
+The choice of databases to search in is a reflection of which databases
+ are installed.
+ If you seek a certain database which isn't available, please request it.
+\layout Standard
+
+The defaults on this page are made to match the defaults of NCBI's BLAST.
+\layout Standard
+
+If you are unsure of certain options, click on the label of the field to
+ bring up an explanation (next screenshot).
+\layout Standard
+
+This page of descriptions explains every input field on the job creation
+ page.
+\layout Standard
+
+If you wish to set any parameters which are not available on this form,
+ you may enter them in the 
+\emph on 
+Advanced parameters
+\emph default 
+ field.
+ You may also use this field to override any parameters set above.
+\layout Standard
+
+Finally, when you are satisfied with all the options, click 
+\emph on 
+Create
+\emph default 
+.
+\layout Standard
+
+Your job is now created.
+ Once a job exists, it can be changed and submitted any number of times.
+\layout Standard
+
+Submitting a BLAST job
+\layout Standard
+
+Submitting (or running) a job is sending the job from GRIDportal to the
+ grid, where it will be run.
+\layout Standard
+
+From the menu, select 
+\emph on 
+Manage > Local jobs...
+\emph default 
+.
+\layout Standard
+
+This page shows all the jobs you have created.
+ Select the job to submit and click 
+\emph on 
+Submit
+\emph default 
+.
+\layout Standard
+
+Your job is now submitted.
+\layout Standard
+
+Monitoring a job
+\layout Standard
+
+Once a job has been submitted, you will want to keep an eye on it to know
+ what is happening to it.
+ From the menu, choose 
+\emph on 
+Manage > Monitor runnings jobs
+\emph default 
+.
+\layout Standard
+
+If your job does not appear immediately, choose 
+\emph on 
+Manage > Synchronize job list
+\emph default 
+ from the menu.
+ If it is still missing, wait a few minutes and try again.
+ There is a slight delay from the time the job is sent to the grid to the
+ time the grid confirms that it has been submitted, which explains why jobs
+ sometimes seem to be missing at first.
+\layout Standard
+
+Here the job is shown running.
+ The different job states are explained in the table below.
+\layout Standard
+
+
+\begin_inset  Tabular
+<lyxtabular version="3" rows="10" columns="2">
+<features>
+<column alignment="left" valignment="top" leftline="true" width="0">
+<column alignment="left" valignment="top" leftline="true" rightline="true" width="0">
+<row topline="true" bottomline="true">
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+
+\series bold 
+Job state
+\end_inset 
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+
+\series bold 
+Explanation
+\end_inset 
+</cell>
+</row>
+<row topline="true">
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+
+\family roman 
+\series medium 
+\shape up 
+\size normal 
+\emph off 
+\bar no 
+\noun off 
+\color none
+ACCEPTED
+\end_inset 
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+
+\family roman 
+\series medium 
+\shape up 
+\size normal 
+\emph off 
+\bar no 
+\noun off 
+\color none
+job submitted but not yet processed
+\end_inset 
+</cell>
+</row>
+<row topline="true">
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+
+\family roman 
+\series medium 
+\shape up 
+\size normal 
+\emph off 
+\bar no 
+\noun off 
+\color none
+PREPARING
+\end_inset 
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+
+\family roman 
+\series medium 
+\shape up 
+\size normal 
+\emph off 
+\bar no 
+\noun off 
+\color none
+input files are being retrieved
+\end_inset 
+</cell>
+</row>
+<row topline="true">
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+
+\family roman 
+\series medium 
+\shape up 
+\size normal 
+\emph off 
+\bar no 
+\noun off 
+\color none
+SUBMITTING
+\end_inset 
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+
+\family roman 
+\series medium 
+\shape up 
+\size normal 
+\emph off 
+\bar no 
+\noun off 
+\color none
+interaction with grid ongoing
+\end_inset 
+</cell>
+</row>
+<row topline="true">
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+
+\family roman 
+\series medium 
+\shape up 
+\size normal 
+\emph off 
+\bar no 
+\noun off 
+\color none
+INLRMS: Q
+\end_inset 
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+
+\family roman 
+\series medium 
+\shape up 
+\size normal 
+\emph off 
+\bar no 
+\noun off 
+\color none
+job is queued by grid
+\end_inset 
+</cell>
+</row>
+<row topline="true">
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+
+\family roman 
+\series medium 
+\shape up 
+\size normal 
+\emph off 
+\bar no 
+\noun off 
+\color none
+INLRMS: R
+\end_inset 
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+
+\family roman 
+\series medium 
+\shape up 
+\size normal 
+\emph off 
+\bar no 
+\noun off 
+\color none
+job is running
+\end_inset 
+</cell>
+</row>
+<row topline="true">
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+
+\family roman 
+\series medium 
+\shape up 
+\size normal 
+\emph off 
+\bar no 
+\noun off 
+\color none
+FINISHING
+\end_inset 
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+
+\family roman 
+\series medium 
+\shape up 
+\size normal 
+\emph off 
+\bar no 
+\noun off 
+\color none
+output files are being transferred
+\end_inset 
+</cell>
+</row>
+<row topline="true">
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+
+\family roman 
+\series medium 
+\shape up 
+\size normal 
+\emph off 
+\bar no 
+\noun off 
+\color none
+FINISHED
+\end_inset 
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+
+\family roman 
+\series medium 
+\shape up 
+\size normal 
+\emph off 
+\bar no 
+\noun off 
+\color none
+job is finished
+\end_inset 
+</cell>
+</row>
+<row topline="true">
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+
+\family roman 
+\series medium 
+\shape up 
+\size normal 
+\emph off 
+\bar no 
+\noun off 
+\color none
+CANCELING
+\end_inset 
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+
+\family roman 
+\series medium 
+\shape up 
+\size normal 
+\emph off 
+\bar no 
+\noun off 
+\color none
+job is being canceled
+\end_inset 
+</cell>
+</row>
+<row topline="true" bottomline="true">
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+
+\family roman 
+\series medium 
+\shape up 
+\size normal 
+\emph off 
+\bar no 
+\noun off 
+\color none
+DELETED
+\end_inset 
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\layout Standard
+
+
+\family roman 
+\series medium 
+\shape up 
+\size normal 
+\emph off 
+\bar no 
+\noun off 
+\color none
+job is removed due to expiration time
+\end_inset 
+</cell>
+</row>
+</lyxtabular>
+
+\end_inset 
+
+
+\layout Standard
+
+Getting job results
+\layout Standard
+
+Once a job has finished, choose 
+\emph on 
+Manage > Jobs submitted to grid...
+
+\emph default 
+ from the menu.
+\layout Standard
+
+Select the job you wish to get and click 
+\emph on 
+Get
+\emph default 
+.
+ 
+\emph on 
+Get
+\emph default 
+ removes the job from the grid and stores results from the job on GRIDportal.
+\layout Standard
+
+
+\emph on 
+Kill
+\emph default 
+ can only be performed a job which has not yet finished.
+ 
+\emph on 
+Kill
+\emph default 
+ aborts a job in progress on the grid, job results are lost.
+ The job itself is not deleted on GRIDportal, only on the grid, which means
+ the job is still listed on the page 
+\emph on 
+Manage > Local jobs...
+\emph default 
+.
+\layout Standard
+
+
+\emph on 
+Clean
+\emph default 
+ can only be performed on jobs which have finished.
+ 
+\emph on 
+Clean
+\emph default 
+ is the opposite of 
+\emph on 
+Get
+\emph default 
+, it removes the job from the grid and discards the job results.
+\layout Standard
+
+The job results are now transferred to GRIDportal.
+\layout Standard
+
+Viewing job results
+\layout Standard
+
+Once job results have been transferred to GRIDportal, they remain stored
+ on GRIDportal until you remove them.
+ To view job results, choose 
+\emph on 
+Manage > Local jobs...
+
+\emph default 
+ from the menu.
+\layout Standard
+
+Choose the job whose results you want to examine and click 
+\emph on 
+View files
+\emph default 
+.
+\layout Standard
+
+Here I have run this job three times.
+ I choose the last job run and click 
+\emph on 
+View
+\emph default 
+ to look at the files resulting from the job.
+\layout Standard
+
+
+\emph on 
+Delete all sessions
+\emph default 
+ deletes all job results for this job, but not the job itself.
+\layout Standard
+
+Now select the file to view and click 
+\emph on 
+View
+\emph default 
+.
+\layout Standard
+
+
+\emph on 
+Download
+\emph default 
+ downloads the selected file to your computer.
+\layout Standard
+
+
+\emph on 
+Download all (tar.gz)
+\emph default 
+ compresses all the files shown and lets you download the compressed archive.
+\layout Standard
+
+
+\emph on 
+gmlog
+\emph default 
+ is a directory containing debugging information about the job and can be
+ safely ignored.
+\layout Standard
+
+This page shows a single file from the job results directory.
+ 
+\layout Standard
+
+Further reading
+\layout Section
+
+Getting help
+\layout Standard
+
+The material in this tutorial is discussed more thoroughly in the 
+\emph on 
+User's Guide
+\emph default 
+, available at 
+\begin_inset LatexCommand \htmlurl{https://norgrid.ntnu.no/gridportal/DocUserGuide}
+
+\end_inset 
+
+ (or simply choose 
+\emph on 
+Information > User's Guide
+\emph default 
+ from the menu).
+\layout Section
+
+References
+\layout Itemize
+
+GRIDportal: the NTNU Application Portal: 
+\begin_inset LatexCommand \htmlurl{https://norgrid.ntnu.no/gridportal}
+
+\end_inset 
+
+
+\layout Itemize
+
+GRIDportal project: 
+\begin_inset LatexCommand \htmlurl{http://gridportal.dynalias.org/}
+
+\end_inset 
+
+
+\layout Itemize
+
+mpiBLAST: 
+\begin_inset LatexCommand \htmlurl{http://mpiblast.lanl.gov/}
+
+\end_inset 
+
+
+\the_end

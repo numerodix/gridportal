@@ -1,0 +1,23 @@
+.menu{
+margin-bottom: 8px;
+text-align: center;
+padding: 5px;
+background-color: #eff6f9;
+border-width:  1px;
+border-style: solid;
+border-color: #949494;
+clear: both;
+height: 31px;
+}
+
+.sflogo {
+float: left;
+}
+
+.menutext {
+text-align: right;
+}
+
+.break {
+clear: both;
+}

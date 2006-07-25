@@ -1,0 +1,2 @@
+cd $GP_PATH
+svn update

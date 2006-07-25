@@ -1,0 +1,9 @@
+GP_PATH=/home/alex/gridportal
+
+rm /usr/local/bin/gp*
+for i in $(ls gp*)
+do
+	cd /usr/local/bin/
+	ln -sf $GP_PATH/www/_compile/$i $i
+done
+

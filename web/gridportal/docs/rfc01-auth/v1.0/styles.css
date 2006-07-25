@@ -1,0 +1,78 @@
+body, div, p, table, tr, th, td {
+	font-family: "Verdana" , serif;
+	font-size: 12px ;
+}
+
+table {
+	padding: 5px;
+}
+
+th, td {
+	padding: 3px;
+	vertical-align: top;
+}
+
+th {
+	text-align: right;
+	color: #666666;
+}
+
+h1 {
+	color: #000000;
+	font-size:  18px;
+	font-weight:bold;
+	margin: 0px;
+}
+
+h2 {
+	color: navy;
+	font-size: 16px;
+	margin: 5px;
+	text-align: center;
+}
+
+h3 {
+	margin-top: 0px;
+	margin-bottom: 3px;
+	color: #ff8888;
+}
+
+.wrapper {
+	width: 100%;
+}
+
+.title {
+	text-align:center;
+	padding: 5px;
+}
+
+.subtitle {
+	text-align:right;
+	color: #888888;
+	font-size:  14px;
+	font-weight:bold;
+	font-style:italic;
+	padding-bottom: 10px;
+}
+
+.ui {
+	padding: 5px;
+	background-color:#ffced1;
+/*	text-align: center; */
+}
+
+.design {
+	padding: 5px;
+	background-color:#aaccFF;
+}
+
+.implementation {
+	padding: 5px;
+	background-color:#CCFFCC;
+}
+
+.security {
+	padding: 5px;
+	margin: 10px;
+	background-color:#fefefe;
+}
