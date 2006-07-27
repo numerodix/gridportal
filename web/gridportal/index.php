@@ -24,7 +24,7 @@
 	<br/><br/>
 	GRIDportal is built on top of NorduGrid/ARC middleware and depends on the middleware to function. This relationship between GRIDportal and NorduGrid/ARC also allows a user to access the entire NorduGrid network through GRIDportal (provided the user has the necessary credentials), thus making GRIDportal a gateway to a whole range of different GRID sites.
 	<br/><br/>
-	GRIDportal was born from Jonas Lindemann's LUNARC Application Portal and is distributed under the <a href="http://www.gnu.org/copyleft/gpl.html">GPL licence</a>.
+	GRIDportal is developed by the <a href="http://hpc.ntnu.no/">HPC Project</a> at the <a href="http://www.ntnu.no/">Norwegian University of Science and Technology</a>. It was forked from Jonas Lindemann's LUNARC Application Portal and is distributed under the <a href="http://www.gnu.org/copyleft/gpl.html">GPL licence</a>.
 	<br/><br/>
 	Martin Matusiak - GRIDportal project manager
 	
@@ -77,7 +77,7 @@
 
 	<h3>Publications</h3>
 	<ul>
-		<li>Presentation at <a href="http://www.medisin.ntnu.no/">Medisinsk teknisk forskningssenter</a> (NTNU), Nov 10 :: [<a href="docs/pub03-mtfs05/gridportal_mtfs05.pdf">pdf</a>] </li>
+		<li>Presentation at <a href="http://www.medisin.ntnu.no/">Medisinsk teknisk forskningssenter</a> (NTNU), Nov 10 2005 :: [<a href="docs/pub03-mtfs05/gridportal_mtfs05.pdf">pdf</a>] </li>
 		<li><a href="http://www.fys.uio.no/epf/nordic-network/xi/1stNGNconf.htm">1st Nordic Grid Neighbourhood Conference 2005</a> presentation :: [<a href="docs/pub02-ngn05/gridportal_ngn05.pdf">pdf</a>] </li>
 		<li><a href="http://www.notur.no/notur2005/">NOTUR 2005</a> conference poster :: [<a href="docs/pub01-notur05/gridportal_notur05.pdf">pdf</a>] </li>
 	</ul>
