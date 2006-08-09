@@ -1,3 +1,12 @@
+9 August 2006, Martin Matusiak:
+
++++ v1.0.2 bugfix
+
+Improved certificate [request] detection.
+Added certread.sh utility to read all certificate files outside of the
+toolkit.
+
+
 20 October 2005, Martin Matusiak:
 
 +++ bugfix
