@@ -1,0 +1,139 @@
+<project name="toolkit" default="dist" basedir=".">
+
+	<!-- set global properties for this build -->
+	<property name="srcroot" location="."/>
+	
+	<property name="src" location="${srcroot}/src"/>
+	<property name="lib" location="${srcroot}/lib"/>
+	<property name="build" location="${srcroot}/build"/>
+	<property name="boot" location="${srcroot}/boot"/>
+	<property name="pkg" location="${srcroot}/pkg"/>
+	<property name="dist" location="${srcroot}/dist"/>
+	<property name="exec" location="${srcroot}/exec"/>
+
+	<property name="images" location="${srcroot}/images"/>
+	<property name="ca" location="${srcroot}/ca"/>
+
+	
+	<target name="init">
+		<!-- Create the time stamp -->
+		<tstamp/>
+		<!-- Create the build directory structure used by compile -->
+		<mkdir dir="${build}"/>
+	</target>
+	
+	
+	<target name="doc">
+		<!-- Create the build directory structure used by compile -->
+		<delete>
+			<fileset dir="${docdir}" excludes="**/.svn"/>
+		</delete>
+		
+		<javadoc destdir="${docdir}" classpath="${lib}" use="yes" author="true"
+						 access="private">
+			<fileset dir="${src}" defaultexcludes="no">
+				<include name="**/*.java"/>
+				<exclude name="**/.svn/**"/>
+			</fileset>
+		</javadoc>
+	</target>
+	
+	
+	<target name="compile" depends="init"
+				description="compile the source " >
+		<!-- Compile the java code from ${src} into ${build}, 
+			set jdk1.3 compability level -->
+		<javac srcdir="${src}" destdir="${build}" 
+					 extdirs="${lib}"
+			debug="on"
+		/>	<!-- compiler="jikes" -->
+	</target>
+	
+	
+	<target name="package" depends="compile"
+				description="generate the distribution" >
+		<!-- Create the distribution directory -->
+		<mkdir dir="${pkg}/main"/>
+		
+		<!-- Copy libs to build directory -->
+		<copy todir="${pkg}/lib">
+			<fileset dir="${lib}"/>
+  	</copy>
+		<!-- Copy images/ to build directory -->
+		<copy todir="${build}/images">
+			<fileset dir="${images}"/>
+  	</copy>
+		<!-- Copy non-source files in dir tree to build directory -->
+		<copy todir="${build}">
+			<fileset dir="${src}" excludes="**/*.java"/>
+  	</copy>
+	
+		<!-- Put everything in ${build} into the toolkit.jar file -->
+		<jar jarfile="${pkg}/main/toolkit.jar" basedir="${build}"
+				 manifest="${srcroot}/manifest.txt"
+		/>
+		<!-- Put everything in ${build} into the toolkit.jar file -->
+		<jar jarfile="${pkg}/main/test_certread.jar" basedir="${build}"
+		     manifest="${srcroot}/manifest.testcertread.txt"
+		/>
+	</target>
+	
+	<!-- not the default dist target because onejar packaging breaks
+			 java's authentication mechanism of crpyto providers, 
+			 bouncycastle library doesn't work when packaged with one jar
+	-->
+	<target name="dist.onejar" depends="package">
+		<mkdir dir="${dist}"/>
+	
+		<unjar src="${boot}/one-jar-boot-0.96.jar" dest="${pkg}">
+		</unjar>
+		
+		<jar jarfile="${dist}/toolkit.jar" basedir="${pkg}"
+			manifest="${pkg}/boot-manifest.mf"
+		/>
+	</target>
+	
+	
+	<target name="dist" depends="package">
+		<mkdir dir="${dist}"/>
+		
+		<!-- Copy ca certs to dist directory -->
+		<copy todir="${dist}">
+			<fileset dir="${ca}"/>
+		</copy>
+		
+		<!-- Copy toolkit.ini to dist directory -->
+		<copy todir="${dist}">
+			<fileset file="${srcroot}/toolkit.ini"/>
+		</copy>
+		
+		<!-- Copy launchers to dist directory -->
+		<copy todir="${dist}">
+			<fileset dir="${exec}"/>
+		</copy>
+		<chmod file="${dist}/run.sh" perm="ug+rx"/>
+		
+		<!-- Copy libs to dist directory -->
+		<copy todir="${dist}">
+			<fileset dir="${lib}"/>
+		</copy>
+		
+		<!-- Copy app to dist directory -->
+		<copy todir="${dist}">
+			<fileset dir="${pkg}/main"/>
+		</copy>
+	</target>
+	
+		
+	<target name="publish" depends="dist">
+		<zip destfile="${pubdir}/gptoolkit-1.0.0.zip" basedir="${dist}"/>
+	</target>
+	
+	
+	<target name="clean" description="clean up" >
+		<!-- Delete the ${build} and ${dist} directory trees -->
+		<delete dir="${build}"/>
+		<delete dir="${pkg}"/>
+		<delete dir="${dist}"/>
+	</target>
+</project>

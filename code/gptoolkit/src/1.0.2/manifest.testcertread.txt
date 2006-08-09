@@ -1,0 +1,2 @@
+Class-Path: cog-jglobus.jar jce-jdk13-129.jar cryptix32.jar cryptix.jar cryptix-asn1.jar puretls.jar
+Main-Class: org.ntnu.utility.TestCertRead
