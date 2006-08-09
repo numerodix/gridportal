@@ -39,25 +39,11 @@ class NorduGridCertificateRequest extends NorduGridCertificateObject {
 	public boolean readFromFile(String filepath) {
 	
 		try {
+
+			String base64string;
+			base64string = getCertFileContent(filepath);
 			
-			// initiate the certificate request
-			BufferedReader br = new BufferedReader(new FileReader(filepath));
-			String begin = br.readLine();
-			if (begin.equals("-----BEGIN CERTIFICATE REQUEST-----") == false)
-				return false;
-				
-				
-			String base64 = new String();
-			boolean tracking = true;
-			while (tracking) {
-			String line = br.readLine();
-				if (line.startsWith("-----"))
-				tracking = false;
-				else
-				base64 += line;
-			}
-			br.close();
-			byte[] certData = Base64.decode(base64);
+			byte[] certData = Base64.decode(base64string);
 			certreq = new PKCS10CertificationRequest(certData);
 			
 			// read info from cert request

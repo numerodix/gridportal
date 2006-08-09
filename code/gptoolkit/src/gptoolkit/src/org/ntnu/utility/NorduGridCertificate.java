@@ -55,8 +55,11 @@ class NorduGridCertificate extends NorduGridCertificateObject {
 
 	public boolean readFromFile(String filepath) {
 		try {
-		
-			InputStream inStream = new FileInputStream(filepath);
+
+			String base64string;
+			base64string = getCertFileContentWithDelimiters(filepath);
+
+			InputStream inStream = new StringBufferInputStream(base64string);
 			CertificateFactory cf = CertificateFactory.getInstance("X.509");
 			cert = (X509Certificate) cf.generateCertificate(inStream);
 			inStream.close();

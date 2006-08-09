@@ -80,6 +80,11 @@ class LibCommon {
 		return new File(path).exists();
 	}
 
+
+	public static boolean fileEmpty(String path) {
+		return (new File(path).length() == 0L);
+	}
+
 	
 /**
  * Some classes depend on the BouncyCastle provider to function. The

@@ -22,7 +22,7 @@ import java.util.Properties;
 class Config {
 
 	public static final String appName = "GridPortalToolkit";
-	public static final String appVersion = "1.0.1";
+	public static final String appVersion = "1.0.2";
 	
 	public static final Color errorColor = Color.PINK;
 	public static final Color warningColor = Color.YELLOW;

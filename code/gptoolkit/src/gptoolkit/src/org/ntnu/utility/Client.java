@@ -30,13 +30,8 @@ public class Client {
 	public static void main(String[] args) {
 		System.out.println(Config.appName + " version " + 
 		Config.appVersion + " starting");
-		
-		// set some global settings
-		LibCommon.initProvider();
-		LibCommon.setCoGProperties();
-		
-		// load toolkit.ini configuration file
-		Config.loadPropertiesFromFile();
+
+		init();
 	
 		GuiToolbox.setUI(GuiToolbox.lnfsys, null);
 		
@@ -46,6 +41,16 @@ public class Client {
 		gui.initGui();
 		
 //		System.out.println(System.getProperty("os.name"));
+	}
+
+
+	public static void init() {
+		// set some global settings
+		LibCommon.initProvider();
+		LibCommon.setCoGProperties();
+		
+		// load toolkit.ini configuration file
+		Config.loadPropertiesFromFile();
 	}
 
 

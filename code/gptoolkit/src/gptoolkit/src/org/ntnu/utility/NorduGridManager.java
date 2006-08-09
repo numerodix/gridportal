@@ -97,8 +97,8 @@ class NorduGridManager {
 			certificate.
 		*/
 		if (!LibCommon.fileExists(Config.userCertReqFile))
-			throw new Exception("Certificate not found, expecting in " +
-				Config.userCertFileName);
+			throw new Exception("Certificate request not found, expecting in " +
+				Config.userCertReqFileName);
 			
 		// Could not load certificate
 		if (!certreq.readFromFile(Config.userCertReqFile))

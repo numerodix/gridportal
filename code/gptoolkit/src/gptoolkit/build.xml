@@ -72,6 +72,10 @@
 		<jar jarfile="${pkg}/main/toolkit.jar" basedir="${build}"
 				 manifest="${srcroot}/manifest.txt"
 		/>
+		<!-- Put everything in ${build} into the toolkit.jar file -->
+		<jar jarfile="${pkg}/main/test_certread.jar" basedir="${build}"
+		     manifest="${srcroot}/manifest.testcertread.txt"
+		/>
 	</target>
 	
 	<!-- not the default dist target because onejar packaging breaks

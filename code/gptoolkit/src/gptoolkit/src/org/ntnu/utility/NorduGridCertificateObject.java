@@ -134,4 +134,47 @@ abstract class NorduGridCertificateObject {
 		return vector;
 	}
 
+
+	public String getCertFileContent(String filepath) throws Exception {
+		// read file contents
+		String lines = "";
+		
+		BufferedReader br = new BufferedReader(new FileReader(filepath));
+		String line = "";
+		
+		while ((line != null) && (!line.startsWith("-----BEGIN"))) {
+			line = br.readLine();
+		}
+		line = br.readLine();	// skip the line -----BEGIN..
+		while ((line != null) && (!line.startsWith("-----END"))) {
+			lines += line + "\n";
+			line = br.readLine();
+		}
+		
+		br.close();
+		
+		return lines;
+	}
+
+
+	public String getCertFileContentWithDelimiters(String filepath) throws Exception {
+		// read file contents
+		String lines = "";
+		
+		BufferedReader br = new BufferedReader(new FileReader(filepath));
+		String line = "";
+		
+		while ((line != null) && (!line.startsWith("-----BEGIN"))) {
+			line = br.readLine();
+		}
+		while ((line != null) && (!line.startsWith("-----END"))) {
+			lines += line + "\n";
+			line = br.readLine();
+		}
+		lines += line + "\n";	// append line -----END...
+		
+		br.close();
+		
+		return lines;
+	}
 }

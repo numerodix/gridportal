@@ -19,7 +19,7 @@ import org.globus.gsi.bc.BouncyCastleOpenSSLKey;
  *
  * @author Martin Matusiak
  */
-class TestCert {
+class TestCertReqGen {
 
 	private static String password = "asdfgh";
 

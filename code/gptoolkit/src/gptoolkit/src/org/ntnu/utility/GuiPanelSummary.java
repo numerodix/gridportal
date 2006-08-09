@@ -176,6 +176,10 @@ class GuiPanelSummary extends JPanel implements ActionListener {
 		
 		// First, attempt to read certificate
 		try {
+			// certificate file empty, skipping to certificate request
+			if (LibCommon.fileEmpty(Config.userCertFile))
+				throw new Exception();
+
 			Config.manager.getCert();
 			reportSuccess(certField, "Found in " + Config.userCertFileName
 				+ ", loaded successfully");
